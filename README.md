@@ -27,7 +27,8 @@ genuinely cannot provide. "It's old" is not a trigger.
 
 - **This repo** — text: notes, transcribed parameters, terminal-strip
   tables, part programs, and later any LinuxCNC config and HAL files.
-- **Proton Drive** — photos, video, scanned schematics, vendor PDFs.
+- **Proton Drive** (folder `busellato-cnc-images`) — photos, video,
+  scanned schematics, vendor PDFs.
 
 Transcriptions belong here rather than in Drive, so that corrections to
 misread values leave a history.

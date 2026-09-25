@@ -37,9 +37,10 @@ sector. The `.img` still holds exactly what is on the diskette.
 | D10 | C:\CNC90 2 (red label) | 2026-09-25 | `bc085d8575d338cf40484c34602fdc6b3af8eb33adceb803d4d5ec9c53292fbd` | 0 | no count / 7 | OK | CNC90 programs (`MANDIAG`, `PLANCIA`, `EDIGRAF`, `GRAFSET`) + `CNC90.BAT` (2001 set) |
 | D11 | C:\PTP1000 (red label) | 2026-09-25 | `0077f7cd0a5d47a3cc67b4601875cf9965931e9bca7a9a9cf40587cf8459f228` | 0 | no count / 40 | OK | `C:\PTP1000\` (2001 set) |
 | D12 | C:\CNC90\MOD1\USER (red label) | 2026-09-25 | `8274f038d94e659ce7f4b8182ee73e4eff603329ae9f66886d2152b72c244bdd` | 0 | no count / 93 | OK | `C:\CNC90\MOD1\USER\`: user data |
+| D13 | C:\CNC90 1 (red label) | 2026-09-25 | `d78b3ffc409e862b67d7c43fcba15db92e0c46c6adb3a265090ad4d0d5b3acc6` | 0 | no count / 38 | OK | CNC90 root files incl. `SALVAINA`/`SALVAINC`, menu drawings (2001 set) |
 | D14 | PARAMETERS CNC, 10-22-01 (blue Sony) | 2026-09-25 | `0bf22a582b2c1c72584bf7bd247f5f8ccec8bb7bca5167331ca774df366f244b` | 0 | no count / 126 | OK | Parameter backup Oct 2001: `PTP0\` (39), `PTPSYS\` (6), `PIPPO\TOPO\USER\` (87) |
 | D15 | C:\PTP1000.BAT (green label) | 2026-09-25 | `75c67b5b6236ba2bfbfb9ac33a1c44056c62c286f015db6a8d1e6d35e4b7a88e` | 0 | 1 / 1 | OK | `PTP1000.BAT`, identical to D09's |
 | D16 | C:\CNC90 3 (red label) | 2026-09-25 | `2798be44a808920c9c96347c7e1cd1d028c82faaa1825d44aba8dcf844e0272f` | 0 | no count / 1 | OK | `EDIGRAF2.EXE` only (2001 set) |
 | D17 | C:\CNC90\LINGUE (red label) | 2026-09-25 | `451c04e7bd40af571f6477ce902231c4f801a1b6432c7cf27048e148b6a8d1e3` | 0 | no count / 75 | OK | `C:\CNC90\LINGUE\` (2001 set) |
 
-Photo of the set: `2026-09-25_diskettes-set-of-7.jpg`.
+Photo of the green set: `2026-09-25_diskettes-set-of-7.jpg`. Photos of all disks and labels: Proton Drive, folder `busellato-cnc-images`.

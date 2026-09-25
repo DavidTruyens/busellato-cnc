@@ -1,0 +1,53 @@
+
+	Sistema PTP1000 - Collegamento di un P.C. per diagnostica della
+	comunicazione tra P.C. e Cestello.
+	===============================================================
+
+	Ponendo un P.C. nel modo sottoindicato e' possibile visualizzare
+	su questo P.C. tutto cio' che passa sulla linea seriale.
+
+	Sul P.C. che spia la linea bisogna lanciare il programma SPY1000.
+	Si esce dal programma SPY1000 premendo il tasto ESC.
+
+	Per mettere in pausa la comunicazione premere il tasto PAUSE del
+	P.C. su cui gira il sistema operativo PTP1000; per riprendere ba_
+	sta premere un tasto qualsiasi.
+
+
+
+	 ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	 ³                                 ³                  ³
+	 ³    ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄ¿    ³
+	 ³    ³                       ³    ³             ³    ³
+	 ³    ³    ÚÄÄÄÄÄÄÄÄÄÄÄÄÄ¿    ³    ³             ³    ³
+	 ³Rx  ³Gnd ³Tx           ³Rx  ³Gnd ³Tx           ³Gnd ³Rx
+	 ³3   ³7   ³2            ³3   ³7   ³2            ³7   ³3
+	ÉÍÍÍÍÍÍÍÍÍÍÍÍ»          ÉÍÍÍÍÍÍÍÍÍÍÍÍ»          ÉÍÍÍÍÍÍÍÍÍÍÍÍ»
+	º            º          º            º          º            º
+	º    P.C.    º          º  cestello  º          º    P.C.    º
+	º  PTP1000   º          º  PTP1000   º          º  SPY1000   º
+	º            º          º            º          º            º
+	ÈÍÍÍÍÍÍÍÍÍÍÍÍ¼          ÈÍÍÍÍÍÍÍÍÍÍÍÍ¼          ÈÍÍÍÍÍÍÍÍÍÍÍÍ¼
+
+
+
+	Nota : i pin della linea seriale sopraindicati hanno il seguente
+	       significato :
+
+		    2 --> TX    (transmitter)
+		    3 <-- RX    (receiver)
+		    7 --- GND   (ground)
+
+	       Qualora il P.C. dovesse avere l'uscita seriale su connet_
+	       tore a 9 pin, il pin corrispondente al Gnd e' il 5.
+
+
+
+
+
+
+
+
+
+
+	T.P.A. - Tecnologie Prodotti per l'Automazione  -  Milano
