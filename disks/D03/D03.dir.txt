@@ -1,0 +1,24 @@
+ Volume in drive : has no label
+Directory for ::/
+
+PLANCIA  EXE    235192 1992-05-19   3:00 
+PRINTDIR EXE     80968 1992-05-19   3:00 
+SPY      EXE     29643 1992-04-14  12:35 
+VENTOSE  EXE    103432 1992-05-19   3:00 
+WORK     EXE     51133 1992-05-19   3:00 
+WORK     FON     50880 1992-05-19   3:00 
+SPY      HLP      1799 1989-09-08  11:26 
+SYSTEM~1     <DIR>     2021-01-02   0:09  System Volume Information
+        8 files             553 047 bytes
+
+Directory for ::/System Volume Information
+
+.            <DIR>     2021-01-02   0:09 
+..           <DIR>     2021-01-02   0:09 
+INDEXE~1            76 2021-01-02   0:09  IndexerVolumeGuid
+        3 files                  76 bytes
+
+Total files listed:
+       11 files             553 123 bytes
+                            901 632 bytes free
+

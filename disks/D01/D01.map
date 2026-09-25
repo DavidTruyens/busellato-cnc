@@ -1,0 +1,9 @@
+# Mapfile. Created by GNU ddrescue version 1.30
+# Command line: ddrescue -n -b 512 /dev/rdisk4 /private/tmp/claude-501/-Users-davidtruyens-Source-busellato-cnc/b1c649a1-1c1f-4748-800f-c2a7fbde733f/scratchpad/probe.img /private/tmp/claude-501/-Users-davidtruyens-Source-busellato-cnc/b1c649a1-1c1f-4748-800f-c2a7fbde733f/scratchpad/probe.map
+# Start time:   2026-09-25 10:06:51
+# Current time: 2026-09-25 10:07:43
+# Finished
+# current_pos  current_status  current_pass
+0x00160000     +               1
+#      pos        size  status
+0x00000000  0x00168000  +

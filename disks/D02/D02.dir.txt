@@ -1,0 +1,28 @@
+ Volume in drive : has no label
+Directory for ::/
+
+EDIGRAF2 EXE    562416 1992-05-19   3:02 
+EDILIST  EXE    132148 1992-05-19   3:01 
+EDIPAR   EXE     92492 1992-05-19   3:00 
+EDIPART  EXE     90277 1992-05-19   3:00 
+ESTERNO  EXE     50022 1992-05-19   3:00 
+GO_CNC90 EXE     26690 1992-05-19   3:00 
+GRAFSET  EXE     75158 1992-05-19   3:00 
+LEGGI    EXE     39972 1992-05-19   3:00 
+MANDIAG  EXE    129262 1992-05-19   3:00 
+MESSAGES EXE     16240 1992-01-14  15:31 
+PACKTIF  EXE     65772 1992-05-19   3:00 
+SYSTEM~1     <DIR>     2021-01-02   0:01  System Volume Information
+       12 files           1 280 449 bytes
+
+Directory for ::/System Volume Information
+
+.            <DIR>     2021-01-02   0:01 
+..           <DIR>     2021-01-02   0:01 
+INDEXE~1            76 2021-01-02   0:02  IndexerVolumeGuid
+        3 files                  76 bytes
+
+Total files listed:
+       15 files           1 280 525 bytes
+                            173 056 bytes free
+

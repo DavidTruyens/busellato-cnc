@@ -1,0 +1,45 @@
+ Volume in drive : has no label
+Directory for ::/
+
+FONT1             2560 1988-05-11  15:00 
+FONT3             3584 1980-01-01   7:12 
+CNC90    BAT       450 1992-09-09  12:14 
+DIGI     BAT        12 1992-05-19   3:00 
+IMP      BAT       742 1992-05-19   3:00 
+SALVAINA BAT      1440 1992-05-19   3:00 
+SALVAINC BAT      1395 1992-05-19   3:00 
+NAVETTA  CMD       372 1994-10-05  14:09 
+DRAWCNF  CNF        12 1994-10-05  14:09 
+DEBMSG   COM      7057 1992-01-14  15:36 
+ESTERNO2 COM      9899 1992-05-19   3:00 
+BIGMENU  DRW       410 1990-05-08   9:35 
+CLOCK    DRW       410 1990-12-15  23:58 
+DISCORW  DRW       410 1991-07-09  18:02 
+ESCLAMAT DRW       410 1990-12-15  23:59 
+FRECCIAG DRW       123 1990-05-13  16:11 
+FRECCIAL DRW       123 1991-07-12  11:01 
+FRECCIAR DRW       123 1991-07-12  11:01 
+FRECCIAS DRW       123 1990-04-01  23:21 
+MENU     DRW       123 1990-05-14   9:51 
+TIME     DRW       410 1990-12-14  13:58 
+TPA      DRW       410 1990-05-18  17:33 
+CNC90CAD EXE     20435 1992-05-19   3:00 
+COMPILA  EXE    231034 1992-05-19   3:02 
+COMUNICA EXE     20164 1990-10-23  17:01 
+COPIA    EXE    137124 1992-05-19   3:00 
+DISCO12  EXE     28704 1992-05-19   3:00 
+EDIGRAF  EXE    562416 1992-05-19   3:02 
+SYSTEM~1     <DIR>     2021-01-01  23:59  System Volume Information
+       29 files           1 030 475 bytes
+
+Directory for ::/System Volume Information
+
+.            <DIR>     2021-01-01  23:59 
+..           <DIR>     2021-01-01  23:59 
+INDEXE~1            76 2021-01-01  23:59  IndexerVolumeGuid
+        3 files                  76 bytes
+
+Total files listed:
+       32 files           1 030 551 bytes
+                            419 840 bytes free
+

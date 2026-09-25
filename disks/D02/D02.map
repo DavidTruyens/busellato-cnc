@@ -1,0 +1,9 @@
+# Mapfile. Created by GNU ddrescue version 1.30
+# Command line: ddrescue -n -b 512 /dev/rdisk4 disks/D02/D02.img disks/D02/D02.map
+# Start time:   2026-09-25 10:19:01
+# Current time: 2026-09-25 10:19:52
+# Finished
+# current_pos  current_status  current_pass
+0x00160000     +               1
+#      pos        size  status
+0x00000000  0x00168000  +
