@@ -1,0 +1,624 @@
+//  **************** FILE : CNC90.DAN (lingua : danese) ******************
+ 3"J@/@N"
+25"BEKRAEFTER DU@ (%s) ?@"
+25"@%s @i gang..."
+10"HJAELP"
+10"FEJL"
+15"@<Alt+H=@HJAELP@>@"
+50"Fil@ %s @ikke fundet"
+50"Fil@ %s @findes allerede"
+50"fejl adgangsmade til fil@ %s@"
+50"disk@ %c: @fuld"
+50"fejl i periferisk"
+50"fejl i skriver"
+50"skrivebeskyttet disk"
+50"disk i drev@ %c:@ ikke klar"
+50"fejl i disk"
+50"indre fejl"
+50"utilstraekkelig lagerplads"
+50"acces denied"
+50"Non Gestito"                                     //msg 18
+50"Vuoi riprovare@ (%s) ?@"                         //msg 19
+50"Sei sicuro di abbandonare@ (%s) ?@"              //msg 20
+50"Kunne ikke aabne filen@ %s@"                     //msg 21
+50"Program@ %s @ikke i directoryet"                 //msg 22
+50"Program@ %s @er i directoryet"                   //msg 23
+50"Fejl : file di lingua non corretto"              //msg 24
+70"Fejl : impossibile settare modo video VGA"       //msg 25
+70"Fejl : impossibile settare i font TPA"           //msg 26
+70"Fejl : environ@ %s @ikke brugbar"                //msg 27
+70"Fejl : environ@ %s @ikke fundet"                 //msg 28
+70"Fejl : file@ %s @ikke brugbar"                   //msg 29
+70"Fejl : file@ %s @ikke fundet"                    //msg 30
+03"D@/@S"                                           //msg 31 caratteri destro/sinistro nazionale
+08"Nome"                                            //msg 32
+03"Num"                                             //msg 33
+03"Typ"                                             //msg 34
+03"Inp"                                             //msg 35
+03"Out"                                             //msg 36
+20"Program"                                         //msg 37
+20"Liste"                                           //msg 38
+20"Bar-Code"                                        //msg 39
+40"Taster, der kan bruges : @<PGUP> <PGDW> <ESC>@"  //msg 40
+40"Program Directory"                               //msg 41
+40"Visualizzazione Errori"                          //msg 42
+08"Escl"                                            //msg 43
+40"error : Directory full"                          //msg 44
+00"@!065@"                                 <---- *****
+01""                                      //msg 65 libero !!??
+80"@CNC90 %s - T.P.A. SpA   Sesto S. G."  //msg 66 INTESTAZIONE ESEGUIBILI
+14"@00000000000000@"                      //msg 67 Maschera psw su menu di plancia
+01""                                      //msg 68 libero !!??
+01""                                      //msg 69 libero !!??
+//
+00"@!070@"                 <---- ***** OFFSETS SUGLI ESEGUIBILI
+04"@100@"                  //offset PLANCIA.EXE
+04"@500@"                  //offset EDIPART.EXE   (msg generali)
+04"@600@"                  //offset EDIGRAF.EXE
+04"@1000@"                 //offset COMPILA.EXE
+04"@1000@"                 //offset EDIPART.EXE
+04"@1000@"                 //offset EDIPAR.EXE
+04"@1000@"                 //offset EDILIST.EXE
+04"@1000@"                 //offset COPIA.EXE
+04"@1000@"                 //offset ESTERNO.EXE
+04"@1000@"                 //offset VENTOSE.EXE
+04"@1000@"                 //offset IMPORT.EXE
+04"@1000@"                 //offset MSGEDIATT
+04"@1030@"                 //offset MSGEDITEC0
+04"@1200@"                 //offset MSGEDITEC1öMSGEDITEC10
+04"@1230@"                 //offset MSGEDITEC11
+04"@1270@"                 //offset MSGEDITEC12
+04"@1300@"                 //offset MSGEDITEC13
+04"@1000@"                 //offset MSGPRINTDIR
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+//
+ 0"@!100@"
+80"KOMMANDOBRO"
+ 6"auto"
+ 6"start"
+ 6"stop"
+ 6"set-p"
+ 6"manuel"
+ 6"end"
+ 6"r_list"
+ 6"s_list"
+ 6"diagn."
+ 5"menu"
+33"Programeditor"
+33"Programkompilerer"
+33"Teknologiske parametre"
+33"Vaerktojsparametre"
+33"Udstyr"
+33"Listeeditor"
+33"Arkivdrift"
+33"Systemhjaelpemiddel"
+33"CAD-kaldelse"
+33"Netvaerkskobling"
+33"Kaldelse af eksternprogram"
+33"Stationskifte for akselkvoter"
+33"Shell til DOS"
+33"Udgang for CNC90 system"
+33"Almindelige parametre "
+33"Parametergruppe @1@"
+33"Parametergruppe @2@"
+33"Parametergruppe @3@"
+33"Parametergruppe @4@"
+33"Parametergruppe @5@"
+33"Parametergruppe @6@"
+33"Parametergruppe @7@"
+33"Parametergruppe @8@"
+33"Parametergruppe @9@"
+33"Parametergruppe @10@"
+33"Lineaere kalibreringsenheder"
+33"Indstillinger"
+33"Selvvalgte parametre"
+33"Udstyr @%d@"
+33"-"
+33"-"
+33"-"
+33"-"
+33"-"
+33"-"
+33"-"
+33"-"
+33"-"
+80"-"
+63"-"
+40"Program  @%s.%d@ for stort  "
+40"Program @%s.%d@ ikke kompileret"
+60"Funktion @%d@ pa station @%d@ er duplikeret"
+60"Over for funktion @%03d@ til station @%2d@"
+60"Over for parametre til station @%2d@"
+60"0ver for program @%s@ til station @%d@"
+60"Modul : @%d@"
+60"Funktion @%s.%d@'s fil ikke kompileret"
+60"Over for kalibreringsenheder til station @%d@"
+60"Antal kvoter > ledigt lager"
+60"Udenfor kvoteomrade @%d@ tab. @%d@ aksel @%c@"
+60"Station @%d@ paa modul @%d@ er ikke konfigureret"
+60"Opgave"
+60"Antal stationer stemmer ikke med konfigurerede stationer"
+60"Station : @%d@"
+64"@|50|@Tryk paa funktionsknappen for den onskede behandling :"
+64"@F1@             Hent automatisk behandling"
+64"@F4@             Hent Set Points behandling"
+64"@F5@             Hent manuel behandling"
+64"@F7@             Hent liste fra bibliotek"
+64"@F8@             Gem listen som blev hentet fra biblioteket"
+64"@F9@             Hent diagnosebehandling"
+64"@F10@            Aktiv‚r menudrift"
+64"@F11@            Programeditor (DV2)"
+64""
+64"   AUTOMATISK"
+64"@ESC@            Cancella i caratteri di una casella"
+64"@TAB@            Flytter markoren til hojre med ‚n kvadrat"
+64"@SHIFT+TAB@      Flytter markoren til venstre med ‚n kvadrat"
+64"@RETURN@         Gar videre til naeste felt, som skal redigeres"
+64"@CTRL+Y@         Sletter linie"
+64"@CTRL+U@         Genkalder sidst slettede linie"
+64"@CTRL+RETURN@    Indsaetter en linie"
+64"@CTRL+HOME@      Hurtig placering i toppen af listen"
+64"@CTRL+END@       Posizionamento rapido in coda alla lista"
+64"@CTRL+D@         Tommer aktuel liste"
+64"@CTRL+N@         Angivelse af antal gentagelser"
+64"@CTRL+S@         Ricerca di una parola nella lista"
+64"@PGUP@           Gaa tilbage til foregaende side"
+64"@PGDW@           Gaa videre til naeste side"
+64"@\x18@              Gaa tilbage til foregaaende linie"
+64"@\x19@              Gaa videre til naeste linie"
+64"@F2@             Saetter udforelse af liste i gang"
+64"@F3@             Standser listen "
+64"@F6@             Afslutter udforelse af liste og afbryder"
+64"@F7@             Genkalder liste fra bibliotek"
+64"@F8@             Gemmer den genkaldte liste i biblioteket"
+64"@F10@            Direkte paneladgang fra bibliotek"
+64""
+64"   SET POINT OG DIAGNOSE"
+64"@F2@             Saetter procedure i gang"
+64"@F3@             Standser programmet"
+64"@F6@             Afslutter procedure"
+64""
+64"   MENU OG HJAELP"
+64"@ESC@            Afslut MENU og HJAELP"
+64"@PGUP@           Gaa tilbage til foregaaende side"
+64"@PGDW@           Gaa videre til naeste side"
+64"@\x18@              Gaa tilbage til foregaaende linie"
+64"@\x19@              Gaa videre til naeste linie"
+64"@ENTER@          Vaelg den fremhaevede tekst"
+64""
+64"@ALT+M@          Gaa ind i monitor"
+64"@ALT+R@          Genkaldelse af parameter, program, funktion."
+64"@CTRL+R@         Ripulisce zona messaggi"
+08"-"                      <------------------------------------ IndiceMsgVari
+80"Skriv @EXIT@ + @<ENTER>@ for at gaa tilbage til CNC90."
+40"Tryk paa @%s@ for at forstsaette"
+50" Initialisering mislykket."
+30" Vil du prove ‚n gang til @%s@ ?"
+65"Udstyr ikke i korrekt raekkefolge paa panelet @%s@"
+65"Kunne ikke starte AUTOMATISK, SET POINT IKKE UDFORT !"
+65"Kunne ikke aabne filen @%s@"
+65"Panelet @%s@ findes IKKE i biblioteket"
+65"Skriv nummeret for det UDSTYR, der findes paa maskinen"
+65"Forkert numerisk felt paa panelet @%s@"
+65"Funktion eksisterer ikke : Panel %s, Funkt. %d, Stat. %d"
+65"Programmet er for stort til at lagres"
+65"Behandlingstype, der ikke er tilladt paa panelet @%s@"
+65"Fejl paa panelets kompilerede fil @%s@"
+ 5"dir"
+ 6"f_rate"
+65"Kriv navnet paa modtagerlisten"
+65"Listen @%s@ findes allerede, lagring ikke fuldfort !"
+65"Kunne ikke lagre listen @%s@, lagring mislykket !"
+14"*111Menu"
+65"Skriv kodeord for at gaa videre"
+65"Er du sikker paa, at du vil forlade systemet @(%s)@ ?"
+65"Antal fejlagtige parametre i funktion nr. @%s@"
+65"Forkert kodeord, kan ikke fortsaette."
+50"Forkert eller manglende sugeskivekonfigurering"
+65"Lista non presente, impossibile avviare AUTOMATICO!"                    26
+65"Configurazione ventose CAD del file @%s@ ikke fundet"                   27
+65"Attivate troppe traverse per semiarea nel programma @%s@"               28
+65"Le traverse del programma @%s@ non rispettano i limiti"                 29
+65"Numero codifiche riservate al CAD errato o insufficiente"               30
+65"Programet maa genkompileres, udforelse afsluttet @%s@ "                 31
+65"Inserire codice di lavorazione da BARCODE"                              32
+65"Program ikke fundet paa lister @%s@"                                    33
+65"Program @%s@ non eseguibile sull' area specificata"                     34
+65"Inserire il campo da ricercare"                                         35
+65"Fejl nel file di lista @%s@"                                            36
+60"HELP Fejl di Sistema N.@%d@"                                            37
+60"@<%d/%m/%y> <%H:%M:%S>@"                                                38
+60"@%s <%-*s> <%-*s %-*s>\x0A@"                                            39
+60"@<%d/%m/%y> <%H:%M:%S>@"                                                40
+60"@%s\x0A<%s>\x0A@"                                                       41
+60"@%s <%s>\x0A@"                                                          42
+06"@DIAGN1@"                                                               43
+06"@DIAGN2@"                                                               44
+06"@DIAGN3@"                                                               45
+06"@DIAGN4@"                                                               46
+06"@DIAGN5@"                                                               47
+06"@DIAGN6@"                                                               48
+06"@DIAGN7@"                                                               49
+06"@DIAGN8@"                                                               50
+06"@DIAGN@"                                                                51
+06"exit"                                                                   52
+65"Program outfit @%d@, Machine outfit @%d@."               53
+//
+ 0"@!500@"
+75"PARAMETRIK"
+64"@|16|@ESC          Afslutter uden at gemme de sidste aendringer"
+64"@END@          Afslutter og gemmer de4 sidste aendringer "
+64"@PGUP@         Gaa tilbage til foregaende side "
+64"@PGDW@         Gaa videre til naeste side"
+64"@\x18@            Gaa tilbage til foregaende linie "
+64"@\x19@            Gaa videre til naeste linie"
+64"@ENTER@        Gaa videre til naeste linie"
+64"@F1@           Gentager sidste tilfojelse "
+64"@F2@           Tilfojer 32 til aktuelle data"
+64"@F3@           Fratraekker 32 fra aktuelle data"
+64"FARVE:         0=Sort,     1=Blaa,  2=Gron"
+64"               3=Lyseblaa  4=Rod    5=Magentarod"
+64"               6=Gul,      7=Hvid,  8=Graa"
+64"               9=Blaa Light, 10=Gron Light, 11=Lyseblaa Light"
+64"               12=Rod Light,  13=Magentarod Light"
+64"               14=Gul Light, 15=Hvid Light"
+65"Data paa @%s@ fil er forkerte, eller fil er ikke fundet "
+65"Data paa @%s@ fil er forkerte, eller fil er ikke fundet"
+65"Indlaesningsfejl eller PAR fil ikke fundet"
+65"Skrivefejl eller fejl ved aabning af PAR fil"
+65"Maaleenhed findes ikke"
+65"Fejl i hjaelpemeddelelser"
+65"Fejl i parametermeddelelser"
+15"Side @%d@/@%d@"
+25"-"
+50"Er du sikker paa, at du vil afslutte ?"
+ //
+ 0"@!600@"
+30"EDITOR"
+20"NAVN"
+20"Kommentar"
+20"Enhed @ (M/I)@"
+20"Laengde @ L@"
+20"Hojde   @ H@"
+20"Tykkelse@ S@"
+20"Udstyr@ (0-49)@"
+20"Sugeskivekodning"
+08"Dato"
+04"Face"
+06"Faccia"
+20""
+10"Prg. nr. "
+10"Side"
+60"@|16|TAB@       Change selection between NAME and page"  //+15 max 25  //HELP SU DIRETTORIO
+60"@PG UP@     Gaa tilbage til foregaende side"            //+16
+60"@PG DN@     Gaa tilbage til naeste side"            //+17
+60"@HOME@      Go to first page"                          //+18
+60"@END@       Go to last page"                           //+19
+60"@0ö9;AöZ@   Find programs on selected start name"      //+20
+60"@\x18@         Gaa tilbage til foregaende linie"//+21
+60"@\x19@         Gaa tilbage til naeste linie"//+22
+60"@\x1A \x1B@       Orizzontal shift of page"            //+23
+60"@ALT+E@     Pathname"
+60"@ENTER@     Confirm"                                   //+24
+60"@ESC@       Quit"                                      //+25
+60""                                                      //+26
+60"     On multiple selections :"                         //+27
+60"@SPACE@     Selection on line without ''"             //+28
+60"@SPACE@     Deselection on line with ''"              //+29
+// selezioni su zone di destra (previste 8)
+ 8"FILER"
+ 8"INDSET U"
+ 8"INDSET D"
+ 8"AENDRE"
+ 8"SLETTE"
+ 8"LINIE"
+ 8"DIM"
+ 8"R.FRESE"
+08"FACE"                            //+39  (2ø pagina)
+08"SUCKERS"                         //+40
+08"ESCL"                             //+41
+08"@?@"                             //+42
+08"@?@"               merge         //+43
+08"@?@"               zoom          //+44
+08"@?@"               zoom off      //+45
+08"@?@"                             //+46
+// menu` su selezione FILES (previste 10)
+20"@0 @AABNE@/@NY"
+20"@1 @GEMME"
+20"@2 @GEMME NAVN"
+20"@3 @SLETTE"
+20"@4 @KOPIERE"
+20"@5 @OMNAVNGIVE"
+20"@6 @UDSKRIVE"
+20"@7 @BIBLIOTEK"
+20"@8 @EXECUTION"
+20"@9 @KOMPILERE"
+20"@A @TILBAGE"
+20"@B @MODULE CHANGE"              //+57
+20"@A @MENU 3"                     //+58
+20""
+20""
+//MENU` 3
+33"Programeditor"
+33"Module Change"                  //+63
+33"Programkompilerer"
+33"Teknologiske parametre"
+33"Vaerktojsparametre"
+33"Udstyr"
+33"Listeeditor"
+33"Arkivdrift"
+33"CAD-kaldelse"
+33"Kaldelse af eksternprogram"
+33""                               //+72
+// menu` su selezione lavorazioni
+10"SIDE"
+20"HURTIG@ x,y,z H@"
+20"HURTIG@ x,y,z,w,v H@"
+20"HULLER"
+20"KLINGE x"
+20"KLINGE y"
+20"FRAESNINGER"
+20"SPECIELLE"
+20"INDFORINGER"
+20"UNDERPROGRAM"
+20"SPECIELLE HULLER"
+20"@?@"
+20"@?@"
+20"@?@"
+20"@?@"
+20"@?@"
+//              menu` di fori
+20"HUL@ (x,y,z)@"
+20"HUL@ (x,y; u,a)@"
+20"FITTING x"
+20"FITTING y"
+20"GENTAGER x"
+20"GENTAGER y"
+20"GENTAGER xy"
+20"GENTAGER xy (u,a)"
+20"C-HUL"
+20"@?@"
+20"@?@"
+20"@?@"
+//              menu` di fresata
+20"INDSTIL@ (x,y,z)@"
+20"INDSTIL@ (x,y; u,a)@"
+20"@L1 (x,y,z)@"
+20"@L2 (x,y; u,a)@"
+20"@L3 (u,a)@"
+20"@L4 (tg; u)@"
+20"@C1 (x1,x2; c; rot)@"
+20"@C2 (x,y; u; rot)@"
+20"@C3 (c; a; rot)@"
+20"@C4 (tg; x,y; rot)@"
+20"SKRUEFORMET C1"
+20"SKRUEFORMET C2"
+20"SKRUEFORMET C3"
+20"AEGFORMET"
+20"AFRUNDET"
+20"STI"
+20"@C5 (xi,yi; x,y)@"
+20"@?@"
+//              menu` di speciali
+20"FORSINKELSE"
+20"MEDDELELSE"
+20"MAAL @L@"
+20"MAAL @H@"
+20"MAAL @S@"
+20"OFFSET"
+20"KLINGE Aø"
+20"@?@"
+20"@?@"
+20"@?@"
+20"@?@"
+20"@?@"
+//              menu` di inserimento
+20"SOKKEL"
+20"BOSNING"
+20"HAENGSEL"
+20"HYLDEHOLDER"
+20"ALMINDELIG @1@"
+20"ALMINDELIG @2@"
+20"KILDANNELSE"
+20"@?@"
+20"@?@"
+20"@?@"
+//              menu` di fori speciali
+20"HUL MED AFLADNING"
+20"GEVINDSKAERING"
+20"@?@"
+20"@?@"
+20"@?@"
+//
+20"@?@"     disponibile per nuovo  //+146
+20"@?@"           sottomenu        //+147
+20"@?@"                            //+148
+20"@?@"                            //+149
+20"@?@"                            //+150
+20"@?@"                            //+151
+// MESSAGGI GENERALI
+25"@F11=DV1@"                      //+152
+20"Start"      //msg su modulo   //+153
+20"New"        //msg su modulo   //+154
+30"Print on SUB@ (%s) ?@"
+25"Modtager"
+25"NYT NAVN"
+20"@Rf@ not found"               //+158
+30"Testo ikke brugbar"               //+159
+30"Field@ %s @wrong"              //+160
+30""                               //+161
+30""                               //+162
+30""                               //+163
+30""                               //+164
+30""                               //+165
+30""                               //+166
+30""                               //+167
+30""                               //+168
+30""                               //+169
+30""                               //+170
+30""                               //+171
+//HELP SU OPEN/NEW
+20"@ESC@   Quit"                                   //+172
+20"@ENTER@ Confirm"                                //+173
+20"@\x18 \x19@   Selection"                        //+174
+20"@PG UP@ Page up"                                //+175
+20"@PG DN@ Page down"                              //+176
+20""                                                //+177
+//HELP SU MENU` <-
+50"@|17|HOME@      Selection on first zone" max 25         //+178
+50"@END@       Selection on last zone"                     //+179
+50"@\x18 \x19@       Deplace vertical selection"           //+180
+50"@\x1A \x1B@       Deplace horizzontal selection"        //+181
+50"@PG UP/DN@  Gaa tilbage til foregaende/naeste side"              //+182
+50"@ENTER@     Confirm selection"                          //+183
+50"@TAB@       Go to right menu"                           //+184
+50"     Available functions :"                             //+185
+50"FILES     Selection on Main Menu"                       //+186
+50"INSERT U  Insert line up "                              //+187
+50"INSERT D  Insert line down"                             //+188
+50"MODIFY    Modification on line"                         //+189
+50"DELETE    Delete one or more lines"                     //+190
+50"LINE      Go to a numbered line"                        //+191
+50"DIM       Assign on dimensions"                         //+192
+50"MIll. R   Graph on correted contour"                  //+193
+50"SIDE      Change program side"                          //+194
+50""                                                       //+195
+50""                                                       //+196
+50""                                                       //+197
+50""                                                       //+198
+50""                                                       //+199
+50""                                                       //+200
+50""                                                       //+201
+50""                                                       //+202
+//HELP SU MENU` ->
+50"@|21|@     Function keys on editor program:"  max 30  //+203
+50""                                                     //+204
+50"@HOME@      Selection on first line"                  //+205
+50"@END@       Selection on last line"                   //+206
+50"@\x18@         Gaa tilbage til foregande side"        //+207
+50"@\x19@         Gaa tilbage til naeste linie"          //+208
+50"@\x1A \x1B@       Gaa tilbage til 2ø side"            //+209
+50"@PG UP@     Gaa tilbage til foregaende side"          //+210
+50"@PG DN@     Gaa tilbage til naeste side"              //+211
+50"@Alt+G@     Graphical window"                         //+212
+50"@Alt+S@     Window on subprogram"                     //+213
+50"@Alt+L@     ISO- window"                              //+214
+50"@Alt+D@     Window on numerical parameters"           //+215
+50"@Alt+T@     Graphical window on group"                //+216
+50"@Ctrl \x1A@    Shift on XYZ field"                    //+217
+50"@Ctrl \x1B@    Shift on XYZ field"                    //+218
+50"@ENTER@     Flash on line"                            //+219
+50"@Ctrl+Y@    Sletter linie"                            //+220
+50""                                                     //+221
+50"@TAB@       Go to left menu"                          //+222
+50"@0 \xF6 F@     Direct selection on left menu"         //+223
+50""                                                     //+224
+//HELP SU INSERT/MODIFICA
+50"@|24|TAB@        Gaa tilbage til naeste felt"  max 25   //+225
+50"@SHIFT-TAB@  Gaa tilbage til foregaende felt"           //+226
+50"@\x19@          Gaa tilbage til naeste linie"           //+227
+50"@\x18@          Gaa tilbage til foregande side"         //+228
+50"@HOME@       Go to first field"                         //+229
+50"@END@        Go to last field"                          //+230
+50"@SPACE@      Edit guided @(\x01)@"                      //+231
+50"@ENTER@      Confirm"                                   //+232
+50"@ESC@        Reset on operation"                        //+233
+50"@Alt+G@      Open/Close on Graphical window"            //+234
+50"@Alt+T@      Parameters on@ T @field"                   //+235
+50"@Alt+D@      Window on numerical parameters"            //+236
+50""                                                       //+237
+50"     On SUBPROGRAM : "                                  //+238
+50"@Alt+P@     Subprogram selection on directory"          //+239
+50"@Alt+S@     Window on subprogram"                       //+240
+50""                                                       //+241
+50"     In fase di MODIFICA : "                            //+242
+50"@PG UP@      Gaa tilbage til foregaende linie"          //+243
+50"@PG DN@      Gaa tilbage til naeste linie"              //+244
+50""                                                       //+245
+50"     In fase di diagnostiche su OPEN : "                //+246
+50"@Ctrl+Y@     Sletter linie"                             //+247
+50"@ESC@        Sletter program"                           //+248
+50""                                                       //+249
+//  ERRORI editor
+30"Tekst SRG fuld"
+30"Tekst TAB fuld"
+30"Felt@ %s @forkert syntaks"
+30"Felt@ %s @ugyldig vaerdi"
+30"Gruppe ikke tilkoblet"
+30"Vaerktojer : forkert syntaks"
+30"Vaerktoj ikke gyldigt"
+30"Felt@ %s @ikke indstillet"
+30"Trin=0 eller Nt=1"
+30"Antal slag =0"
+30"Ugyldig kode"
+30"Tilfojelse :@ %s @"
+30"Face desabled"
+30""
+30"Modulo@ %s @ikke brugbar"                //+264 (15)
+30"Freseradius:@ %s @"
+30""                                      //+266 (17)
+30""                                      //+267 (18)
+30""                                      //+268 (19)
+30""                                      //+269 (20)
+30""                                      //+270 (21)
+30""                                      //+271 (22)
+30""                                      //+272 (23)
+30""                                      //+273 (24)
+30""                                      //+274 (25)
+30""                                      //+275 (26)
+30""                                      //+276 (27)
+30""                                      //+277 (28)
+30""                                      //+278 (29)
+30""                                      //+279 (30)
+30""                                      //+280 (31)
+// Messaggi su Alt+t (help su gruppo o utensili
+16"KALIBR.@X.@:"
+16"KALIBR.@Y.@:"
+16"KALIBR.@Z.@:"
+16"MAX. MAAL @X+@:"
+16"MAX. MAAL @X-@:"
+16"MAX. MAAL @Y+@:"
+16"MAX. MAAL @Y-@:"
+16"MAX. MAAL @Z+@:"
+16"VAERKTOJSDIAM.:"
+16"VAERKTOJSNR.:"
+16"SPINDELAVST.C/C:"
+16"HOVEDTYPE :"
+16"MIN. HASTIGHED :"
+16"MAX. HASTIGHED :"
+16"VINKELHOVED :"
+16"PARAMETER @17@:"
+16"Kalibr.@X.@ (gr)"
+16"Kalibr.@Y.@ (gr)"
+16"Kalibr.@Z.@ (gr)"
+//              liberi
+20"-"
+20"-"
+20"-"
+20"-"
+20"-"
+20"-"
+20"-"
+20"-"
+//              Messaggi di Fejl su ritorno da prg figlio
+60"Fejl 1 : DIGI.CNF ikke fundet"
+60"Fejl 2 : program ikke fundet"
+60"Fejl 3 : fejl i BASE.DGT eller file ikke fundet"
+60"Fejl 4 : fejl i VINCOLI.VNT eller file ikke fundet"
+60"Fejl 5 : program DGT for stort"
+60"Fejl 6 : program CAD ikke brugbar"
+60"Fejl 7 : fejl i PARTECx.PAT eller file ikke fundet"
+60"Fejl 8 : too cross bars on machine plane"
+60"Fejl 9 : "
+60"Fejl 10 : program VENTOSE ikke brugbar"

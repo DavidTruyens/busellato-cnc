@@ -1,0 +1,13 @@
+LSTCMP                            10/02/01 0000                    R
+SETP    0SETPOINT 4/3/2 ASSI      07/07/92*0079                    S
+PLC     0FUNZ. PLC  CNC90 3.0     09/09/92*0DAC                    F
+EUFRESA 0FUNZ. E/U FRESA CNC90 3.007/10/92*0699                    F
+FORI    0FUNZ. FORATURA CNC90 3.0 07/27/92*0E39                    F
+FRESA   0FUNZ. FRESATE LINE/ELIC  07/07/92*048E                    F
+LAMA    0FUNZ. LAMATA CNC90 3.0   07/16/92*029F                    F
+CARSCAR 0FUNZ. CAR/SCA 2/4 PANN. X10/02/01*07E7                    F
+SERVIZI 0FUNZ. SERVIZIO  CNC90 3.007/07/92*04AD                    F
+UTENTE  0FUNZ. UTENTE CNC90 3.0   07/16/92*05BC                    F
+DEF     0DEF.FUNZ.STAND BUS. 3.0  09/09/92*0000                    D
+RAPIDO  0FUNZ. RAPIDO  CNC90 3.0  07/07/92*005D                    F
+TEST01  0                         09/09/92 0000                    O

@@ -1,0 +1,24 @@
+//  **************** FILE : ESTERNO.ITA (lingua : italiano) *************
+00"@!1000@"
+60"PROGRAMA EXTERNO"                                              ***  0 ***
+60"@release=5ESTERNO.EXE:@ RELEASE DEL FILE DE LENGUA ERRONEA!!"   ***	1 ***
+60"@Sfondo8,Modo grafico18,xPixels640,yPixels480,Righe25,col80@"   ***	2 ***
+60"@ESTERNO.EXE: @DEFINICION DE OPCIONES INCORRECTA. MESS.2 !!"    ***  3 ***
+60"@ESTERNO.EXE: @ISTRUCCION INCORRECTA EN FILE LENGUA. IST.@%s@"  ***  4 ***
+60"@ESTERNO.EXE: @NINGUN PROGRAMA EXTERNO PRESENTE !!"            ***  5 ***
+60"@ESTERNO.EXE: @DEMASIADO PROGRAMAS EXTERNOS PRESENTES!"            ***  6 ***
+60"@ESTERNO.EXE: @ASIGNATION MODO GRAFICO FRACASADA  !!"           ***  7 ***
+60"@ESTERNO.EXE: @FILE DE FONT NO VALIDO !!"                     ***  8 ***
+60"@ESTERNO.EXE: %s@ NO ES ACCESIBLE !!"                        ***  9 ***
+60"@ESTERNO.EXE: @IMPOSIBLE VOLVER AL PROGRAMA LLAMANTE  !!"   *** 10 ***
+32"Programa Externo"                                              *** 11 ***
+60"Presiona una tecla para volver al programa externo..."          *** 12 ***
+60"@<ESC> @sale@ - <ENTER> @escoge "                               *** 13 ***
+60"@<ESC> @sale@ - <ENTER> @escoge @ - <\x18 \x19> @deplazan"	   *** 14 ***
+60"@%#&VENTOSE.EXE%#&@Activacion Cruceros y Ventosas"
+60"@%#$IMP.BAT%#$@Importacion  programas"
+60"@%#$FORMAT A: /V%#$@Format Diskette  1.44 Mbyte"
+60"@%#$FORMAT A: /N:9 /T:80 /V%#$@Format Diskette  720 Kbyte"
+60"@%#$SALVAINA.BAT%#$@Actualiza disco CUSTOM en A"
+60"@%#$SALVAINC.BAT%#$@Copia disco CUSTOM en C"
+60"@%#$PRINTDIR.EXE%#$@Impresion Directorio de Programas  "

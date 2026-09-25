@@ -1,0 +1,780 @@
+;********** FUNZIONE DI "PLC" (SUPERJUNIOR - BUSELLATO) ***************
+
+FUN      199,Plc                ;Funzione di PLC
+         SET       POWER
+         FCALL     190          ;Reset count utilizzati
+CICLA:   FCALL     191          ;Gestione sincronismo con Task PLC-CNC
+         FCALL     178          ;Reset flag 234 puls. bloc.
+         FCALL     182          ;Funz. sbloc. END dopo start
+         FCALL     179          ;Funzione di emerg. Fotocellule
+         TCOUNT    1,<>,0,ATT0  ;Program counter su pannello attuale
+         FCALL     170          ;Salita fermi a scomparsa pannello attuale
+ATT0:    TCOUNT    1,<>,1,NEXT
+         FCALL     171          ;Blocca - Start Lampeggio pannello attuale
+NEXT:    TCOUNT    2,<>,0,SUC0
+         FCALL     172          ;Salita fermi a scomparsa pannello attuale
+SUC0:    TCOUNT    2,<>,1,NEXT1
+         FCALL     173          ;Blocca - Start Lampeggio pan. succ.
+NEXT1:   TCOUNT    3,<>,0,SUC0P1
+         FCALL     174          ;Salita fermi a scomparsa succ. + 1
+SUC0P1:  TCOUNT    3,<>,1,NEXT2
+         FCALL     175          ;Blocca - Start Lampeggio succ. + 1
+NEXT2:   TCOUNT    4,<>,0,SUC0P2
+         FCALL     176          ;Salita fermi a scomparsa succ. + 2
+SUC0P2:  TCOUNT    4,<>,1
+         FCALL     177          ;Blocca - Start Lampeggio succ. + 2
+         FCALL     180          ;Funz. di sblocco su EMERG/END
+         BRA       CICLA
+         FRET
+
+
+; FUNZIONI AUSILIARIE ALLA FUN 199, SU BLOCCO/SBLOCCO
+
+; FUN 170 : SOLLEVAMENTO RIFERIMENTI MECCANICI E FERMI PAN. ATTUALE
+FUN      170
+         SCOUNT    7,0
+         SCOUNT    6,0
+         SNZ       NOSBLOPA,INCATT
+         SKZ       0+PLCATT,TTT
+         SNZ       0+PLCBLC,TESTSC     ;Richiesta attivaz. campo R
+         ICOUNT    7
+TTT:     SKZ       1+PLCATT,AAA
+         SNZ       1+PLCBLC,TESTSC
+         ICOUNT    7
+AAA:     SKZ       2+PLCATT,SSS
+         SNZ       2+PLCBLC,TESTSC
+         ICOUNT    6
+SSS:     SKZ       3+PLCATT,FERMIUP
+         SNZ       3+PLCBLC,TESTSC
+         ICOUNT    6
+FERMIUP: OUT       000+APPOPLC
+         COMP      APPOPLC,=,PLCATT,255,TESTSC
+         TCOUNT    6,<>,0,META1
+         TCOUNT    7,<>,0,META2
+         BRA       TESTSC
+META1:   TCOUNT    7,<>,0,ALLCAMPO
+         SNZ       5+PLCATT,EVS
+         SET       EVRMA               ;Riferimento meccanico A
+         SET       2+PORTRM1           ;Flag rifer. mecc. A
+         BRA       SCOMP
+ALLCAMPO:RES       EVRMT
+         RES       EVRMA
+         SKZ       5+PLCATT,MIRROR     ;Bit lavorazione normale
+EVS:     SET       EVRMSN              ;Riferimento meccanico S
+         SET       3+PORTRM1           ;Flag rifer. mecc. S/N
+         BRA       SCOMP
+MIRROR:  SET       EVRMMR              ;Riferimento meccanico R
+         SET       0+PORTRM1           ;Flag rifer. mecc. R/M
+         BRA       SCOMP
+META2:   SKZ       5+PLCATT,MIRROR
+         SET       EVRMT               ;Riferimento meccanico T
+         SET       1+PORTRM1           ;Flag rifer. mecc. T
+SCOMP:   OR        0+PLCATT,EVFSR      ;Fermi a scomparsa area R
+         OR        1+PLCATT,EVFST      ;Fermi a scomparsa area T
+         OR        2+PLCATT,EVFSA      ;Fermi a scomparsa area A
+         OR        3+PLCATT,EVFSS      ;Fermi a scomparsa area S
+INCATT:  ICOUNT    1
+TESTSC:  FRET
+
+;FUN 171 : ATTESA START o SBLOCCAGGIO
+FUN      171
+         SKZ       CONFMAUT,SELAUT     ;Sel. autom/attrezzaggio
+         SCOUNT    PANNEL,1            ;Counter pannello in lista
+         SNZ       0+BLOPED,GSTART
+         SNZ       NOSBLOPA,GSTART     ;Test se cod. out. inpostato
+         RES       6+PLCATT
+         SKZ       0+PLCATT,BLOCT
+         SNZ       FCBLR,BLOSBLO
+BLOCT:   SKZ       1+PLCATT,BLOCA
+         SNZ       FCBLT,BLOSBLO
+BLOCA:   SKZ       2+PLCATT,BLOCS
+         SNZ       FCBLA,BLOSBLO
+BLOCS:   SKZ       3+PLCATT,GSTART
+         SNZ       FCBLS,BLOSBLO
+         BRA       GSTART
+BLOSBLO: SKZ       0+PLCATT
+         NOT       EVBLR
+         SKZ       1+PLCATT
+         NOT       EVBLT
+         SKZ       2+PLCATT
+         NOT       EVBLA
+         SKZ       3+PLCATT
+         NOT       EVBLS
+         FCALL     181                 ;Funz. salita discesa Fermi rif.mec.
+         SET       0+BLOPED
+GSTART:  OR        STARTR,STARTR,7+PLCATT
+         AND       0+PLCATT,7+PLCATT
+         AND       EVBLR,7+PLCATT
+         OR        7+PLCATT,6+PLCATT
+         OR        STARTT,STARTT,7+PLCATT
+         AND       1+PLCATT,7+PLCATT
+         AND       EVBLT,7+PLCATT
+         OR        7+PLCATT,6+PLCATT
+         OR        STARTA,STARTA,7+PLCATT
+         AND       2+PLCATT,7+PLCATT
+         AND       EVBLA,7+PLCATT
+         OR        7+PLCATT,6+PLCATT
+         OR        STARTS,STARTS,7+PLCATT
+         AND       3+PLCATT,7+PLCATT
+         AND       EVBLS,7+PLCATT
+         OR        7+PLCATT,6+PLCATT
+         SKZ       6+PLCATT,GESLAMP
+         OR        0+PLCATT,0+PLCBLC
+         OR        1+PLCATT,1+PLCBLC
+         OR        2+PLCATT,2+PLCBLC
+         OR        3+PLCATT,3+PLCBLC
+         OR        0+PLCATT,0+PLCBLCE
+         OR        1+PLCATT,1+PLCBLCE
+         OR        2+PLCATT,2+PLCBLCE
+         OR        3+PLCATT,3+PLCBLCE
+         OR        0+PLCATT,LAMPLR
+         OR        1+PLCATT,LAMPLT
+         OR        2+PLCATT,LAMPLA
+         OR        3+PLCATT,LAMPLS
+         SCOUNT    1,0
+         RES       0+BLOPED
+         RES       NOSBLOPA            ;Res  flag di no sbloc. pan.
+         BRA       FINE171
+GESLAMP: SKZ       0+PLCATT
+         NOT       LAMPLR
+         SKZ       1+PLCATT
+         NOT       LAMPLT
+         SKZ       2+PLCATT
+         NOT       LAMPLA
+         SKZ       3+PLCATT
+         NOT       LAMPLS
+         BRA       FINE171
+SELAUT:  NOP
+         MESSAGE   35,8                ;Inserire pompa vuoto
+         BRA       NOMESS
+FINE171: MESSAGE   68,8
+NOMESS:  FRET
+
+; FUN 172 : SOLLEVAMENTO RIFERIMENTI MECCANICI E FERMI PAN. SUCCESSIVO
+FUN      172
+         SCOUNT    7,0
+         SCOUNT    6,0
+         SKZ       0+PLCSUC,TTT
+         SNZ       0+PLCBLC,TESTSC     ;Richiesta attivaz. campo R
+         SNZ       0+PLCATT,TESTSC
+         ICOUNT    7
+TTT:     SKZ       1+PLCSUC,AAA
+         SNZ       1+PLCBLC,TESTSC
+         SNZ       1+PLCATT,TESTSC
+         ICOUNT    7
+AAA:     SKZ       2+PLCSUC,SSS
+         SNZ       2+PLCBLC,TESTSC
+         SNZ       2+PLCATT,TESTSC
+         ICOUNT    6
+SSS:     SKZ       3+PLCSUC,FERMIUP
+         SNZ       3+PLCBLC,TESTSC
+         SNZ       3+PLCATT,TESTSC
+         ICOUNT    6
+FERMIUP: OUT       000+APPOPLC
+         COMP      APPOPLC,=,PLCATT,255,TESTSC
+         TCOUNT    6,<>,0,META1
+         TCOUNT    7,<>,0,META2
+         BRA       TESTSC
+META1:   TCOUNT    7,<>,0,ALLCAMPO
+         SNZ       5+PLCSUC,EVS
+         SET       EVRMA               ;Riferimento meccanico A
+         SET       6+PORTRM1           ;Flag rifer. mecc. A
+         BRA       SCOMP
+ALLCAMPO:RES       EVRMT
+         RES       EVRMA
+         SKZ       5+PLCSUC,MIRROR     ;Bit lavirazione normale
+EVS:     SET       EVRMSN              ;Riferimento meccanico S
+         SET       7+PORTRM1           ;Flag rifer. mecc. S/N
+         BRA       SCOMP
+MIRROR:  SET       EVRMMR              ;Riferimento meccanico R
+         SET       4+PORTRM1           ;Flag rifer. mecc. R/M
+         BRA       SCOMP
+META2:   SKZ       5+PLCSUC,MIRROR
+         SET       EVRMT               ;Riferimento meccanico T
+         SET       5+PORTRM1           ;Flag rifer. mecc. T
+SCOMP:   OR        0+PLCSUC,EVFSR      ;Fermi a scomparsa area R
+         OR        1+PLCSUC,EVFST      ;Fermi a scomparsa area T
+         OR        2+PLCSUC,EVFSA      ;Fermi a scomparsa area A
+         OR        3+PLCSUC,EVFSS      ;Fermi a scomparsa area S
+         ICOUNT    2
+TESTSC:  FRET
+
+
+;FUN 173 : ATTESA START o SBLOCCAGGIO SUCCESSIVO
+FUN      173
+         SKZ       CONFMAUT,SELAUT     ;Sel. autom/attrezzaggio
+         SCOUNT    PANNEL,2            ;Counter pannello in lista
+         SNZ       1+BLOPED,GSTART
+         RES       6+PLCSUC
+         SKZ       0+PLCSUC,BLOCT
+         SNZ       FCBLR,BLOSBLO
+BLOCT:   SKZ       1+PLCSUC,BLOCA
+         SNZ       FCBLT,BLOSBLO
+BLOCA:   SKZ       2+PLCSUC,BLOCS
+         SNZ       FCBLA,BLOSBLO
+BLOCS:   SKZ       3+PLCSUC,GSTART
+         SNZ       FCBLS,BLOSBLO
+         BRA       GSTART
+BLOSBLO: SKZ       0+PLCSUC
+         NOT       EVBLR
+         SKZ       1+PLCSUC
+         NOT       EVBLT
+         SKZ       2+PLCSUC
+         NOT       EVBLA
+         SKZ       3+PLCSUC
+         NOT       EVBLS
+         FCALL     181                 ;Funz. salita discesa Fermi rif.mec.
+         SET       1+BLOPED
+GSTART:  OR        STARTR,STARTR,7+PLCSUC
+         AND       0+PLCSUC,7+PLCSUC
+         AND       EVBLR,7+PLCSUC
+         OR        7+PLCSUC,6+PLCSUC
+         OR        STARTT,STARTT,7+PLCSUC
+         AND       1+PLCSUC,7+PLCSUC
+         AND       EVBLT,7+PLCSUC
+         OR        7+PLCSUC,6+PLCSUC
+         OR        STARTA,STARTA,7+PLCSUC
+         AND       2+PLCSUC,7+PLCSUC
+         AND       EVBLA,7+PLCSUC
+         OR        7+PLCSUC,6+PLCSUC
+         OR        STARTS,STARTS,7+PLCSUC
+         AND       3+PLCSUC,7+PLCSUC
+         AND       EVBLS,7+PLCSUC
+         OR        7+PLCSUC,6+PLCSUC
+         SKZ       6+PLCSUC,GESLAMP
+         OR        0+PLCSUC,0+PLCBLC
+         OR        1+PLCSUC,1+PLCBLC
+         OR        2+PLCSUC,2+PLCBLC
+         OR        3+PLCSUC,3+PLCBLC
+         OR        0+PLCSUC,0+PLCBLCE
+         OR        1+PLCSUC,1+PLCBLCE
+         OR        2+PLCSUC,2+PLCBLCE
+         OR        3+PLCSUC,3+PLCBLCE
+         OR        0+PLCSUC,LAMPLR
+         OR        1+PLCSUC,LAMPLT
+         OR        2+PLCSUC,LAMPLA
+         OR        3+PLCSUC,LAMPLS
+         SCOUNT    2,0
+         RES       1+BLOPED
+         BRA       FINE173
+GESLAMP: SKZ       0+PLCSUC
+         NOT       LAMPLR
+         SKZ       1+PLCSUC
+         NOT       LAMPLT
+         SKZ       2+PLCSUC
+         NOT       LAMPLA
+         SKZ       3+PLCSUC
+         NOT       LAMPLS
+         BRA       FINE173
+SELAUT:  NOP
+         MESSAGE   35,8                ;Inserire pompa vuoto
+FINE173: FRET
+
+; FUN 174 : SOLLEVAM. FERMI A SCOMPARSA PER PANNELLO SUCCESSIVO + 1
+FUN      174
+         SCOUNT    7,0
+         SCOUNT    6,0
+         SKZ       0+PLCSUC1,TTT
+         SNZ       0+PLCBLC,TESTSC     ;Richiesta attivaz. campo R
+         SNZ       0+PLCATT,TESTSC
+         SNZ       0+PLCSUC,TESTSC
+         ICOUNT    7
+TTT:     SKZ       1+PLCSUC1,AAA
+         SNZ       1+PLCBLC,TESTSC
+         SNZ       1+PLCATT,TESTSC
+         SNZ       1+PLCSUC,TESTSC
+         ICOUNT    7
+AAA:     SKZ       2+PLCSUC1,SSS
+         SNZ       2+PLCBLC,TESTSC
+         SNZ       2+PLCATT,TESTSC
+         SNZ       2+PLCSUC,TESTSC
+         ICOUNT    6
+SSS:     SKZ       3+PLCSUC1,FERMIUP
+         SNZ       3+PLCBLC,TESTSC
+         SNZ       3+PLCATT,TESTSC
+         SNZ       3+PLCSUC,TESTSC
+         ICOUNT    6
+FERMIUP: OUT       000+APPOPLC
+         COMP      APPOPLC,=,PLCATT,255,TESTSC
+         TCOUNT    6,<>,0,META1
+         TCOUNT    7,<>,0,META2
+         BRA       TESTSC
+META1:   TCOUNT    7,<>,0,ALLCAMPO
+         SNZ       5+PLCSUC1,EVS
+         SET       EVRMA               ;Riferimento meccanico A
+         SET       2+PORTRM2           ;Flag rifer. mecc. A
+         BRA       SCOMP
+ALLCAMPO:RES       EVRMT
+         RES       EVRMA
+         SKZ       5+PLCSUC1,MIRROR    ;Bit lavirazione normale
+EVS:     SET       EVRMSN              ;Riferimento meccanico S
+         SET       3+PORTRM2           ;Flag rifer. mecc. S/N
+         BRA       SCOMP
+MIRROR:  SET       EVRMMR              ;Riferimento meccanico R
+         SET       0+PORTRM2           ;Flag rifer. mecc. M/R
+         BRA       SCOMP
+META2:   SKZ       5+PLCSUC1,MIRROR
+         SET       EVRMT               ;Riferimento meccanico T
+         SET       1+PORTRM2           ;Flag rifer. mecc. T
+SCOMP:   OR        0+PLCSUC1,EVFSR     ;Fermi a scomparsa area R
+         OR        1+PLCSUC1,EVFST     ;Fermi a scomparsa area T
+         OR        2+PLCSUC1,EVFSA     ;Fermi a scomparsa area A
+         OR        3+PLCSUC1,EVFSS     ;Fermi a scomparsa area S
+         ICOUNT    3
+TESTSC:  FRET
+
+
+;FUN 175 : ATTESA START o SBLOCCAGGIO
+FUN      175
+         SKZ       CONFMAUT,SELAUT     ;Sel. autom/attrezzaggio
+         SCOUNT    PANNEL,3            ;Counter pannello in lista
+         SNZ       2+BLOPED,GSTART
+         RES       6+PLCSUC1
+         SKZ       0+PLCSUC1,BLOCT
+         SNZ       FCBLR,BLOSBLO
+BLOCT:   SKZ       1+PLCSUC1,BLOCA
+         SNZ       FCBLT,BLOSBLO
+BLOCA:   SKZ       2+PLCSUC1,BLOCS
+         SNZ       FCBLA,BLOSBLO
+BLOCS:   SKZ       3+PLCSUC1,GSTART
+         SNZ       FCBLS,BLOSBLO
+         BRA       GSTART
+BLOSBLO: SKZ       0+PLCSUC1
+         NOT       EVBLR
+         SKZ       1+PLCSUC1
+         NOT       EVBLT
+         SKZ       2+PLCSUC1
+         NOT       EVBLA
+         SKZ       3+PLCSUC1
+         NOT       EVBLS
+         FCALL     181                 ;Funz. salita discesa Fermi rif.mec.
+         SET       2+BLOPED
+GSTART:  OR        STARTR,STARTR,7+PLCSUC1
+         AND       0+PLCSUC1,7+PLCSUC1
+         AND       EVBLR,7+PLCSUC1
+         OR        7+PLCSUC1,6+PLCSUC1
+         OR        STARTT,STARTT,7+PLCSUC1
+         AND       1+PLCSUC1,7+PLCSUC1
+         AND       EVBLT,7+PLCSUC1
+         OR        7+PLCSUC1,6+PLCSUC1
+         OR        STARTA,STARTA,7+PLCSUC1
+         AND       2+PLCSUC1,7+PLCSUC1
+         AND       EVBLA,7+PLCSUC1
+         OR        7+PLCSUC1,6+PLCSUC1
+         OR        STARTS,STARTS,7+PLCSUC1
+         AND       3+PLCSUC1,7+PLCSUC1
+         AND       EVBLS,7+PLCSUC1
+         OR        7+PLCSUC1,6+PLCSUC1
+         SKZ       6+PLCSUC1,GESLAMP
+         OR        0+PLCSUC1,0+PLCBLC
+         OR        1+PLCSUC1,1+PLCBLC
+         OR        2+PLCSUC1,2+PLCBLC
+         OR        3+PLCSUC1,3+PLCBLC
+         OR        0+PLCSUC1,0+PLCBLCE
+         OR        1+PLCSUC1,1+PLCBLCE
+         OR        2+PLCSUC1,2+PLCBLCE
+         OR        3+PLCSUC1,3+PLCBLCE
+         OR        0+PLCSUC1,LAMPLR
+         OR        1+PLCSUC1,LAMPLT
+         OR        2+PLCSUC1,LAMPLA
+         OR        3+PLCSUC1,LAMPLS
+         SCOUNT    3,0
+         RES       2+BLOPED
+         BRA       FINE175
+GESLAMP: SKZ       0+PLCSUC1
+         NOT       LAMPLR
+         SKZ       1+PLCSUC1
+         NOT       LAMPLT
+         SKZ       2+PLCSUC1
+         NOT       LAMPLA
+         SKZ       3+PLCSUC1
+         NOT       LAMPLS
+         BRA       FINE175
+SELAUT:  NOP
+         MESSAGE   35,8                ;Inserire pompa vuoto
+FINE175: FRET
+
+
+; FUN 176 : SOLLEVAMENTO RIFERIMENTI MECCANICI E FERMI PAN. SUCC. + 2
+FUN      176
+         SCOUNT    7,0
+         SCOUNT    6,0
+         SKZ       0+PLCSUC2,TTT
+         SNZ       0+PLCBLC,TESTSC     ;Richiesta attivaz. campo R
+         SNZ       0+PLCATT,TESTSC
+         SNZ       0+PLCSUC,TESTSC
+         SNZ       0+PLCSUC1,TESTSC
+         ICOUNT    7
+TTT:     SKZ       1+PLCSUC2,AAA
+         SNZ       1+PLCBLC,TESTSC
+         SNZ       1+PLCATT,TESTSC
+         SNZ       1+PLCSUC,TESTSC
+         SNZ       1+PLCSUC1,TESTSC
+         ICOUNT    7
+AAA:     SKZ       2+PLCSUC2,SSS
+         SNZ       2+PLCBLC,TESTSC
+         SNZ       2+PLCATT,TESTSC
+         SNZ       2+PLCSUC,TESTSC
+         SNZ       2+PLCSUC1,TESTSC
+         ICOUNT    6
+SSS:     SKZ       3+PLCSUC2,FERMIUP
+         SNZ       3+PLCBLC,TESTSC
+         SNZ       3+PLCATT,TESTSC
+         SNZ       3+PLCSUC,TESTSC
+         SNZ       3+PLCSUC1,TESTSC
+         ICOUNT    6
+FERMIUP: OUT       000+APPOPLC
+         COMP      APPOPLC,=,PLCATT,255,TESTSC
+         TCOUNT    6,<>,0,META1
+         TCOUNT    7,<>,0,META2
+         BRA       TESTSC
+META1:   TCOUNT    7,<>,0,ALLCAMPO
+         SNZ       5+PLCSUC2,EVS
+         SET       EVRMA               ;Riferimento meccanico A
+         SET       6+PORTRM2           ;Flag rifer. mecc. A
+         BRA       SCOMP
+ALLCAMPO:RES       EVRMT
+         RES       EVRMA
+         SKZ       5+PLCSUC2,MIRROR    ;Bit lavirazione normale
+EVS:     SET       EVRMSN              ;Riferimento meccanico S
+         SET       7+PORTRM2           ;Flag rifer. mecc. S/N
+         BRA       SCOMP
+MIRROR:  SET       EVRMMR              ;Riferimento meccanico R
+         SET       4+PORTRM2           ;Flag rifer. mecc. M/R
+         BRA       SCOMP
+META2:   SKZ       5+PLCSUC2,MIRROR
+         SET       EVRMT               ;Riferimento meccanico T
+         SET       5+PORTRM2           ;Flag rifer. mecc. T
+SCOMP:   OR        0+PLCSUC2,EVFSR     ;Fermi a scomparsa area R
+         OR        1+PLCSUC2,EVFST     ;Fermi a scomparsa area T
+         OR        2+PLCSUC2,EVFSA     ;Fermi a scomparsa area A
+         OR        3+PLCSUC2,EVFSS     ;Fermi a scomparsa area S
+         ICOUNT    4
+TESTSC:  FRET
+
+;FUN 177 : ATTESA START o SBLOCCAGGIO
+FUN      177
+         SKZ       CONFMAUT,SELAUT     ;Sel. autom/attrezzaggio
+         SCOUNT    PANNEL,4            ;Counter pannello in lista
+         SNZ       3+BLOPED,GSTART
+         RES       6+PLCSUC2
+         SKZ       0+PLCSUC2,BLOCT
+         SNZ       FCBLR,BLOSBLO
+BLOCT:   SKZ       1+PLCSUC2,BLOCA
+         SNZ       FCBLT,BLOSBLO
+BLOCA:   SKZ       2+PLCSUC2,BLOCS
+         SNZ       FCBLA,BLOSBLO
+BLOCS:   SKZ       3+PLCSUC2,GSTART
+         SNZ       FCBLS,BLOSBLO
+         BRA       GSTART
+BLOSBLO: SKZ       0+PLCSUC2
+         NOT       EVBLR
+         SKZ       1+PLCSUC2
+         NOT       EVBLT
+         SKZ       2+PLCSUC2
+         NOT       EVBLA
+         SKZ       3+PLCSUC2
+         NOT       EVBLS
+         FCALL     181                 ;Funz. salita discesa Fermi rif.mec.
+         SET       3+BLOPED
+GSTART:  OR        STARTR,STARTR,7+PLCSUC2
+         AND       0+PLCSUC2,7+PLCSUC2
+         AND       EVBLR,7+PLCSUC2
+         OR        7+PLCSUC2,6+PLCSUC2
+         OR        STARTT,STARTT,7+PLCSUC2
+         AND       1+PLCSUC2,7+PLCSUC2
+         AND       EVBLT,7+PLCSUC2
+         OR        7+PLCSUC2,6+PLCSUC2
+         OR        STARTA,STARTA,7+PLCSUC2
+         AND       2+PLCSUC2,7+PLCSUC2
+         AND       EVBLA,7+PLCSUC2
+         OR        7+PLCSUC2,6+PLCSUC2
+         OR        STARTS,STARTS,7+PLCSUC2
+         AND       3+PLCSUC2,7+PLCSUC2
+         AND       EVBLS,7+PLCSUC2
+         OR        7+PLCSUC2,6+PLCSUC2
+         SKZ       6+PLCSUC2,GESLAMP
+         OR        0+PLCSUC2,0+PLCBLC
+         OR        1+PLCSUC2,1+PLCBLC
+         OR        2+PLCSUC2,2+PLCBLC
+         OR        3+PLCSUC2,3+PLCBLC
+         OR        0+PLCSUC2,0+PLCBLCE
+         OR        1+PLCSUC2,1+PLCBLCE
+         OR        2+PLCSUC2,2+PLCBLCE
+         OR        3+PLCSUC2,3+PLCBLCE
+         OR        0+PLCSUC2,LAMPLR
+         OR        1+PLCSUC2,LAMPLT
+         OR        2+PLCSUC2,LAMPLA
+         OR        3+PLCSUC2,LAMPLS
+         SCOUNT    4,0
+         RES       3+BLOPED
+         BRA       FINE177
+GESLAMP: SKZ       0+PLCSUC2
+         NOT       LAMPLR
+         SKZ       1+PLCSUC2
+         NOT       LAMPLT
+         SKZ       2+PLCSUC2
+         NOT       LAMPLA
+         SKZ       3+PLCSUC2
+         NOT       LAMPLS
+         BRA       FINE177
+SELAUT:  NOP
+         MESSAGE   35,8                ;Inserire pompa vuoto
+FINE177: FRET
+
+;**************************************************************************
+
+; >>>>>>>>>>>>>>>>>>>> FUNZIONE DI SINCRONISMO
+
+FUN      191,FsincPLC                  ;Funzione di sincronismo PLC
+SEGUI:   SKZ       1220,TESTRES
+         SCOUNT    CONTAT,0
+         AND       7+FATMOLAT,6+FATMOLAT,0+COMPLC
+         SKZ       0+COMPLC,ST
+         SCOUNT    CONTAT,192
+         BRA       ST1
+ST:      SKZ       7+FATMOLAT
+         SCOUNT    CONTAT,128
+         SKZ       6+FATMOLAT
+         SCOUNT    CONTAT,64
+ST1:     SKZ       5+FATMOLAT,ST2
+         REPEAT    32
+         ICOUNT    CONTAT
+         ENDREP
+ST2:     SKZ       4+FATMOLAT,ST3
+         REPEAT    16
+         ICOUNT    CONTAT
+         ENDREP
+ST3:     SKZ       3+FATMOLAT,ST4
+         REPEAT    8
+         ICOUNT    CONTAT
+         ENDREP
+ST4:     SKZ       2+FATMOLAT,ST5
+         REPEAT    4
+         ICOUNT    CONTAT
+         ENDREP
+ST5:     SKZ       1+FATMOLAT,ST6
+         ICOUNT    CONTAT
+         ICOUNT    CONTAT
+ST6:     SKZ       0+FATMOLAT
+         ICOUNT    CONTAT
+         SCOUNT    1,#2                ;Shift dei counter pannelli
+         SCOUNT    2,#3
+         SCOUNT    3,#4
+         SCOUNT    4,0
+         INP       ATTUALE,PLCATT
+         INP       SUCCESS,PLCSUC
+         INP       SUCCES1,PLCSUC1
+         INP       SUCCES2,PLCSUC2
+         OR        4+PORTRM1,4+PORTRM1,0+PORTRM1 ;Shift
+         OR        5+PORTRM1,5+PORTRM1,1+PORTRM1
+         OR        6+PORTRM1,6+PORTRM1,2+PORTRM1
+         OR        7+PORTRM1,7+PORTRM1,3+PORTRM1
+         OR        0+PORTRM2,0+PORTRM2,4+PORTRM1
+         OR        1+PORTRM2,1+PORTRM2,5+PORTRM1
+         OR        2+PORTRM2,2+PORTRM2,6+PORTRM1
+         OR        3+PORTRM2,3+PORTRM2,7+PORTRM1
+         OR        4+PORTRM2,4+PORTRM2,0+PORTRM2
+         OR        5+PORTRM2,5+PORTRM2,1+PORTRM2
+         OR        6+PORTRM2,6+PORTRM2,2+PORTRM2
+         OR        7+PORTRM2,7+PORTRM2,3+PORTRM2
+         OUT       000+PORTRM2,240
+         RES       1220
+         BRA       FINE191
+TESTRES: SKZ       RESCAR,FINE191
+         OUT       000+ATTUALE
+         OUT       000+SUCCESS
+         OUT       000+SUCCES1
+         OUT       000+SUCCES2
+         OUT       000+PLCATT
+         OUT       000+PLCSUC
+         OUT       000+PLCSUC1
+         OUT       000+PLCSUC2
+         OUT       000+PLCBLC
+         OUT       000+PLCBLCE
+         RES       0220
+         RES       1220
+         RES       EVFSS
+         RES       EVFSA
+         RES       EVFST
+         RES       EVFSR
+         RES       RESCAR
+FINE191: FRET
+
+
+FUN      0
+         NOP
+         FRET
+
+;>>>>>>>>>>>>>>> FUNZIONE DI RESET COUNTER UTILIZZATI
+
+FUN      190,FresC                     ;Funzione di reset counter
+
+         SCOUNT    1,0                 ;Counter pannello attuale
+         SCOUNT    2,0                 ;Counter pannello successivo
+         SCOUNT    3,0                 ;Counter pannello successivo +1
+         SCOUNT    4,0                 ;Counter pannello successivo +2
+         SCOUNT    5,0                 ;Counter sbloccaggio pannelli
+         SCOUNT    6,0                 ;Counter fermi a scomparsa area S/A
+         SCOUNT    7,0                 ;Counter fermi a scomparsa area T/R
+         SCOUNT    8,0                 ;Counter libero
+         SCOUNT    9,0                 ;Counter libero
+         SCOUNT    10,0                ;Counter fasi cicli camb. ut. plc
+         SCOUNT    11,0                ;Counter fasi cambio utensile
+         SCOUNT    20,0                ;Counter numero funz. in Rapido
+         SCOUNT    21,0                ;Counter su lav. pannello 1/2/3/4
+         SCOUNT    27,0                ;Counter fattore moltiplic. attuale
+         SCOUNT    29,0                ;
+         SCOUNT    30,0                ;
+         SCOUNT    31,0                ;
+         FRET
+
+;>>>>>>>>>>>>>> FUNZIONE DI RESET FLAG 234
+
+FUN      178,FresFlp                   ;Funz. reset flag 234 Puls. blocc.
+
+         OR        FCBLS,FCBLA,7+BLOPED
+         OR        FCBLT,7234
+         OR        FCBLR,7234
+         SNZ       7+BLOPED
+         OUT       000+BLOPED
+         FRET
+
+;>>>>>>>>>>>>>> FUNZIONE EMERGENZA FOTOCELLULE
+
+FUN      179,FemergFC                  ;Funzione di emergenza fotocellule
+         SNZ       STOPCA,EMG
+         SKZ       FLAGA1,SOTTO
+         SNZ       FOTCSA,EMERGEN
+         SNZ       FCTUTCMP,EMERGEN
+SOTTO:   SKZ       FLAGA2,ESCI
+         SNZ       FOTCTR,EMERGEN
+         SNZ       FCTUTCMP,EMERGEN
+         BRA       ESCI
+EMERGEN: SET       STOPCA
+         NOT       STOPCA,STARCA
+         MESSAGE   36,8                ;Emeg. fotocellule
+EMG:     SKZ       STARTS,ESCI
+         SKZ       FLAGA1
+         SNZ       FOTCSA,ESCI
+         SKZ       FLAGA2
+         SNZ       FOTCTR,ESCI
+         SNZ       FCTUTCMP,ESCI
+         RES       STOPCA
+         MESSAGE   68,8
+         NOT       STOPCA,STARCA
+ESCI:    FRET
+
+
+;>>>>>>>>>>>>>> FUNZIONE SBLOCCO SU EMERG/END
+
+FUN      180,Fsblo                     ;Funz. di sblocco aree su EMERG/END
+         SKZ       FRESY,TESTX
+         RES       MTFRY
+TESTX:   SKZ       FRESX,CONT
+         RES       MTFRX
+CONT:    SKZ       FLGSBLO,PRECIC
+         SNZ       FCBLS,SBLOCCA
+         SNZ       FCBLA,SBLOCCA
+         SNZ       FCBLT,SBLOCCA
+         SKZ       FCBLR,PRECIC
+SBLOCCA: RES       EVBLS
+         RES       EVBLA
+         RES       EVBLT
+         RES       EVBLR
+         RES       FLGSBLO
+PRECIC:  FRET
+
+
+FUN      181       ;Funz. di salita discesa Fermi rif.mecc.
+
+         TCOUNT    PANNEL,<>,1,PANSUCC
+         SNZ       CBATTYSC,VAIRM1        ;Conferma disc. batt. Y scomparsa
+         SKZ       0+PLCATT
+         NOT       EVBLR,EVFSR
+         SKZ       1+PLCATT
+         NOT       EVBLT,EVFST
+         SKZ       2+PLCATT
+         NOT       EVBLA,EVFSA
+         SKZ       3+PLCATT
+         NOT       EVBLS,EVFSS
+VAIRM1:  SKZ       0+PORTRM1
+         NOT       EVRMMR
+         SKZ       1+PORTRM1
+         NOT       EVRMT
+         SKZ       2+PORTRM1
+         NOT       EVRMA
+         SKZ       3+PORTRM1
+         NOT       EVRMSN
+         BRA       FIN
+PANSUCC: TCOUNT    PANNEL,<>,2,PANSUC1
+         SNZ       CBATTYSC,VAIRM2        ;Conferma disc. batt. Y scomparsa
+         SKZ       0+PLCSUC
+         NOT       EVBLR,EVFSR
+         SKZ       1+PLCSUC
+         NOT       EVBLT,EVFST
+         SKZ       2+PLCSUC
+         NOT       EVBLA,EVFSA
+         SKZ       3+PLCSUC
+         NOT       EVBLS,EVFSS
+VAIRM2:  SKZ       4+PORTRM1
+         NOT       EVRMMR
+         SKZ       5+PORTRM1
+         NOT       EVRMT
+         SKZ       6+PORTRM1
+         NOT       EVRMA
+         SKZ       7+PORTRM1
+         NOT       EVRMSN
+         BRA       FIN
+PANSUC1: TCOUNT    PANNEL,<>,3,PANSUC2
+         SNZ       CBATTYSC,VAIRM3        ;Conferma disc. batt. Y scomparsa
+         SKZ       0+PLCSUC1
+         NOT       EVBLR,EVFSR
+         SKZ       1+PLCSUC1
+         NOT       EVBLT,EVFST
+         SKZ       2+PLCSUC1
+         NOT       EVBLA,EVFSA
+         SKZ       3+PLCSUC1
+         NOT       EVBLS,EVFSS
+VAIRM3:  SKZ       0+PORTRM2
+         NOT       EVRMMR
+         SKZ       1+PORTRM2
+         NOT       EVRMT
+         SKZ       2+PORTRM2
+         NOT       EVRMA
+         SKZ       3+PORTRM2
+         NOT       EVRMSN
+         BRA       FIN
+PANSUC2: TCOUNT    PANNEL,<>,4,FIN
+         SNZ       CBATTYSC,VAIRM4        ;Conferma disc. batt. Y scomparsa
+         SKZ       0+PLCSUC2
+         NOT       EVBLR,EVFSR
+         SKZ       1+PLCSUC2
+         NOT       EVBLT,EVFST
+         SKZ       2+PLCSUC2
+         NOT       EVBLA,EVFSA
+         SKZ       3+PLCSUC2
+         NOT       EVBLS,EVFSS
+VAIRM4:  SKZ       4+PORTRM2
+         NOT       EVRMMR
+         SKZ       5+PORTRM2
+         NOT       EVRMT
+         SKZ       6+PORTRM2
+         NOT       EVRMA
+         SKZ       7+PORTRM2
+         NOT       EVRMSN
+FIN:     FRET
+
+FUN      182       ;Funz. di sblocc. pan. dopo END e START prog.
+         SKZ       FLGSBLO,FIN182
+         SNZ       EVFSS,RESBLOC
+         SNZ       EVFSA,RESBLOC
+         SNZ       EVFST,RESBLOC
+         SNZ       EVFSR,RESBLOC
+         BRA       FIN182
+RESBLOC: RES       EVBLS
+         RES       EVBLA
+         RES       EVBLT
+         RES       EVBLR
+         RES       FLGSBLO
+FIN182:  FRET

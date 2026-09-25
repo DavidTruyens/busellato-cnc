@@ -1,0 +1,49 @@
+//  **************** FILE : EDILIST.FRA (lingua : francese) *************
+00"@!1000@"
+80"EDIT DES LISTES"
+33"Directoire des Listes"
+33"Directoire des Programmes"
+33"Nouvelle liste"
+33"Effacement des Listes"
+33"Copie de la liste"
+33"Charge une liste"
+33"Sauvage listes"
+33"Emportation liste de AUTOMATIQUE"
+33"Impression"
+33"Rinomine la liste"
+33"Sortie du Editor"
+01"-"
+01"-"
+01"-"
+01"-"
+01"-"
+64"|17|@F1@             Change fenˆtre"
+64"@ESC@            Pour effacer les caractŠres d'un champ"
+64"@TAB@            Pour passer … droit d'un champ"
+64"@SHIFT+TAB@      Pour retourer d'un champ d'editation"
+64"@RETURN@         Pour passer au prochain champ … editer"
+64"@CTRL+Y@         Effacement d'une ligne"
+64"@CTRL+U@         Pour rappeller la derniŠre ligne effa‡‚e"
+64"@CTRL+RETURN@    Inserction d'une ligne"
+64"@CTRL+D@         Vide la liste courant"
+64"@CTRL+HOME@      Pour passer … la tˆte de la liste"
+64"@CTRL+END@       Pour passer … la fin de la liste"
+64"@CTRL+N@         Insertion du nombre d'executions"
+64"@CTRL+S@         Pour chercher un mot dans la liste"
+64"@PGUP@           Passe … la page pr‚c‚dente"
+64"@PGDW@           Passe … la page succ‚ssive"
+64"@\x18@              Passe … la ligne pr‚c‚dente"
+64"@\x19@              Passe … la ligne succ‚ssive"
+80"Introduire le nom de la liste destinataire"      <------------------IndMsg
+65"liste @%s@ dej… presente, Sauvage aborti !"                       1
+65"Pas possible Sauver la liste @%s@, Sauvage avort‚ !"              2
+80"Es tu sre de sortir de l' EDITOR des LISTES @(%s)@ ?"            3
+80"Confirme tu l'operation selectionn‚e @(%s)@ ?"                    4
+80"liste @%s@ dej… presente dans le directoire !"                    5
+80"Pas possible Sauver deux listes avec le mŠme nom !"               6
+80"Introduire le nom de la nouvelle liste"                           7
+80"Nom de liste non valable, pas possible l'employer !"                 8
+80"N'est pas possible de lire la liste @%s@"                                      9
+65"Inserir le nom de la liste … sauver"                               10
+80"Renominer la liste"                                        11
+80"N'est pas possible renominer la liste @%s@ sur @%s@ !"                        12

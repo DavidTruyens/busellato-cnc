@@ -1,0 +1,640 @@
+;******** FUNZIONI CARICO\SCARICO ( SJB-BUSELLATO )  CNC90 2.0 ****
+
+;>>>>>>>>>>>>>>>>>>>>>>> FUNZIONE DI CARICO
+
+FUN      91,CAPETK0                    ;Carico pezzo Task 0
+         MOV       Z,0                 ;Porta a zero l'asse z
+         RES       FRESA1
+         RES       FRESA2
+         CALL      MASKUT              ;Copia 10 byte su portut
+         MESSAGE   7,2                 ;Attesa carico pannello
+         OUT       047+COMODO          ;Scrittura lavorazione -N-
+         COMP      COMODO,=,ATTUALE,255,LAVN
+         OUT       031+COMODO          ;Scrittura lavorazione -M-
+         COMP      COMODO,=,ATTUALE,255,LAVM
+         OUT       044+COMODO          ;Scrittura lavorazione -S-
+         COMP      COMODO,=,ATTUALE,255,LAVS
+         OUT       028+COMODO          ;Scrittura lavorazione -A-
+         COMP      COMODO,=,ATTUALE,255,LAVA
+         OUT       035+COMODO          ;Scrittura lavorazione -T-
+         COMP      COMODO,=,ATTUALE,255,LAVT
+         OUT       019+COMODO          ;Scrittura lavorazione -R-
+         COMP      COMODO,=,ATTUALE,255,LAVR
+;Lavorazioni su aree corte
+         OUT       046+COMODO          ;Scrittura lavorazione -N/-
+         COMP      COMODO,=,ATTUALE,255,LAVNC
+         OUT       023+COMODO          ;Scrittura lavorazione -M/-
+         COMP      COMODO,=,ATTUALE,255,LAVMC
+         OUT       040+COMODO          ;Scrittura lavorazione -S/-
+         COMP      COMODO,=,ATTUALE,255,LAVSC
+         OUT       020+COMODO          ;Scrittura lavorazione -A/-
+         COMP      COMODO,=,ATTUALE,255,LAVAC
+         OUT       034+COMODO          ;Scrittura lavorazione -T/-
+         COMP      COMODO,=,ATTUALE,255,LAVTC
+         OUT       017+COMODO          ;Scrittura lavorazione -R/-
+         COMP      COMODO,=,ATTUALE,255,LAVRC
+
+ERROR:   NOP
+         MESSAGE   8,2                 ;Codice lav. non corretto
+         DELAY     0.5
+         MESSAGE   68,2
+         DELAY     0.5
+         BRA       ERROR
+         FRET
+
+;>>>>>>>>>>>>>>>>>>>> SUBROUTINE
+
+LAVN:    NOP
+         MESSAGE   9,2                 ;Attesa start N
+LOOPN:   COMP      COMODO,<>,PLCBLCE,15,LOOPN
+         CALL      OFSNS
+         RES       EVRMSN
+         SET       FLAGA1
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVM:    NOP
+         MESSAGE   10,2                ;Attesa start M
+LOOPM:   COMP      COMODO,<>,PLCBLCE,15,LOOPM
+         CALL      OFSR
+         RES       EVRMMR
+         SET       FLAGA1
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVS:    NOP
+         MESSAGE   11,2                ;Attesa start S
+LOOPS:   COMP      COMODO,<>,PLCBLCE,12,LOOPS
+         CALL      OFSNS
+         RES       EVRMSN
+         SET       FLAGA1
+         CALL      ESEGUI
+         FRET
+
+LAVA:    NOP
+         MESSAGE   12,2                ;Attesa start A
+LOOPA:   COMP      COMODO,<>,PLCBLCE,12,LOOPA
+         CALL      OFSA
+         RES       EVRMA
+         SET       FLAGA1
+         CALL      ESEGUI
+         FRET
+
+LAVT:    NOP
+         MESSAGE   13,2                ;Attesa start T
+LOOPT:   COMP      COMODO,<>,PLCBLCE,3,LOOPT
+         CALL      OFST
+         RES       EVRMT
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVR:    NOP
+         MESSAGE   14,2                ;Attesa start R
+LOOPR:   COMP      COMODO,<>,PLCBLCE,3,LOOPR
+         CALL      OFSR
+         RES       EVRMMR
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+;Carico lavorazioni area corte
+
+LAVNC:   NOP
+         MESSAGE   15,2                ;Attesa start N/
+LOOPNC:  COMP      COMODO,<>,PLCBLCE,14,LOOPNC
+         CALL      OFSNS
+         RES       EVRMSN
+         SET       FLAGA1
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVMC:   NOP
+         MESSAGE   16,2                ;Attesa start M/
+LOOPMC:  COMP      COMODO,<>,PLCBLCE,7,LOOPMC
+         CALL      OFSR
+         RES       EVRMMR
+         SET       FLAGA1
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVSC:   NOP
+         MESSAGE   17,2                ;Attesa start S/
+LOOPSC:  COMP      COMODO,<>,PLCBLCE,8,LOOPSC
+         CALL      OFSNS
+         RES       EVRMSN
+         SET       FLAGA1
+         CALL      ESEGUI
+         FRET
+
+LAVAC:   NOP
+         MESSAGE   18,2                ;Attesa start A/
+LOOPAC:  COMP      COMODO,<>,PLCBLCE,4,LOOPAC
+         CALL      OFSA
+         RES       EVRMA
+         SET       FLAGA1
+         CALL      ESEGUI
+         FRET
+
+LAVTC:   NOP
+         MESSAGE   19,2                ;Attesa start T/
+LOOPTC:  COMP      COMODO,<>,PLCBLCE,2,LOOPTC
+         CALL      OFST
+         RES       EVRMT
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+LAVRC:   NOP
+         MESSAGE   20,2                ;Attesa start R/
+LOOPRC:  COMP      COMODO,<>,PLCBLCE,1,LOOPRC
+         CALL      OFSR
+         RES       EVRMMR
+         SET       FLAGA2
+         CALL      ESEGUI
+         FRET
+
+ESEGUI:  NOP
+         MESSAGE   21,2                ;Inizio ciclo ok
+         RET
+
+OFSNS:   SNZ       DFIL0,FIL0S         ;Settaggio ofset su lav. S/N
+         SETOFS    X,0,&QUOTA          ;Settaggio ofset su lav. S/N
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         BRA       EXITS
+FIL0S:   CALL      OFSNS2
+EXITS:   RET
+
+OFSA:    SNZ       DFIL0,FIL0A         ;Settaggio ofset su lav. A
+         SETOFS    X,0,&QUOTA          ;Settaggio ofset su lav. A
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         BRA       EXITA
+FIL0A:   CALL      OFSA2
+EXITA:   RET
+
+
+OFST:    SNZ       DFIL0,FIL0T         ;Settaggio ofset su lav. T
+         SETOFS    X,0,&QUOTA          ;Settaggio ofset su lav. T
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         BRA       EXITT
+FIL0T:   CALL      OFST2
+EXITT:   RET
+
+OFSR:    SNZ       DFIL0,FIL0R         ;Settaggio ofset su lav.R
+         SETOFS    X,0,&QUOTA          ;Settaggio ofset su lav.R
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         BRA       EXITR
+FIL0R:   CALL      OFSR2
+EXITR:   RET
+
+OFSNS2:  SETOFS    X,0,&QUOTA          ;Offset per doppia battuta N O S
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         RET
+
+OFSA2:   SETOFS    X,0,&QUOTA          ;Offset per doppia battuta in A
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         RET
+
+OFST2:   SETOFS    X,0,&QUOTA          ;Offset per doppia battuta in T
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         RET
+
+OFSR2:   SETOFS    X,0,&QUOTA          ;Offset per doppia battuta in R
+         USEOFS    X,0
+         SETOFS    Y,0,&QUOTA
+         USEOFS    Y,0
+         RET
+
+MASKUT:  OUT       &BYTE+PORTUT1       ;Byte n. utensile per 10 lav. succ.
+         OUT       &BYTE+PORTUT2
+         OUT       &BYTE+PORTUT3
+         OUT       &BYTE+PORTUT4
+         OUT       &BYTE+PORTUT5
+         OUT       &BYTE+PORTUT6
+         OUT       &BYTE+PORTUT7
+         OUT       &BYTE+PORTUT8
+         OUT       &BYTE+PORTUT9
+         OUT       &BYTE+PORTUT10
+         SET       SINCPLC
+         RET
+
+;>>>>>>>> PARAMETRI PASSATI ALLA FUNZIONE DI CARICO (F91)
+
+;01 &QUOTA --> QUOTA OFSET X SU LAV. S/N
+;02 &QUOTA -->   "      "  Y    "     "
+;03 &QUOTA --> QUOTA OFSET X SU LAV. A
+;04 &QUOTA -->   "      "  Y    "    "
+;05 &QUOTA --> QUOTA OFSET X SU LAV. T
+;06 &QUOTA -->   "      "  Y    "    "
+;07 &QUOTA --> QUOTA OFSET X SU LAV. R/M
+;08 &QUOTA -->   "      "  Y    "    "
+
+;Offset doppia battuta in Y
+
+;09 &QUOTA --> QUOTA OFSET X SU LAV. S/N
+;10 &QUOTA -->   "      "  Y    "     "
+;11 &QUOTA --> QUOTA OFSET X SU LAV. A
+;12 &QUOTA -->   "      "  Y    "    "
+;13 &QUOTA --> QUOTA OFSET X SU LAV. T
+;14 &QUOTA -->   "      "  Y    "    "
+;15 &QUOTA --> QUOTA OFSET X SU LAV. R/M
+;16 &QUOTA -->   "      "  Y    "    "
+
+;Maschere utensili per 10 lavorazioni
+
+;17 &QUOTA --> Mask 1 utensile utilizzata nel programma
+;18 &QUOTA -->  "   2    "          "             "
+;19 &QUOTA -->  "   3    "          "             "
+;20 &QUOTA -->  "   4    "          "             "
+;21 &QUOTA -->  "   5    "          "             "
+;22 &QUOTA -->  "   6    "          "             "
+;23 &QUOTA -->  "   7    "          "             "
+;24 &QUOTA -->  "   8    "          "             "
+;25 &QUOTA -->  "   9    "          "             "
+;26 &QUOTA -->  "   10   "          "             "
+
+
+
+;>>>>>>>>>>>>>>>>>>>> FUNZIONE DI SCARICO PANNELLO
+
+FUN      94,SCAPETK0                   ;Scarico pezzo Task 0
+         MESSAGE   22,2                ;Fine ciclo
+         OUT       047+COMODO          ;Scrittura lavorazione -N-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVN
+         OUT       031+COMODO          ;Scrittura lavorazione -M-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVM
+         OUT       044+COMODO          ;Scrittura lavorazione -S-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVS
+         OUT       028+COMODO          ;Scrittura lavorazione -A-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVA
+         OUT       035+COMODO          ;Scrittura lavorazione -T-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVT
+         OUT       019+COMODO          ;Scrittura lavorazione -R-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVR
+;Lavorazioni su aree corte
+         OUT       046+COMODO          ;Scrittura lavorazione -N/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVNC
+         OUT       023+COMODO          ;Scrittura lavorazione -M/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVMC
+         OUT       040+COMODO          ;Scrittura lavorazione -S/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVSC
+         OUT       020+COMODO          ;Scrittura lavorazione -A/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVAC
+         OUT       034+COMODO          ;Scrittura lavorazione -T/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVTC
+         OUT       017+COMODO          ;Scrittura lavorazione -R/-
+         COMP      COMODO,=,ATTUALE,255,ENDLAVRC
+         FRET
+
+ENDLAVN: SNZ       STOPPRG,CONTIN
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLON
+CONTIN:  RES       EVBLS               ;Reset elettrov.blocc.
+         RES       EVBLA
+         RES       EVBLT
+         RES       EVBLR
+NOSBLON: RES       LAMPLS              ;Reset lampade
+         RES       LAMPLA
+         RES       LAMPLT
+         RES       LAMPLR
+         RES       FLAGA1              ;Reset flag aree 1/2 di lavorazione
+         RES       FLAGA2
+         RES       0+PLCBLC            ;Reset flag PLC areee bloccate
+         RES       1+PLCBLC
+         RES       2+PLCBLC
+         RES       3+PLCBLC
+         RES       0+PLCBLCE           ;Reset flag PLC aree blocc. ed eseg.
+         RES       1+PLCBLCE
+         RES       2+PLCBLCE
+         RES       3+PLCBLCE
+         RES       EVRMSN              ;Reset rif.mecc.
+         SNZ       STOPPRG,VIDN
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDN
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+VIDN:    NOP
+         MESSAGE   23,2                ;Fine ciclo area N
+         FRET
+
+ENDLAVM: SNZ       STOPPRG,CONTM
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOM
+CONTM:   RES       EVBLS
+         RES       EVBLA
+         RES       EVBLT
+         RES       EVBLR
+NOSBLOM: RES       LAMPLS
+         RES       LAMPLA
+         RES       LAMPLT
+         RES       LAMPLR
+         RES       FLAGA1
+         RES       FLAGA2
+         RES       0+PLCBLC
+         RES       1+PLCBLC
+         RES       2+PLCBLC
+         RES       3+PLCBLC
+         RES       0+PLCBLCE
+         RES       1+PLCBLCE
+         RES       2+PLCBLCE
+         RES       3+PLCBLCE
+         RES       EVRMMR
+         SNZ       STOPPRG,VIDM
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDM
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+VIDM:    NOP
+         MESSAGE   24,2                ;Fine ciclo area M
+         FRET
+
+ENDLAVS: SNZ       STOPPRG,CONTS
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOS
+CONTS:   RES       EVBLS
+         RES       EVBLA
+NOSBLOS: RES       LAMPLS
+         RES       LAMPLA
+         RES       FLAGA1
+         RES       3+PLCBLC
+         RES       2+PLCBLC
+         RES       3+PLCBLCE
+         RES       2+PLCBLCE
+         RES       EVRMSN
+         SNZ       STOPPRG,VIDS
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDS
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+VIDS:    NOP
+         MESSAGE   25,2                ;Fine ciclo area S
+         FRET
+
+ENDLAVT: SNZ       STOPPRG,CONTT
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOT
+CONTT:   RES       EVBLT
+         RES       EVBLR
+NOSBLOT: RES       LAMPLT
+         RES       LAMPLR
+         RES       FLAGA2
+         RES       EVRMT
+         RES       0+PLCBLC
+         RES       1+PLCBLC
+         RES       0+PLCBLCE
+         RES       1+PLCBLCE
+         SNZ       STOPPRG,VIDT
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDT
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+;        SKZ       2+SUCCESS           ;Tiene alta rif .mecc.a se succ lav.
+;        SET       EVRMA
+VIDT:    NOP
+         MESSAGE   26,2                ;Fine ciclo area T
+         FRET
+
+ENDLAVA: SNZ       STOPPRG,CONTIA
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOA
+CONTIA:  RES       EVBLA
+         RES       EVBLS
+NOSBLOA: RES       LAMPLS
+         RES       LAMPLA
+         RES       FLAGA1
+         RES       3+PLCBLC
+         RES       2+PLCBLC
+         RES       3+PLCBLCE
+         RES       2+PLCBLCE
+         RES       EVRMA
+         SNZ       STOPPRG,VIDA
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDA
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+;        SKZ       1+SUCCESS           ;Tiene alta rif. mecc.T se succ LAV.
+;        SET       EVRMT
+VIDA:    NOP
+         MESSAGE   27,2                ;Fine ciclo area A
+         FRET
+
+ENDLAVR: SNZ       STOPPRG,CONTIR
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOR
+CONTIR:  RES       EVBLT
+         RES       EVBLR
+NOSBLOR: RES       LAMPLT
+         RES       LAMPLR
+         RES       FLAGA2
+         RES       0+PLCBLC
+         RES       1+PLCBLC
+         RES       0+PLCBLCE
+         RES       1+PLCBLCE
+         RES       EVRMMR
+         SNZ       STOPPRG,VIDR
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDR
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+VIDR:    NOP
+         MESSAGE   28,2                 ;Fine ciclo area R
+         FRET
+
+
+;***************
+
+ENDLAVNC:SNZ       STOPPRG,CONTINC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLONC
+CONTINC: RES       EVBLS     ;Reset elettrov.blocc.
+         RES       EVBLA
+         RES       EVBLT
+NOSBLONC:RES       LAMPLS    ;Reset lampade
+         RES       LAMPLA
+         RES       LAMPLT
+         RES       FLAGA1    ;Reset flag aree 1/2 di lavorazione
+         RES       FLAGA2
+         RES       1+PLCBLC  ;RESET FLAG PLC ARRE BLOCCATE
+         RES       2+PLCBLC
+         RES       3+PLCBLC
+         RES       1+PLCBLCE ;RESET FLAG PLC ARRE BLOCC ED ESEGUIBILI
+         RES       2+PLCBLCE
+         RES       3+PLCBLCE
+         RES       EVRMSN    ;Reset rif.mecc.
+         SNZ       STOPPRG,VIDNC
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDNC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+VIDNC:   NOP
+         MESSAGE   29,2                 ;Fine ciclo area N/
+         FRET
+
+ENDLAVMC:SNZ       STOPPRG,CONTIMC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA,NOSBLOMC
+CONTIMC: RES       EVBLA
+         RES       EVBLT
+         RES       EVBLR
+NOSBLOMC:RES       LAMPLA
+         RES       LAMPLT
+         RES       LAMPLR
+         RES       FLAGA1
+         RES       FLAGA2
+         RES       0+PLCBLC
+         RES       1+PLCBLC
+         RES       2+PLCBLC
+         RES       0+PLCBLCE
+         RES       1+PLCBLCE
+         RES       2+PLCBLCE
+         RES       EVRMMR
+         SNZ       STOPPRG,VIDMC
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDMC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+VIDMC:   NOP
+         MESSAGE   30,2                ;Fine ciclo area M/
+         FRET
+
+ENDLAVSC:SNZ       STOPPRG,CONTISC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA
+CONTISC: RES       EVBLS
+         RES       LAMPLS
+         RES       FLAGA1
+         RES       3+PLCBLC
+         RES       3+PLCBLCE
+         RES       EVRMSN
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDSC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+VIDSC:   NOP
+         MESSAGE   31,2                ;Fine ciclo area S/
+         FRET
+
+ENDLAVTC:SNZ       STOPPRG,CONTTC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA
+CONTTC:  RES       EVBLT
+         RES       LAMPLT
+         RES       FLAGA2
+         RES       EVRMT
+         RES       1+PLCBLC
+         RES       1+PLCBLCE
+         SNZ       STOPPRG,VIDTC
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDTC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+VIDTC:   NOP
+         MESSAGE   32,2                ;Fine ciclo area T/
+         FRET
+
+ENDLAVAC:SNZ       STOPPRG,CONTAC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA
+CONTAC:  RES       EVBLA
+         RES       LAMPLA
+         RES       FLAGA1
+         RES       2+PLCBLC
+         RES       2+PLCBLCE
+         RES       EVRMA
+         SNZ       STOPPRG,VIDAC
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDAC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,0
+VIDAC:   NOP
+         MESSAGE   33,2                ;Fine ciclo area A/
+         FRET
+
+ENDLAVRC:SNZ       STOPPRG,CONTRC
+         CALL      DECONT
+         FCALL     73                  ;Funz. di no slocc. pan. prog. succ.
+         SNZ       NOSBLOPA
+CONTRC:  RES       EVBLR
+         RES       LAMPLR
+         RES       FLAGA2
+         RES       0+PLCBLC
+         RES       0+PLCBLCE
+         RES       EVRMMR
+         SNZ       STOPPRG,VIDRC
+         CALL      VERPASUC
+         SKZ       PARKEASY,VIDRC
+         VEL       X
+         SKE       Y,Q
+         MOV       X,2000
+VIDRC:   NOP
+         MESSAGE   34,2                ;Fine ciclo area R/
+         FRET
+
+VERPASUC:NOP
+         OUT       000+COMODO          ;Azzeramento porto di comodo
+         SETOFS    X,0,0
+         USEOFS    X,0
+         SETOFS    Y,0,0
+         USEOFS    Y,0
+         TCOUNT    CONTAT,<>,0,RESETTA
+         SKZ       0+PLCSUC,SOTTO      ;Se pan. succ. lav. su aria diversa
+         SNZ       0+PLCBLC,ESCI       ;Se PLCBLC=0 asse Y no quota 0
+SOTTO:   SKZ       1+PLCSUC,SOTTO1
+         SNZ       1+PLCBLC,ESCI
+SOTTO1:  SKZ       2+PLCSUC,SOTTO2
+         SNZ       2+PLCBLC,ESCI
+SOTTO2:  SKZ       3+PLCSUC
+         SNZ       3+PLCBLC,ESCI
+RESETTA: RES       MTMAND1             ;Reset motori mandrini
+         RES       MTMAND2
+         RES       MTMAND5
+         FCALL     77                  ;Funz. spegnimento motori lame/frese
+         VEL       Y,25                ;Asse Y quota 0
+         MOV       Y,0
+ESCI:    RET
+
+
+DECONT:  DCOUNT    CONTAT
+         TCOUNT    CONTAT,<>,0,ESC
+         OUT       000+PLCATT
+ESC:     RET

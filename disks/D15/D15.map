@@ -1,0 +1,10 @@
+# Mapfile. Created by GNU ddrescue version 1.30
+# Command line: ddrescue -r3 -b 512 -s 1474560 /dev/rdisk4 /Users/davidtruyens/Source/busellato-cnc/disks/D15/D15.img /Users/davidtruyens/Source/busellato-cnc/disks/D15/D15.map
+# Start time:   2026-09-25 11:10:54
+# Current time: 2026-09-25 11:10:54
+# Finished
+# current_pos  current_status  current_pass
+0x00160000     +               1
+#      pos        size  status
+0x00000000  0x00168000  +
+0x00168000  0x7FFFFFFFFFE97FFF  ?

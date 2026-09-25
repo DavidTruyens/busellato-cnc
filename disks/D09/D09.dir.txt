@@ -1,0 +1,24 @@
+ Volume in drive : has no label
+ Volume Serial Number is 1714-140C
+Directory for ::/
+
+PTPSYS       <DIR>     2001-10-08  22:12 
+AUTOEXEC BAT       184 1992-09-10   9:20 
+PTP1000  BAT        95 1992-09-09  12:03 
+CONFIG   SYS       158 1992-09-09  12:05 
+        4 files                 437 bytes
+
+Directory for ::/PTPSYS
+
+.            <DIR>     2001-10-08  22:12 
+..           <DIR>     2001-10-08  22:12 
+CONFSYS  PAR       163 2001-10-02  19:33 
+OPTMOD   PAR       272 1992-07-23  13:46 
+OPTSYS   PAR        19 1992-07-22  17:22 
+TAMP     DAT       256 2001-10-08  21:31 
+        6 files                 710 bytes
+
+Total files listed:
+       10 files               1 147 bytes
+                          1 453 568 bytes free
+

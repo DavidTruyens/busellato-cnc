@@ -1,0 +1,49 @@
+//  **************** FILE : COMPILA.ITA (lingua : italiano) *************
+00"@!1000@"
+50"COMPILATORE "         //000
+20"Messaggi  :"                                             //001
+20"Programma :"                                             //002
+55"Compilazione singolo programma "                         //003
+55"Compilazione totale  di archivio <ESC> interrompe"       //004
+55"Compila su iniziale di programma <ESC> interrompe"       //005
+55"Compila su Gruppo Specificato <ESC> interrompe"          //006
+55"Compila su Attrezzaggio Specificato <ESC> interrompe"    //007
+40"Tasti utilizzabili : <PGUP> <PGDW> <ESC>"                //008
+10" "                                                       //009
+23"Singolo programma"                                       //010
+23"Totale archivio"                                         //011
+23"Su iniziale prog."                                       //012
+23"Per Gruppo"                                              //013
+23"Per Attrezzaggio"                                        //014
+23"Stampa Errori"                                           //015
+20"Iniziale "                                               //016
+20"Gruppo  "                                                //017
+20"Attrezzaggio "                                           //018
+10" "                                                       //019
+60"@|2|@Con <ESC> si esce dal compilatore e dall' Help "    //020
+60"Con <ESC> si esce dalle compilazioni multiple  "         //021
+00"@!1050@"                      <---- ***** COMPILA.EXE (Massimo) ERRORI COMPILA
+60"MEMORIA INSUFFICIENTE PER ELABORARE"
+60"Nessun programma selezionato"
+00"@!1100@"                      <---- ***** COMPILA.EXE (Massimo)
+60"Fuori limiti asse X alla linea : "                           ** 00 **
+60"Fuori limiti asse Y alla linea : "                           ** 01 **
+60"Fuori limiti asse Z alla linea : "                           ** 02 **
+60"Quota rall. Entrata non ammessa alla linea : "               ** 03 **
+60"Quota rall. Uscita  non ammessa alla linea : "               ** 04 **
+60"Operativit… non ammessa alla linea :  "                      ** 05 **
+60"Operativit… in faccia non ammessa alla linea : "             ** 06 **
+60"Vel. di foratura non impostata alla linea : "                ** 07 **
+60"Frequenza Real Time non impostata alla linea : "             ** 08 **
+60"Lavorazione fuori pannello alla linea :  "                   ** 09 **
+60"Numero max giri mandrino non definito alla linea : "         ** 10 **
+60"Velocit… di inserimento non impostata alla linea : "         ** 11 **
+60"Attrezzaggio non corretto alla linea : "                     ** 12 **
+60"Fori fuori da pannello alla linea : "                        ** 13 **
+60"Programma troppo lungo !!"                                   ** 14 **
+60"Errore nell'accesso a file di debug !!"                      ** 15 **
+60"Foratura orizzontale troppo profonda alla linea : "          ** 16 **
+60"Foratura laterale troppo profonda alla linea : "             ** 17 **
+60"Fresata fuori limite alla linea : "                          ** 18 **
+60"Lamata  fuori limite alla linea : "                          ** 19 **
+

@@ -1,0 +1,72 @@
+//  **************** FILE : EDIPAR.ITA (lingua : italiano) *************
+ 0"@!1000@"                                                         //OFSET
+80"PARAMETRICA CABEZAS"                                             // Msg 0
+25" VISUALIZACION  GRAFICA "                                       // Msg 1
+50"Queres salvar modificaciones (%s) ?@ "                          // Msg 2
+80""                                                                // Msg 3
+80""                                                                // Msg 4
+16"NUM.PROG.:"                                                      // Msg 5
+16"CORRET.@X.@:"                                                    // Msg 6
+16"CORRET.@Y.@:"                                                    // Msg 7
+16"CORRET.@Z.@:"                                                    // Msg 8
+16"ESPACIO MAX @X+@:"                                               // Msg 9
+16"ESPACIO MAX @X-@:"                                               // Msg 10
+16"ESPACIO MAX @Y+@:"                                               // Msg 11
+16"ESPACIO MAX @Y-@:"                                               // Msg 12
+16"ESPACIO MAX @Z+@:"                                               // Msg 13
+16"DIAM.UTIL.:"                                                     // Msg 14
+16"NUM.UTIL.:"                                                      // Msg 15
+16"INTER-EJE UTIL:"                                                 // Msg 16
+16"TIPO CABEZA:"                                                     // Msg 17
+16"VEL. MIN. :"                                                     // Msg 18
+16"VEL. MAX. :"                                                     // Msg 19
+16"CABEZA  ANG.:"                                                   // Msg 20
+16"PARAMETRO @17@:"                                                 // Msg 21
+16"EDIT PARAMETROS"                                                 // Msg 22
+30"COMENTARIO:"                                                     // Msg 23
+ 8"CABEZA "                                                         // Msg 24
+15"Nuevo valor :"                                                  // Msg 25
+18"Asigna N. cabeza :"                                              // Msg 26
+40"< ERROR : INTER-EJE UTIL INCORRECTO  >"                          // Msg 27
+40"< PARAMETROS NULOS>"                                             // Msg 28
+40"< ERROR : PARAMETROS INCORRECTOS >"                                   // Msg 29
+40"< ERROR : NUMERO UTIL INCORRECTO >"                             // Msg 30
+40"CABEZA ANGULAR NO PUEDE SER VISUALIZADA"                         // Msg 31
+65"@|9|@ TECLAS   DESCRIPCION :"                                    // Msg 32
+65"@< TAB >@ UTILIZADO PARA SELECCIONAR LOS CAMPOS INDICADOS"     // Msg 33
+65"@< INS >@ UTILIZADO PARA INTRODUCIR DATOS Y BUSQUEADA DE CAVEZA" // Msg 34
+65"@< RET >@  CONFIRMA LAS OPERACIOES EJECUTADAS"                   // Msg 35
+65"@< CTRL+D>@ CANCELACION TOTAL PARAMETRICA CAVEZA"            // Msg 36
+65"@< CTRL+Y>@ CANCELACION SINGULA PARAMETRICA CAVEZA"           // Msg 37
+65"@< ESC >@   SALIDA PROGRAMA"                                    // Msg 38
+65"@<   >@   UTILIZADAS PARA BUSQUEADA CAVEZA"                   // Msg 39
+65""                                                                // Msg 40
+60"@|29|@       <<<<<<<<<<<<<<  TIPO CAVEZAS  >>>>>>>>>>>>>>"	// Msg 41
+60"AGUJEROS 1-5 UT. TALADRADO F. (1=F5, 2=F3, 3=F4, 4=F1, 5=F2)"		// Msg 42
+60"        6   UTIL TALADRADO HORIZONTAL CAVEZA/COLA "            // Msg 43
+60"        7   UTIL TALADRADO LATERAL  INF/SUP"                  // Msg 44
+60"        8   UTIL FORATURA ORIZZONTALE A CROCE"               // Msg 45
+60"FRESA:  11-15 UT. PANT. F.(11=F5,12=F3,13=F4,14=F1,15=F2)"		// Msg 46
+60"        16  UTIL PANTOGRAFO DE CAVEZA/COLA"                  // Msg 47
+60"        17  UTIL PANTOGRAFO LATERAL INF/SUP"                // Msg 48
+60"        18  UTIL PANTOGRAFO A CRUZ"                         // Msg 49
+60"HOJA:   20  HOJA EN X"											// Msg 50
+60"        21  HOJA EN Y"                                           // Msg 51
+60"        22  HOJA ROTATIVA DE 90ø (X+Y)"							// Msg 52
+60"        23  HOJA 45ø"											// Msg 53
+60"        24  HOJA ROTATIVA (X+Y) + 45ø"							// Msg 54
+60"INSER:  30  BLOQUES CARA  5"									// Msg 55
+60"        31  FORROS CARA  5"									// Msg 56
+60"        32  BISAGRAS CARA  5"									// Msg 57
+60"        33  PORTAMENSULAS CARA  5"								// Msg 58
+60"        34  GENERICO 1 CARA 5" 								// Msg 59
+60"        35  GENERICO 2 CARA 5" 								// Msg 60
+60"        36  CLAVIJAS CARA 5"										// Msg 61
+60"        37  ENCAJADOR  UNIVERSAL CARA 5"						// Msg 62
+60"        38  ENCAJADOR  UNIVERSAL CARAS  1,2,3,4,5,"				// Msg 63
+60"        40-43 INSER. UNIVERS F.(40=F1,41=F2,42=F3,43=F4)"		// Msg 65
+60"        44  ENCAJADOR  UNIVERSAL  CARA 1 e 2"					// Msg 66
+60"        45  ENCAJADOR  UNIVERSAL  CARA 3 e 4"					// Msg 67
+60"TERRAJA:51-55 UTIL  TERRAJA (52=F1,53=F2,54=F3,55=F4,51=F5)"		// Msg 68
+60"MEDIDA: 90-94 PALPA. MIS. F.(90=F5,91=F3,92=F4,93=F1,94=F2)"		// Msg 69
+60"        95    PALPADOR  MEDIDA UNIVERSAL  CARAS 1,2,3,4,5"		// Msg 70

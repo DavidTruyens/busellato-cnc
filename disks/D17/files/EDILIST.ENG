@@ -1,0 +1,49 @@
+//  **************** FILE : EDILIST.ENG (lingua : inglese) *************
+00"@!1000@"                             <---- ***** EDILIST.EXE (Giorgio)
+80"LIST EDITOR"
+33"Lists Directory"
+33"Programs Directory"
+33"New List"
+33"Delete Lists"
+33"Copy List"
+33"Load List"
+33"Save List"
+33"Import list of automatic"
+33"Print Lists"
+33"Rename Lists"
+33"Exit from List Editor"
+01"-"
+01"-"
+01"-"
+01"-"
+01"-"
+64"|17|@F1@             Change window"
+64"@ESC@            Delete field of editing"
+64"@TAB@            Step one field of editing"
+64"@SHIFT+TAB@      Step back one field of editing"
+64"@RETURN@         Go to next field to edit"
+64"@CTRL+Y@         Delete one line"
+64"@CTRL+U@         Undo last deleted line"
+64"@CTRL+RETURN@    Insertion of a line"
+64"@CTRL+D@         Erase current list"
+64"@CTRL+HOME@      Go to top list"
+64"@CTRL+END@       Go to end list"
+64"@CTRL+N@         To insert repetition number"
+64"@CTRL+S@         Search field in list"
+64"@PGUP@           Go to previous page"
+64"@PGDW@           Go to next page"
+64"@\x18@              Go to previous line"
+64"@\x19@              Go to next line"
+80"Insert name of destination list"                <------------------IndMsg
+65"List @%s@ existing, save aborted !"                                     1
+65"Unable to save list @%s@, save failed !"                                2
+80"Confirm exit from LISTS EDITOR @(%s)@ ?"                                3
+80"Confirm selected operation @(%s)@ ?"                                    4
+80"List @%s@ already existing in directory !"                              5
+80"Unable to save two lists with same name !"                              6
+80"Insert name of new list"                                                7
+80"List name not valid, unable to use it !"                                8
+80"Unable to read list @%s@"                                               9
+65"Insert name list to save"                                              10
+80"Rename this list"                                                      11
+80"Unable to rename list @%s@ in @%s@ !"                                  12

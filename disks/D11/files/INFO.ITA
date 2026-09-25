@@ -1,0 +1,102 @@
+.Title  Avvertenze e Nuove implementazioni
+State installando il Sistema operativo OS1000 di propriet… della TPA.
+
+       Sistema:   PTP1000
+       Versione:  4.3
+       Data:      28 Maggio 1992
+
+AVVERTENZE per aggiornamento a versioni 4.01 e 4.2
+--------------------------------------------------
+Nel caso la presente versione di SW venga installata come aggiornamento
+a versioni 4.01 e 4.2, oppure utilizzi dischi di lavoro di queste 
+versioni, dopo l'installazione occorre eseguire le seguenti operazioni: 
+
+   1) andare in Configurazione stazione, di ogni stazione, e selezionare
+      "Aree memoria utilizzate dalla scheda". Modificare i dati delle
+      varie aree in modo che il totale sia pari o inferiore a 27648 byte.
+   2) la Frequenza di interpolazione standard e quella di controllo assi
+      in interpolazione sono state portate da 500Hz a 400Hz, pertanto
+      bisogna andare in Configurazione generale, di ogni modulo, e poi
+      selezionare "Frequenze di lavoro". Mettere il valore della
+      "Frequenza interpolazione" e quello della "Frequenza controllo assi
+      in interpolazione" uguale a 400 ed uscire.
+   3) ricompilare tutte le function e i programmi eventualmente gi… pre-
+      senti sul disco di lavoro.
+   4) se sulle schede sono montate RAM con batteria, alla prima Inizializ-
+      zione del sistema bisogna forzare le trasmissioni dei parametri
+      selezionando il tasto funzione F4 - RETRY (ritrasmissione totale).
+
+AVVERTENZE per aggiornamento a versioni 4.01
+--------------------------------------------
+Se la presente versione di SW viene installata come aggiornamento a ver-
+sioni precedenti la 4.01 del 5/7/91, oppure utilizza dischi di lavoro di 
+versioni precedenti, dopo l'installazione va eseguita la seguente opera-
+razione:
+
+   se sono equipaggiate schede di espansione di I/O andare in Configu-
+   razione stazione, di ogni stazione, e selezionare "Espansioni di
+   input/output". Modificare il primo dei tipi schede (per esempio da
+   Inoutr farlo diventare Iomod) ed uscire dalle Espansioni di i/o in
+   modo che ricompili i parametri.
+   Reinserire il tipo scheda precedentemente sostituito ed uscire;
+   verr… rifatta la compilazione parametri conformemente al vostro
+   equipaggiamento.
+
+AVVERTENZE per aggiornamento a versioni 4.2
+-------------------------------------------
+Nel caso la presente versione di SW venga installata come aggiornamento 
+a versioni 4.2 o successive, dopo l'installazione, occorre eseguire le 
+seguenti operazioni in configurazione:
+
+   1) andare in Configurazione stazione, di ogni stazione, e selezionare
+      "Feedrate override". Mettere un dato qualsiasi, uscire e rientrare
+      rimettendo il dato originario.
+   2) andare in Configurazione modulo, di ogni modulo, e selezionare
+      Opzioni di modulo. Alla voce "Visualizzazione quote reali" selezio-
+      nare No.
+
+NUOVE IMPLEMENTAZIONI
+---------------------
+Tra le innovazioni della versione 4.3 si segnalano:
+
+- Nuove istruzioni GPL1000:
+   ADDOFS    somma di due offset
+   SUBOFS    sottrazione di due offset
+   TOFS      confronto tra due offset o tra un offset e una quota
+   MOVOFS    muove l'asse alla quota contenuta in un offset
+   SERVO     attivazione servo error per movimenti punto punto
+   HTIMER    sospende un conteggio
+   RTIMER    azzera un timer
+   MESSAGE   visualizza un messaggio
+
+- Configurazione:
+   1) in Configurazione generale in Opzioni di modulo Š stata aggiunta
+      l'opzione: Visualizzazione quote reali.
+   2) in Configurazione stazione Š stata aggiunta nel menu la voce:
+      Parametri tastierina per la selezione dei dati riguardanti la
+      tastiera di Autoapprendimento. Questi dati sono memorizzati nel
+      nuovo file CONFKEYB.PAR, uno per modulo.
+   3) in Configurazione stazione nell'acquisizione dei dati di Espansio-
+      ni di input/output al tipo scheda PLC200 Š stata aggiunta la pos-
+      sibilit… di supportare i plug "Ac" che permettono la gestione di
+      3 motori in corrente alternata su ogni plug. Usando questi plug si
+      ha conseguentemente la possibilit… di configurare i vari assi in
+      alternata, fino a un massimo di 18 per scheda PLC200.
+
+- Operativit… Monitor: 
+   E' stata introdotta una interfaccia a finestre e sono stati tolti i
+   comandi: AS, CO, TO, HE.
+
+- Manuale e diagnostica:
+   Introdotta gestione per assi in alternata e tasto funzione "F8 vout"
+   per attivare su un'uscita analogica una tensione compresa tra -10 e
+   +10 volt.
+
+- Nuove operativit…:
+   Sono state introdotte due nuove operativit…:
+   1) l'Analizzatore che consente una facilit… nelle tarature e nella
+      diagnosi dei cicli.
+   2) la Programmazione che pu• utilizzare la tastiera di autoapprendi-
+      mento CAT90.
+
+

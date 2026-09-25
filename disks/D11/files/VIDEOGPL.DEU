@@ -1,0 +1,73 @@
+;>>>>>>>>>>> FILE DI LINGUA < VIDEOGPL.TED > PER FUNZIONI -GPL1000-
+
+"HAUPT NOTFALL"                                    ;1  SETP
+"NOTFALL X AKSE"                                   ;2  SETP
+"NOTFALL Y AKSE"                                   ;3  SETP
+"NOTFALL Z AKSE"                                   ;4  SETP
+"LUFT NOTFALL"                                     ;5  SETP
+"NULL PUNKT OK!"                                   ;6  SETP
+"WARTEN PLATTE EINLEGEN"                           ;7  CARSCA
+"ABRUF NICKT KORREKT"                              ;8  CARSCA
+"WARTEN START N"                                   ;9  CARSCA
+"WARTEN START M"                                   ;10 CARSCA
+"WARTEN START S"                                   ;11 CARSCA
+"WARTEN START A"                                   ;12 CARSCA
+"WARTEN START T"                                   ;13 CARSCA
+"WARTEN START R"                                   ;14 CARSCA
+"WARTEN START N/"                                  ;15 CARSCA
+"WARTEN START M/"                                  ;16 CARSCA
+"WARTEN START S/"                                  ;17 CARSCA
+"WARTEN START A/"                                  ;18 CARSCA
+"WARTEN START T/"                                  ;19 CARSCA
+"WARTEN START R/"                                  ;20 CARSCA
+"START ZYKLUS OK !"                                ;21 CARSCA
+"ZYKLUS ENDE"                                      ;22 CARSCA
+"ZYKLUS ENDE FELD N"                               ;23 CARSCA
+"ZYKLUS ENDE FELD M"                               ;24 CARSCA
+"ZYKLUS ENDE FELD S"                               ;25 CARSCA
+"ZYKLUS ENDE FELD A"                               ;26 CARSCA
+"ZYKLUS ENDE FELD T"                               ;27 CARSCA
+"ZYKLUS ENDE FELD R"                               ;28 CARSCA
+"ZYKLUS ENDE FELD N/"                              ;29 CARSCA
+"ZYKLUS ENDE FELD M/"                              ;30 CARSCA
+"ZYKLUS ENDE FELD S/"                              ;31 CARSCA
+"ZYKLUS ENDE FELD A/"                              ;32 CARSCA
+"ZYKLUS ENDE FELD T/"                              ;33 CARSCA
+"ZYKLUS ENDE FELD R/"                              ;34 CARSCA
+"VACUUM PUMPE EINSCHALTEN!"                        ;35 PLC
+"FOTOZELL NOTFALL"                                 ;36 PLC
+"NULL PUNKT Z AKSE -OK!"                           ;37 SERVIZI
+"NULL PUNKT Y AKSE-OK!"                            ;38 SERVIZI
+"NULL PUNKT X AKSE-OK!"                            ;39 SERVIZI
+"NULL PUNKT W AKSE-OK!"                            ;40 SERVIZI
+"ANTRIEB ZUSTIMMUNG WARTUNG"                       ;41 UTENTE
+"WARTEN FUER INVERTER PROGR. DRENZHL"              ;42 UTENTE
+"WARTEN FUER SAEGE IN DIRECTION X"                 ;43 UTENTE
+"WARTEN FUER SAEGE IN DIRECTION Y"                 ;44 UTENTE
+"WARNUNG !SPIEGEL ARBEITS"                         ;45 UTENTE
+"WARTEN SAEGE  A 45 DEG."                          ;46 UTENTE
+"WARTEN 0 DRENZAHL INVERTER"                       ;47 UTENTE
+"WARTEN OBERFRAESE IN X"                           ;48 UTENTE
+"WARTEN OBERFRAESE IN Y"                           ;49 UTENTE
+"NOTFALL AKSE"                                     ;50 SERVIZI
+"FALSCH FUNKTION NUMMER"                           ;51 SERVIZI
+"PROGRAMMIERT STOP"                                ;52 UTENTE
+"NOTFALL INVERTER"                                 ;53 PLC
+"WARTEN INTERMITTORE POS 1"                        ;54 PLC
+"WARTEN INTERMITTORE POS 2"                        ;55 PLC
+"WARTEN INTERMITTORE POS 3"                        ;56 PLC
+"WARTEN ENTRATA MAGAZZINO"                         ;57 PLC
+"WARTEN SALITA PISTONE"                            ;58 PLC
+"WARTEN SBLOCCAGGIO UTENSILE"                      ;59 PLC
+"WARTEN DISCESA PISTONE"                           ;60 PLC
+"WARTEN BLOCCAGGIO UTENSILE"                       ;62 PLC
+"NULL PUNKT V AKSE-OK!"                            ;63 SERVIZI
+"WARTEN CORSA IND 1"                               ;64 SERVIZI    
+"WARTEN CORSA IND 2"                               ;65 SERVIZI    
+"WARTEN CORSE IND 1 - 2"                           ;66 SERVIZI    
+"WARTEN CILID. ESTRAZIONE BASSO"                   ;67 SERVIZI    
+" "                                                ;68 GENERICA
+"ATTESA FRESA 1 ALTA"                              ;69 PLC.1     
+"ATTESA FRESA 2 ALTA"                              ;70 PLC.1
+"ATTESA SLITTA 1 INDIETRO"                         ;71 SERVIZI
+"ATTESA SLITTA 2 INDIETRO"                         ;72 SERVIZI

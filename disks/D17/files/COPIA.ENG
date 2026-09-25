@@ -1,0 +1,68 @@
+//  **************** FILE : COPIA.ENG (lingua : inglese) *************
+ 0"@!1000@" 					       //OFFSET
+80"FILE CONTROL"				       //Msg 0
+13"@*111@Menu"					       //Msg 1
+18"@|9|@Programs Copy"				       //Msg 2
+18"Programs Delete" 					  //Msg 3
+18"Lists Copy"						  //Msg 4
+18"Lists Delete"				          //Msg 5
+18"Total Copy prog."					  //Msg 6
+18"Total Delete prog."					  //Msg 7
+18"Parameters Copy" 					  //Msg 8
+18"Start Driver"					  //Msg 9
+18"End Drver"						  //Msg 10
+53"Start"						  //Msg 11
+53"End"							  //Msg 12
+53"Messagess"						  //Msg 13
+53"Enter MENU                   <Alt+H=HELP>"		  //Msg 14
+20"AVAILABLE PATHS"					  //Msg 15
+20"Driver Selection"					  //Msg 16
+53"Confirm Start drive :"				  //Msg 17
+53"ATTENTION  : INFORMATION FILE DRIVE NOT PRESENT "	  //Msg 18
+20"@*011@Avaible Drivers"				  //Msg 19
+53"AWAY    "						  //Msg 20
+53"ATTENTION  : START DRIVE MATCH END DRIVE"     	  //Msg 21
+53"ERRORS IN THE CURRENT OPERATION"          	          //Msg 22
+21"@%ld@ Free bytes"					  //Msg 23
+21"@%ld@ busy bytes"					  //Msg 24
+53"ATTENTION : INSERT THE FLOPPY DISK AND PRESS @<ENTER>@"  //Msg 25
+53"Press any key to continue"				  //Msg 26
+80"Programs Directory"					  //Msg 27
+53"ATTENTION :NOT ENOUGHT SPACE ON END DRIVE  "	  //Msg 28
+70"Prog. copied : @%s@"					  //Msg 29
+53"COPY OPERATION FAILED"				  //Msg 30
+20"@*011@Existing Prog"					  //Msg 31
+53"SELECT THE PROGRAMS TO BE COPIED"			  //Msg 32
+53"COPY OPERATION WELL ENDED"				  //Msg 33
+80"SOURCE PROGRAM DOESN'T EXIST "			  //Msg 34
+53"COPY OPERATION IS IN COURSE      N.prg. @%d%@"	  //Msg 35
+53"ATTENTION : PROGRAM INDEX DOESN'T EXIST" 		  //Msg 36
+53"DELETING OPERATION IS IN COURSE  N.prg. @%d%@"	  //Msg 37
+70"Program Deleted : @%s@"				  //Msg 38
+53"DELETING OPERATION FAILED"				  //Msg 39
+53"DELETING OPERATION WELL ENDED "			  //Msg 40
+53"Enter the list to copy "				  //Msg 41
+53"@*011@Lists"						  //Msg 42
+53"ATTENTION : LISTS FILE NOT PRESENTE - PRESS ANY KEY-"  //Msg 43
+70"Lists copied : @%s@"					  //Msg 44
+53"@*011@Existing lists"				  //Msg 45
+53"SELECT THE LISTS TO BE DELETED"			  //Msg 46
+53"List : @%s@ not present"				  //Msg 47
+70"List Deleted : @%s@"					  //Msg 48
+53"SUBDIRECTORY    @%s@ NOT PRESENT "			  //Msg 49
+53"SUBDIRECTORY    @%s@ EMPTY " 			  //Msg 50
+53"OPERATION FOR PARAMETERS COPY IN COURSE "		  //Msg 51
+70"PARAM.FILE COPIED  : @%s@"				  //Msg 52
+53"NOT ENOUGH SPACE TO COPY - PRESS   @ESC@ -"	  //Msg 53
+53"LISTS COPY OPERATION IN COURSE  N.prg. @%d%@   " 	  //Msg 54
+53"NO ENDING PROGRAM.DO YOU WANT TO CREATE IT: @%s%@"	  //Msg 55
+53"ATTENTION :NO STARTING PROGRAM."			  //Msg 56
+53"ATTENTION : DRIVE NUMBER BIGGER THAN @10@"		  //Msg 57
+80"NO COMPILED PROGRAM             "			  //Msg 58
+80"NO HARD-DISK PROGRAM "				  //Msg 59
+65"@|5|@ KEYS     DESCRIPTION :"			  //Msg 60
+65"@< ESC >@   EXIT PROGRAM"				  //Mgs 61
+65"@<   >@   USED TO SELECT MENU."			  //Mgs 62
+65"@< RET >@   OPERATIONS CONFIRM"		          //Mgs 63
+65"@< F1  >@   CALL ERRORS LIST"			  //Mgs 64
+

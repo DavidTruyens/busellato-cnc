@@ -1,0 +1,49 @@
+//  **************** FILE : COMPILA.FRA (lingua : francese) *************
+00"@!1000@"
+50"COMPILATORE "         //000 
+20"Messages :"
+20"Programme :"
+55"Compilation d'un programme "
+55"Compilation totale de l'archive <ESC> couper"
+55"Compile sur Initial de programme <ESC> couper"
+55"Compile sur Group Specifi‚ <ESC> couper"
+55"Compile sur Outillage Specifi‚ <ESC> couper"
+40"Touches employables:<PGUP> <PGDW> <ESC>"
+10" "
+23"Singule programme"
+23"Archive totale"
+23"Sur initial prog."
+23"Pour Group"
+23"Pour Outillage"
+23"Impress. erreurs"
+20"Initial"
+20"Group  "
+20"Outillage "
+10" "
+60"@|2|@<ESC> on sort du compilateur et du Help "
+60"<ESC> on sort des compilations multiples  "
+00"@!1050@"                      <---- ***** COMPILA.EXE (Massimo) ERRORI COMPILA
+60"MEMOIRE INSUFFISANTE"
+60"Pas de programme selectionn‚"
+00"@!1100@"                      <---- ***** COMPILA.EXE (Massimo)
+60"Axe X hors des limites … la ligne :" 			** 00 **
+60"Axe Y hors des limites … la ligne :"                         ** 01 **
+60"Axe Z hors des limites … la ligne :"                         ** 02 **
+60"C“tes rall. Entr‚e pas permis … la ligne :"                  ** 03 **
+60"C“tes rall. Sortie pas permis … la ligne :"                  ** 04 **
+60"Operativit‚ pas permis … la ligne :"                         ** 05 **
+60"Operativit‚ en face pas permis … la ligne :"                 ** 06 **
+60"Vit. per‡age pas introduite … la ligne :"                    ** 07 **
+60"Frequence Real time pas introduite … la ligne :"             ** 08 **
+60"Travail hors du panneau … la ligne :"                        ** 09 **
+60"Nombre max tours broche pas definie … la ligne :"            ** 10 **
+60"Vitesse d'inserction pas definie … la ligne :"               ** 11 **
+60"Outillage pas correct … la ligne :"                          ** 12 **
+60"Troux hors du piece … la ligne :"                            ** 13 **
+60"Programme trop long !!"                                      ** 14 **
+60"Erreur d'acces au ficher de debug !!"                        ** 15 **
+60"Troux orizzontale hors des limites … la ligne :" 		** 16 **
+60"Troux laterale hors des limites … la ligne :"		** 17 **
+60"Fraise hors des limites … la ligne :"			** 18 **
+60"LSiege hors des limites … la ligne : "			** 19 **
+

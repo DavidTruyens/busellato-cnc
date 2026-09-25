@@ -1,0 +1,258 @@
+;>>>>>>>>>>>>>>>>>>>>>> FUNZIONI DI LAMATA
+
+FUN      119,LamaGradiF5                    ;Funz. di Lamata Gradi F.5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXENTLAM            ;
+         CALL      QYENTLAM            ;
+         CALL      SETTOOL             ;Utensili diversi
+         SKZ       6+PORTINS7          ;Se ut. 63 lama rotante
+         SET       ABLAMR              ;Abilitazione asse lama rot.
+         CALL      QVROTLAM            ;
+         SNZ       STUTPREC,SALTAUT4   ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     76                  ;Funz. di set rotazione lama
+SALTAUT4:NOP                           ;
+         CALL      VMANDR              ;
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+         WEND      XYZ,Q               ;
+         RES       ABLAMR              ;Res.abilitazione asse lama rot.
+         FCALL     61                  ;Funz. set motore e invert. a regime
+         SNZ       PNEUMAT,NOASSEZ     ;
+         CALL      VZLAVORO            ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+NOASSEZ: CALL      LINEARE             ;
+         WEND      XY,Q                ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     165                 ;Funz. di reset utensili
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+
+;*****************  SUBROUTINE (F120) PER LA FACCIA 5 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXENTLAM:MOV       X,&QX
+         RET
+
+QYENTLAM:MOV       Y,&QY
+         RET
+
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+VZLAVORO:VEL       Z,&VELZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+LINEARE: LINEAR    &LINEA
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+QVROTLAM:BRA       NOV                 ;Per gestione asse V
+         VEL       X                   ;VEL  V
+         MOV       X,&QV               ;MOV  V,&QV
+NOV:     RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F120) FUNZIONE DI LAMATA IN FACCIA 5 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ENTRATA LAMA
+;06  --> QY ENTRATA LAMA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> VZ LAVORO
+;19  --> QZ LAVORO
+;20  --> PARAMETRI LINEARE
+;21  --> QZ ARISCA
+;22  --> QV ROTAZIONE LAMA
+;23  --> BYTE UTENSILE DOPO 10 LAV.
+
+FUN      120,LamaF5                    ;Funz. di Lamata in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXENTLAM            ;
+         CALL      QYENTLAM            ;
+         CALL      SETTOOL             ;Utensili diversi
+         SKZ       6+PORTINS7          ;Se ut. 63 lama rotante
+         SET       ABLAMR              ;Abilitazione asse lama rot.
+         CALL      QVROTLAM            ;
+         SNZ       STUTPREC,SALTAUT4   ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     76                  ;Funz. di set rotazione lama
+SALTAUT4:NOP                           ;
+         CALL      VMANDR              ;
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+         WEND      XYZ,Q               ;
+         RES       ABLAMR              ;Res.abilitazione asse lama rot.
+         FCALL     61                  ;Funz. set motore e invert. a regime
+         SNZ       PNEUMAT,NOASSEZ     ;
+         CALL      VZLAVORO            ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+NOASSEZ: CALL      VXLAVORO            ;
+         CALL      VYLAVORO            ;
+         CALL      QXLAVORO            ;
+         CALL      QYLAVORO            ;
+         WEND      XY,Q                ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;Funz. di reset utensili
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+
+;*****************  SUBROUTINE (F120) PER LA FACCIA 5 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXENTLAM:MOV       X,&QX
+         RET
+
+QYENTLAM:MOV       Y,&QY
+         RET
+
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+VZLAVORO:VEL       Z,&VELZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VXLAVORO:VEL       X,&VELX
+         RET
+
+VYLAVORO:VEL       Y,&VELY
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+QVROTLAM:BRA       NOV                 ;Per gestione asse V
+         VEL       X                   ;VEL V
+         MOV       X,&QV               ;MOV V,&QV
+NOV:     RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F120) FUNZIONE DI LAMATA IN FACCIA 5 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ENTRATA LAMA
+;06  --> QY ENTRATA LAMA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> VZ LAVORO
+;19  --> QZ LAVORO
+;20  --> VX LAVORO
+;21  --> VY LAVORO
+;22  --> QX LAVORO
+;23  --> QY LAVORO
+;24  --> QZ ARISCA
+;25  --> QV ROTAZIONE LAMA
+;26  --> BYTE UTENSILE DOPO 10 LAV.

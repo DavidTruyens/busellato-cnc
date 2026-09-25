@@ -1,0 +1,14 @@
+ Volume in drive : has no label
+ Volume Serial Number is 2C1C-14D8
+Directory for ::/
+
+MANDIAG  EXE    129262 1992-05-19   3:00 
+PLANCIA  EXE    235192 1992-05-19   3:00 
+EDIGRAF  EXE    562416 1992-05-19   3:02 
+GRAFSET  EXE     75158 1992-05-19   3:00 
+CNC90    BAT       450 1992-09-09  12:14 
+DRAWCNF  CNF        12 2001-10-08  20:29 
+NAVETTA  CMD       372 2001-10-08  21:31 
+        7 files           1 002 862 bytes
+                            453 120 bytes free
+

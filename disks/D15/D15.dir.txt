@@ -1,0 +1,8 @@
+ Volume in drive : has no label
+ Volume Serial Number is 15EA-2752
+Directory for ::/
+
+PTP1000  BAT        95 1992-09-09  12:03 
+        1 file                   95 bytes
+                          1 457 152 bytes free
+

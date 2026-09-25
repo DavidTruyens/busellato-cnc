@@ -1,0 +1,90 @@
+//  **************** FILE : VENTOSE.ITA (lingua : italiano) *************
+00"@!1000@"
+60"GESTIONE TRAVERSE"						   ***	0 ***
+60"@release=5VENTOSE.EXE:@ RELEASE DEL FILE DI LINGUA ERRATA !!"   ***	1 ***
+60"@Sfondo8Trav11VentD15VentP12Freccie11Asse10CurOn350CurOff150@"  ***	2 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE COLORI E TEMPI. MESS. 2 !!"   ***	3 ***
+60"@Modo grafico 18,xPixels 640,yPixels 480,Righe 25,colonne 80@"  ***	4 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELLE OPZIONI. MESS.5 !!"	   ***	5 ***
+60"@VENTOSE.EXE:@ ERRORE NELLA LETTURA DI DEFTEC0.PAR !!"	   ***	6 ***
+60"@VENTOSE.EXE:@ ERRORE NELLA LETTURA DI PARTEC0.PAR !!"	   ***	7 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELLA LUNGHEZZA DEL PIANO !!" ***	8 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELLA LARGHEZZA TRAVERSE !!"  ***	9 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELL'ANTISCONTRO !!"	   *** 10 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DEL NUMERO TRAVERSE !!"	   *** 11 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DEL NUMERO VENTOSE !!"	   *** 12 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELLA QUOTA PRIMA VENTOSA !!" *** 13 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DEL DIAMETRO VENTOSE !!"	   *** 14 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DELLA DISTANZA VENTOSE !!"    *** 15 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DEL PASSO CORTO !!"	   *** 16 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DEL PASSO LUNGO !!"	   *** 17 ***
+60"@VENTOSE.EXE:@ ERRATA DEFINIZIONE DI OFFSET PRIMA BATTUTA !!"   *** 18 ***
+60"@VENTOSE.EXE:@ FILE DEI FONT NON ACCESSIBILE !!"		   *** 19 ***
+60"@VENTOSE.EXE:@ ERRORE NELL'APERTURA DI VENTOSE.PAR !!"	   *** 20 ***
+60"@VENTOSE.EXE:@ FILE NAVETTA NON ACCESSIBILE !!"		   *** 21 ***
+60"@VENTOSE.EXE:@ DIMENSIONI TROPPO GRANDI NEI PARAMETRI !!"	   *** 22 ***
+60"@VENTOSE.EXE:@ MEMORIA INSUFFICIENTE !!"			   *** 23 ***
+60"@VENTOSE.EXE:@ SETTAGGIO DEL MODO GRAFICO FALLITO !!"	   *** 24 ***
+60"@VENTOSE.EXE:@ RELEASE DEL FILE DEI PROGRAMMI NON CORRETTA !!"  *** 25 ***
+60"IL PROGRAMMA DEVE AVERE UN NUMERO !!"			   *** 26 ***
+60"NUMERO PROGRAMMA : min 1, max 255 !!"			   *** 27 ***
+60"NUMERO NON VALIDO !!"					   *** 28 ***
+60"VALORE DEL PASSO NON VALIDO !!"				   *** 29 ***
+60"LA TRAVERSA NON E' ATTIVA !!"				   *** 30 ***
+60"DISATTIVARE PRIMA UNA TRAVERSA ADIACENTE !!" 		   *** 31 ***
+60"ATTIVARE PRIMA UNA TRAVERSA ADIACENTE !!"			   *** 32 ***
+60"Il programma Š stato modificato. Vuoi registrarlo? (s,n)"	   *** 33 ***
+60"MEMORIA INSUFFICIENTE PER CHIAMARE HELP !!"			   *** 34 ***
+60"IMPOSSIBILE ESEGUIRE LA COPIA DI BACK UP !!" 		   *** 35 ***
+60"Copia di Back Up Eseguita Correttamente"			   *** 36 ***
+60"FILE DI BACK UP NON ACCESSIBILE !!"				   *** 37 ***
+20"IL PROGRAMMA "                                                  *** 38 ***
+50" ERA DANNEGGIATO!! E' STATO CANCELLATO!!"                       *** 39 ***
+50" ERA DANNEGGIATO!! E' STATO SOSTITUITO DAL BACK UP"             *** 40 ***
+60"Vuoi Cancellare il Programma Corrente? (s,n)"		   *** 41 ***
+20"Programma <"                                                    *** 42 ***
+40"> Registrato Correttamente"                                     *** 43 ***
+40"> Cancellato"                                                   *** 44 ***
+20"NUMERO PROGRAMMA = "                                            *** 45 ***
+60"@<END>@fine@ - <ESC>@lascia@ - <ENTER>@sceglie@ - <TAB \x18\x19>@spostano"
+60"Caricamento dei Programmi in Corso"				   *** 47 ***
+07"Prog: "                                                         *** 48 ***
+07"Desc.: "                                                        *** 49 ***
+17"Quota Traversa n."                                              *** 50 ***
+08"Passo: "                                                        *** 51 ***
+16"Ingombri Vent.n."                                               *** 52 ***
+10"Alto: "                                                         *** 53 ***
+10"Basso: "                                                        *** 54 ***
+10"Avanti: "                                                       *** 55 ***
+10"Indietro: "                                                     *** 56 ***
+32"         HELP"                     0,1,2                        ***  0 ***
+32"@<END>    @Fine Programma"         0,1,2  ** 2 = Testata **     ***  1 ***
+32"@<ESC>    @Ripristina Stato Prec." 0,  2  ** 16 messaggi **     ***  2 ***
+32"@<F1>     @Registra Programma"     0,1,2                        ***  3 ***
+32"@<F2>     @Chiama Menu"              1,2                        ***  4 ***
+32"@<F3>     @Back Up di tutti prog." 0,1,2                        ***  5 ***
+32"@<F4>     @Copia prog. dal BackUp" 0,1,2                        ***  6 ***
+32"@<F5>     @Cancella prog. corrente"0,1,2                        ***  7 ***
+32"@<*>      @Cambia Passo"             1,2                        ***  8 ***
+32"@<TAB>    @Cambia Campo da Editare"    2                        ***  9 ***
+32"@<SH TAB> @Cambia Campo da Editare"    2                        *** 10 ***
+32"@<INS>    @Commuta Ins. Sovrapp."  0,  2                        *** 11 ***
+32"@<DEL>    @Cancella Carattere"         2                        *** 12 ***
+32"@<BACK SPACE> @Cancella Car. Prima"    2                        *** 13 ***
+32"@<ENTER>  @Registra Valore"            2                        *** 14 ***
+32"@<\x1A \x1B>    @Sposta Cursore"	  2			   *** 15 ***
+32"@<PG DN>  @Esce dalla Testata"         2                        *** 16 ***
+32"@<+>      @Avanti di Passo mm."      1    ** 1 = Ventose **     *** 17 ***
+32"@<->      @Indietro di Passo mm."    1    ** 15 messaggi **     *** 18 ***
+32"@<1>..<9> <.>mm. @in Dir. freccia"   1                          *** 19 ***
+32"@<SPAZIO> @Attiva o Disattiva"       1                          *** 20 ***
+32"@<ENTER>  @Attiva o Disattiva"       1                          *** 21 ***
+32"@<TAB>    @Cambia Dir. Freccia"      1                          *** 22 ***
+32"@<PG UP>  @Edita Quote e Valori"     1                          *** 23 ***
+32"@<\x1A\x18\x19\x1B>   @Sposta Freccia" 1			   *** 24 ***
+32"@<F2>     @Esce dal Menu"          0      ** 0 = Menu **        *** 25 ***
+32"@<TAB>    @Commuta Lista Numero"   0      ** 13 messaggi **     *** 26 ***
+32"@<ENTER>  @Sceglie"                0                            *** 27 ***
+32"@<PgUp>   @Pagina su"              0                            *** 28 ***
+32"@<PgDn>   @Pagina gi£"             0                            *** 29 ***
+32"@<\x1A\x18\x19\x1B>   @Sposta"     0 			   *** 30 ***

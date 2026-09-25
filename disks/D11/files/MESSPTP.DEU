@@ -1,0 +1,642 @@
+*************************** FILE : MESSPTP.DEU *****************************
+*                                                                          *
+* PROGETTO : Sistema PTP1000                                               *
+*                                                                          *
+* SCOPO : Messaggi utilizzati in tutti i programmi.                        *
+*                                                                          *
+* DATA : 18/05/1992                             VERSIONE : 4.3             *
+*                                                                          *
+****************************************************************************
+
+
+Questi sono i messaggi generali
+  "@!1@"
+  "Datei nicht gefunden"                                                    1
+  "falscher Zugriff in die Datei"                                           2
+  "Zugriff verweigert"                                                      3
+  "Datei schon vorhanden"                                                   4
+  "Aufzeichnungsnummer falsch"      //  RECORD                              5
+  "Platte voll"                                                             6
+  "Funktion falsch gerufen"                                                 7
+  "Fehler im AnschlussgerÑt"                                                8
+  ""                                                                        9
+  "Drucker nicht verfÅgbar"                                                10
+  "Diskette unter Schreibschutz"                                           11
+  "Diskette nicht bereit"                                                  12
+  "Disketten/Plattenfehler"                                                13
+  "interner Fehler"                                                        14
+  "nicht genÅgend PC-Speicherplatz"                                        15
+  ""                                                                       16
+  ""                                                                       17
+  "Datei @%s@ unter Schreibschutz"                                         18
+  "Daten ungÅltig"                                                         19
+  "FUNKTIONSTASTE"                                                         20
+26"<ƒŸ  Auswahl"                                                           21
+  "Tabellenname"                                                           22
+  "MP-Karte ungÅltig"                                                      23
+  "MP-Kartenkonfiguration nicht bestimmt"                                  24
+  "Programm nicht im Verzeichnis"                                          25
+26"LEERTASTE  wÑhlen/entwÑhlen"                                            26
+ 1"J"            // JA                                                     27
+ 1"N"            // NEIN                                                   28
+ 1"L"            // LINKS                                                  29
+ 1"R"            // RECHTS                                                 30
+  "DrÅcken"                                                                31
+15"Kopieren"                                                               32
+  "N. @%d@ Datei"                                                          33
+  "@%ld@ Byte frei"                                                        34
+26"ESC  Verlassen"                                                         35
+15"Verlassen"                                                              36
+15"Lîschen"                                                                37
+  "(Ja/Nein)"                                                              38
+ 8"Name"                                                                   39
+ 2"MP"      //MP-Karte                                                     40
+12"Kommentar"                                                              41
+ 8"  Datum "                                                               42
+ 1"K"            // Kompiliert                                             43
+ 5"Byte"                                                                   44
+20"VerfÅgbar"                                                              45
+ 1"T"            // Dateityp                                               46
+26"LEERTASTE  Wertwechsel"                                                 47
+ 1"S"           // Schreibschutz                                           48
+26"<ƒŸ  zum Fortsetzen"                                                    49
+26"ALT-H  Hilfe"                                                           50
+  "Passwort"                                                               51
+  "Passwort eingeben"                                                      52
+  "AUSWAHL MODUL"                                                          53
+  "AUSWAHL MP-KARTE"                                                       54
+  "Passwort falsch"                                                        55
+26"TAB  darauffolgendes Feld"                                              56
+26"LEERTASTE  aktiv/unaktiv"                                               57
+ 8"Geschk."                                                                58
+15"Beschleunigung"                                                         59
+14"Beschreibung"                                                           60
+  "Programme"                                                              61
+  "Tabellen"                                                               62
+  "Wechsel Modul/MP-Karte"                                                 63
+  "HauptmenÅ"                                                              64
+  "kein Datei im Verzeichnis"                                              65
+  "MP-Karte @%s@ nicht gefunden"                                           66
+  "Name nicht korrekt"                                                     67
+ 3"Mod"                                                                    68
+15"Schritt"                                                                69
+ 5"Drhgn"           //giri/Drehungen                                       70
+  "Verzeichnis"                                                            71
+ 9"Programm"                                                               72
+  "Setpoint"                                                               73
+  "Funktion"                                                               74
+  "E/A Definitionen"       //  I/O                                         75
+  "Masstabelle"                                                            76
+  "Zyklusfehler"                                                           77
+  "Bericht"                                                                78
+  "Text"                                                                   79
+  "Zustand"                                                                80
+  "Achse in der Konfiguration nicht definiert"                             81
+ 5"Exist"                                                                  82
+  "alle Modul sind ausgeschalten oder ohne MP-Karten"                      83
+  "Text zu lang"                                                           84
+  "DIMENSIONEN"                                                            85
+  "OFFSET"                                                                 86
+  "Tabelle"                                                                87
+ 9"Nummer"                                                                 88
+  "OPTIONEN"                                                               89
+  "mit BestÑtigung"                                                        90
+  "Achse nicht konfiguriert"                                               91
+  "Modulwechsel"                                                           92
+26"PGUP  vorhergehende Seite"                                              93
+26"PGDN  folgende Seite"                                                   94
+26"TAB  rechts"                                                            95
+26"SHIFT-TAB  links"                                                       96
+  "Achse"                                                                  97
+  "Automatik"                                                              98
+  "Schreibe EXIT um zum PTP1000 zurÅckzukehren"                            99
+ 7"Fehler"                                                                100
+  "EingÑnge/AusgÑnge"                                                     101
+  "MANUELLE BETéTIGUNG UND PRöFPROGRAMM"                                  102
+ 4"Num"                                                                   103
+  "Situation der ZÑhler"                                                  104
+  "Tabelle mit dieser MP-Karte nicht erlaubt"                             105
+  "Sprachwechsel"                                                         106
+  "Sprachauswahl"                                                         107
+  "Sprache nicht vorhanden"                                               108
+  "Serienverbindung unterbrochen"                                         109
+ 8"Datei"                                                                 110
+ 3"Out"                                                                   111
+  "system"                                                                112
+  "Zyklus"                                                                113
+  "MP-Karte @%d@"                                                         114
+  "Modul @%d@"                                                            115
+ 4"Task"                                                                  116
+15"AbÑnderung"                                                            117
+  "Untersuchener"                                                         118
+12"Eingang"                                                               119
+12"Ausgang"                                                               120
+
+Qui iniziano i messaggi di VIED.C
+  "@!151@"
+  "EDIT: @%s - %s@"                                                       151
+  "Funktionstastenzuweisung"                                              152
+  "Vorhergehend"                                                          153
+  "!  aktiviert die Tabulation"                                           154
+  "Unterscheidet nicht Majuskel/Minuskel"                                 155
+  "Importiere"                                                            156
+  "Verschiebe"                                                            157
+  "Funktion der MP-Karte @%d@"                                            158
+  "Zeichne"                                                               159
+  "Text nicht gefunden"                                                   160
+  "Text zu suchen"                                                        161
+  "Anfangszeile"                                                          162
+  "Endzeile"                                                              163
+  "BestÑtigst du die énderung ?"                                          164
+  ""                                                                      165
+  "Wechsle in"                                                            166
+  "Suche"                                                                 167
+  "Ersetze"                                                               168
+  "Den Text"                                                              169
+  "Anzahl von Malen"                                                      170
+  "Syntax"                                                                171
+  "Nur lesen"                                                             172
+  "Tabulieren"                                                            173
+  "-  inaktiviere Tabulation"                                             174
+  "Speichern"                                                             175
+  "Verlassen"                                                             176
+55"@%s@ ist verÑndert worden. Speichern ?"                                177
+
+Qui iniziano i messaggi di SETUP.C
+  "@!201@"
+35"System PTP1000 auf Platte\Verzeich."                                   201
+  "ARBEITSVERZEICHNISSE"                                                  202
+ 7"System"                                                                203
+  "keine Systemplatte/Diskette"                                           204
+  "Verzeichnis"                                                           205
+  "SETUP DATEN"                                                           206
+  "Start vom AUTOEXEC.BAT"                                                207
+  "Sprache"                                                               208
+  "Bildschirmtyp"                                                         209
+  "Installation ausfÅhren ?"                                              210
+74"Setup beendet, eine Taste betÑtigen"                                   211
+ 4"in"                                                                    212
+  "INSTALLATION UND SETUP"                                                213
+  "Benutzerspracheauswahl"                                                214
+ 7"(SW/FB)"                                                               215
+  "Datenrevision bei setup in Gang"                                       216
+  "Zielplatte nicht gÅltig"                                               217
+  "Systemdiskette in Laufwerk A einlegen und eine Taste betÑtigen"        218
+74"Installierung beendet, anschlie·end eine Taste betÑtigen"              219
+  "Fehler beim Kopieren"                                                  220
+  "Verzeichnis kann nicht angelegt werden"                                221
+  "Pfad nicht gefunden"                                                   222
+
+Qui iniziano i messaggi di TABQ.C
+  "@!251@"
+  "MASSTABELLE"                                                           251
+  "nicht genÅgend Speicherplatz"                                          252
+  "Tabelle: @%s - %s@"                                                    253
+  "Fehler beim Lesen der Datei Tabelle"                                   254
+  "Anzahl Ma·e zur VerfÅgung: "                                           255
+  "Offset"                                                                256
+  "Optionen"                                                              257
+  "Auswahl Tabellen"                                                      258
+  "Offset eingeben"                                                       259
+  "Dimensionen"                                                           260
+  "Konfiguration der MP-Karte @%s@ nicht bestimmt"                        261
+25"Schritte [mm]"                                                         262
+25"Grundmass [mm]"                                                        263
+25"Ausdehnung der Achsenma·e"                                             264
+25"Von Massnummer"                                                        265
+25"Bis Massnummer"                                                        266
+  "Ma·e Tabelle: @%d@"                                                    267
+  "max.Wert 8000"                                                         268
+  "falsche Parameter"                                                     269
+  "Anzahl byte pro Mass: "                                                270
+22"Ma·eausdehnung"                                                        271
+  "Tabelle @%c@"                                                          272
+  "Tabellen nicht dimensioniert"                                          273
+  "Speichern und verlassen"                                               274
+  ""                                                                      275
+  "Port"                                                                  276
+  "Maske"                                                                 277
+  "AusgÑngeparameter"                                                     278
+  ""                                                                      279
+28"bit/Maske+port oder Symbol"                                            280
+ 3"Tab"                                                                   281
+25"AusgÑngeausdehnung"                                                    282
+25"Von Ausgangsnummer"                                                    283
+25"Bis Ausgangsnummer"                                                    284
+25"Grundwert"                                                             285
+
+Qui iniziano i messaggi di CONFMAIN.C
+  "@!351@"
+  "SYSTEMKONFIGURATION"                                                   351
+  "MODULGESAMTKONFIGURATION"                                              352
+  "MP-KARTENKONFIGURATION"                                                353
+  "MODUL"                                                                 354
+  "Moduln"                                                                355
+  "Konfiguriert"                                                          356
+  "Modulgesamtkonfiguration"                                              357
+  "Modulnkonfiguration"                                                   358
+  "bit+port oder Symbol"                                                  359
+  "feed forward @%s@ Achsinterpolation falsch"                            360
+  "MP-Kartenkonfiguration"                                                361
+  "Systemoptionen"                                                        362
+  "BenÅtzte PC-Serienlinie"                                               363
+  "Baud rate"                                                             364
+  "Statistiken"                                                           365
+  "Anzahl der Druckspalten"                                               366
+  "MP-Kartenkonfigurationen"                                              367
+  "in Druck"                                                              368
+ 4"Typ"                                                                   369
+  "Generalparameter"                                                      370
+  "Batterie"                                                              371
+  "Funktioniert mit PC"                                                   372
+  "Max. Mp-Kartenanzahl"                                                  373
+  "Timeout bei Fehler [sek]"                                              374
+  "Moduloptionen"                                                         375
+  "Auswahl der Init-Programme"                                            376
+  "Auswahl der Init-Tabellen"                                             377
+  "Allgemeine Programmnamen fÅr alle MP-Karten"                           378
+  "Allgemeine Tabellennamen fÅr alle MP-Karten"                           379
+  "Beschleunigung der @%c@ Achsinterpolation falsch"                      380
+  "Funktion mit Parameter"                                                381
+  "Funktion mit Parametertabellen"                                        382
+  "Benutzung der Setpointoperationen"                                     383
+  "Benutzung der Editoperationen in Automatik"                            384
+  "Benutzung der ZÑhler"                                                  385
+  "Arbeitsfrequenzen"                                                     386
+  "Realzeitfrequenz"                                                      387
+  "Kontrollfrequenzen der Interpolationsachsen"                           388
+  "Interpolationsfrequenzen"                                              389
+  "Diagnostikoptionen"                                                    390
+  "Zyklus/Systemfehlerspeicherung"                                        391
+  "Speicherung der VIDEO Nachrichten"                                     392
+  "Beschreibung ZÑhler"                                                   393
+  "Speicherung ZÑhler"                                                    394
+  "Achsenparameter"                                                       395
+  "Geschwindigkeitsvervielfacher der Interpolation der Achse @%c@ falsch" 396
+17"Resolution"                                                            397
+17"Hîchstgeschw."                                                         398
+  "Beschleunigung Achse @%c@ falsch"                                      399
+17"Fenster"                                                               400
+15"Gewinn"  //gain                                                        401
+17"Positivgrenze"                                                         402
+17"Negativgrenze"                                                         403
+17"Feed forward p."                                                       404
+17"Feed forward i."                                                       405
+  "Interpolation"                                                         406
+  "Interpolationskarte"                                                   407
+  "Geschwindigkeitsvervielfacher der Achse @%c@ falsch"                   408
+  "Anzahl Stationen geÑndert. BestÑtigen ?"                               409
+  "Volle SpeicherungsrÑume auf der Karte"                                 410
+  "(Anzahl byte)"                                                         411
+  "Kartentyp geÑndert. BestÑtigen ?"                                      412
+ 8"N. ZÑhl."                                                              413
+  "Funktionsparameter"                                                    414
+  "Anderes"                                                               415
+  "Funktion fÅr Spezialverwaltungen"                                      416
+  "(1ˆ255 oder Symbolname)"                                               417
+  "Systemfehler"                                                          418
+  "Zyklusende"                                                            419
+  "Notfall"                                                               420
+  "Plc"                                                                   421
+  "Ausdehnungen Eingang/Ausgang"                                          422
+  "Kartentyp"                                                             423
+  "KONFIGURATION"                                                         424
+  "NotfÑlletabelle"                                                       425
+ 5"Eing."                                                                 426
+  "MP-Kartentyp in der Modulgesamtkonfiguration nicht bestimmt"           427
+  "MP-Kartenkonfiguration aktiv"                                          428
+  "Automatik Init"                                                        429
+  "Wechsel Passwort"                                                      430
+  "Neues Passwort"                                                        431
+  "Anzahl MP-Karten"                                                      432
+  "Systemkonfiguration"                                                   433
+  "schwerer Fehler in lastst in ConfstazStore"                            434
+  "MP-Kartennummer nicht vorhanden"                                       435
+  "fehlt ZÑhlerbeschreibung"                                              436
+  "Konfiguration des aktiven Modul"                                       437
+  "zuviele Bytes benÅtzt"                                                 438
+  "MP-Kartentyp nicht angegeben"                                          439
+  "zuviele EingÑnge zugewiesen"                                           440
+  "zuviele AusgÑnge zugewiesen"                                           441
+  "zuviele Analog zugewiesen"                                             442
+  "Funktionstabelle nicht gefunden"                                       443
+  "Funktion in Tabelle nicht vorhanden"                                   444
+  "KartenkontinuitÑt nicht geachtet"                                      445
+  "Eingangssymboldefinition nicht gefunden"                               446
+  "Datei der Symboldefinitionen nicht gefunden"                           447
+  "Eingangszustand nicht angegeben"                                       448
+  "Konfigurationen drucken"                                               449
+  "KONFIGURATIONEN DRUCKEN"                                               450
+  "gesamte Konfiguration"                                                 451
+  "zuviele remote zugewiesen"                                             452
+  "Port oder Symbol"                                                      453
+  "KONFIGURATIONEN LôSCHEN"                                               454
+  "Konfigurationen lîschen"                                               455
+  "Feed rate override"                                                    456
+30"Inertia positiv"                                                       457
+30"Inertia negativ"                                                       458
+30"Vorn Ausgang"                                                          459
+30"Zuruck Ausgang"                                                        460
+30"Ausgang hoch/niedrig Gesch."                                           461
+  "Parameter von klaviatur"                                               462
+  "Erste Port"                                                            463
+30"(001ˆ255 oder sinnbild)"                                               464
+  "Sichtbarmachung wirtlich Ma·e"                                         465
+30"(Anzahl oder sinnbild)"                                                466
+
+Qui iniziano i messaggi di COMPIL.C
+  "@!501@"
+  "Anzahl der festgestellten Fehler: @%d@"                                501
+  "FRET Befehl nicht vorhanden in Funktion"                               502
+ 5"Linie"                                                                 503
+  "leeres Feld oder nicht numerisch"                                      504
+  "Feld nicht zugelassen"                                                 505
+  "Name Befehl nicht vorhanden oder falsch"                               506
+  "symbolischer Name E/A oder Etikette fehlt"                             507
+  "Etikette mehr als einmal angegeben"                                    508
+  "Etikette nicht gefunden"                                               509
+  "LÑnge Kode E/A falsch"                                                 510
+  "ErklÑrungsparameter falsch"                                            511
+  "Umdrehungszahl falsch"                                                 512
+  "Tabelle GPL1000 fehlt"                                                 513
+  "KOMPILER GPL1000"                                                      514
+  "Kompilieren"                                                           515
+  "Wert au·er range"                                                      516
+  "List on"                                                               517
+  "Achsen bei Interpolation mit verschiedener Resolution"                 518
+  "Interpolationsdurchmesser = 0"                                         519
+  "Wert Åber 10"                                                          520
+  "Programm schon bestimmt"                                               521
+  "Liste des falschen Kompilieren"                                        522
+  "Interpolation auf der gleichen Achse"                                  523
+  "doppelte Definition"                                                   524
+  "Etikette nicht zugelassen"                                             525
+  "Nummer Funktion schon angegeben"                                       526
+  "Befehl nicht erlaubt"                                                  527
+  "zuviele Parameter"                                                     528
+  "Anzahl Funktions Byte mehr als 4095"                                   529
+  "Parameter nicht vorhanden"                                             530
+  "Befehl vor FUN nicht erlaubt"                                          531
+  "FRET Befehl nicht vorhanden"                                           532
+  "Endmass falsch"                                                        533
+  "Kreis ohne Lîsung"                                                     534
+  "Durchmesser hîher als der Hîchstdurchmesser"                           535
+  "Befehl auf Karte PLC200 nicht erlaubt"                                 536
+  "Funktionsname falsch"                                                  537
+  "Funktionsname schon vorhanden"                                         538
+  "ADRESSE    OBJECT      LINIE   QUELLENLINIE"                           539
+  "Kompilieren unterbrochen"                                              540
+  "Anzahl Byte belegt: @%d@"                                              541
+  "Festgestellte Fehler: @%d@"                                            542
+  "Programm leer"                                                         543
+  "PROG.: @%s.%d@    T.P.A.: KOMPILER GPL1000       @%s@     Seite  @%d@" 544
+  "zuviele Definitionen"                                                  545
+  "( /Drucker/Platte)"                                                    546
+  "Falsche Definition"                                                    547
+  "Parallelfunktion mit Parameter"                                        548
+  "Funktion mehr als einmal gerufen"                                      549
+  "Druck List in Gang"                                                    550
+  "Speicherung List in Gang"                                              551
+  "DEFINITION DER MP-KARTE @%d@"                                          552
+  "PROGRAMM"                                                              553
+  "FUNKTION"                                                              554
+  "Parameter fehlen"                                                      555
+  "Funktion nicht gefunden"                                               556
+  "karte der schnelle Interpolation nicht vorhanden"                      557
+
+Qui iniziano i messaggi di MENU.C
+  "@!601@"
+  "PROGRAMMVERWALTUNG"                                                    601
+  "VERZEICHNIS"                                                           602
+  "NAMENWECHSEL"                                                          603
+  "KOPIE"                                                                 604
+  "LôSCHEN"                                                               605
+  "DRUCKEN"                                                               606
+  "UHRZEIT UND DATUM"                                                     607
+  "SICHTBARMACHUNG"                                                       608
+  "MACH SICHTBAR: @%s - %s@"                                              609
+  "Sichtbarmachung"                                                       610
+  "TABELLENMASSE: @%d@"                                                   611
+  "Editor"                                                                612
+  "BestÑtige ?"                                                           613
+  "Namenwechsel"                                                          614
+  "AUSGANGSPARAMETER"                                                     615
+  "Datum"                                                                 616
+  "Uhrzeit"                                                               617
+  "Bist du sicher ?"                                                      618
+  "Ende Arbeit"                                                           619
+  "EmpfÑnger Verzeichnis"                                                 620
+  "Lîschen"                                                               621
+26"CTRL-HOME  Dateianfang"                                                622
+26"CTRL-END   Dateiende"                                                  623
+  "Programmkompilieren"                                                   624
+  "Dateiliste"                                                            625
+  "Konfiguration"                                                         626
+  "Zyklusfehlertabelle"                                                   627
+  "Quellenverzeichnis"                                                    628
+  "HAUPTMENö"                                                             629
+  "Maschineverwaltung"                                                    630
+  "Programmverwaltung"                                                    631
+  "Uhrzeit und Datum"                                                     632
+  "Kopie von @%s@ in Gang"                                                633
+  "Dateischutz"                                                           634
+  "DATEISCHUTZ"                                                           635
+  "FUNKTIONSSATZ"                                                         636
+  "Funktionssatz"                                                         637
+  "%s ist geschÅetzt"                                                     638
+  "Willst du austauschen ?"                                               639
+
+Qui iniziano i messaggi di PLANCIA.C
+  "@!701@"
+11"AUTOMATIK"                                                             701
+  ""                                                                      702
+  ""                                                                      703
+  " Achsenma·e "                                                          704
+ 9"Tabelle"                                                               705
+  "verschiedene MP-Kartenanzahl von den konfigurierten"                   706
+  "SETPOINT"                                                              707
+  ""                                                                      708
+  "Modulnzustandwechsel"                                                  709
+  "öbertragung der Tabelle @%s@"                                          710
+  "Anzahl Ma·e hîher als  verfÅgbare Speicherung"                         711
+  "Mass @%d@ Tabelle @%d@ Achse @%c@ au·er range"                         712
+  "MP-Karte @%d@ von Modul @%d@ nicht konfiguriert"                       713
+  ""                                                                      714
+  "Edit"                                                                  715
+  "Neue öbertragungen"                                                    716
+  "Manuell und Diagnostik"                                                717
+  "Programmierung"                                                        718
+  "System Init"                                                           719
+  "SYSTEM INIT"                                                           720
+  "Init"                                                                  721
+  "Wechsel des Programms zum öbertragen"                                  722
+  "Wechsel der Tabelle zum öbertragen"                                    723
+  "WiederÅbertragung des Ganzen"                                          724
+  "Eine MP-Karte"                                                         725
+  "Alle MP-Karten"                                                        726
+  "Programm noch nicht in AusfÅhrung, start wiederdrÅcken"                727
+  "Init mi·lungen"                                                        728
+  "Datei der kompilierten Parameter nicht gefunden"                       729
+  "Programm @%s.%d@ zu lang"                                              730
+  "Programm @%s.%d@ nicht kompiliert"                                     731
+  "Funktion @%d@ MP-Karte @%d@ verdoppelt"                                732
+  "öbertragung der Funktion @%03d@"                                       733
+  "ParameterÅbertragung"                                                  734
+  "öbertragung des Programms @%s@"                                        735
+  ""                                                                      736
+  "Funktionsdatei @%s.%d@ nicht kompiliert"                               737
+  "Programm nicht ausgewÑhlt"                                             738
+  "AusgewÑhlte Programme"                                                 739
+  "MP-Kartenverzeichnis @%d@"                                             740
+  "Sichtbarmachung der ZÑhler"                                            741
+  "Programm existiert nicht"                                              742
+  ""                                                                      743
+  "AusgewÑhlte Tabellen"                                                  744
+  ""                                                                      745
+  ""                                                                      746
+  "Achsenbewegung"                                                        747
+  ""                                                                      748
+ 8"Mass"                                                                  749
+  ""                                                                      750
+  "Spannung an analogischen Ausgang"                                      751
+  "Nummer des analogischen Ausgang"                                       752
+  "Spannung in Volts"                                                     753
+  "DurchfÅhrung Funktion"                                                 754
+  "Operation vom Benutzer abgebrochen"                                    755
+  "Geschwindigkeit au·er range"                                           756
+26"X Y Z W V U Auswahl Achse"                                             757
+26"HOME  Anfang"                                                          758
+26"END  Ende"                                                             759
+26"LEERTASTE  on/off"                                                     760
+26"LEERTASTE  abbrechen"                                                  761
+26"X Y Z W V  Auswahl Achse"                                              762
+26"+ -  Bewegung Achse"                                                   763
+  "Achse in Bewegung"                                                     764
+  "Achse in freiem Zustand"                                               765
+
+Qui iniziano i messaggi di MONITOR.C
+  "@!801@"
+  "Menu comandi trace"                                                    801
+  "Attivazione trace programmi"                                           802
+  "Attivazione trace asse"                                                803
+  "Disattivazione trace"                                                  804
+  "Display stato task"                                                    805
+  "Menu comandi memoria"                                                  806
+  "Esamina celle di memoria"                                              807
+  "Display memoria"                                                       808
+  "Display continuo memoria"                                              809
+  "Scrittura dato in memoria"                                             810
+  "Movimento dati in memoria"                                             811
+  "Test memoria"                                                          812
+  "Calcolo checksum memoria"                                              813
+  "Menu comandi asse"                                                     814
+  "Abilitazione gestione asse"                                            815
+  "Disabilitazione gestione asse"                                         816
+  "Onda quadra sul DAC"                                                   817
+  "Scrittura dato sul DAC"                                                818
+  "Menu comandi ingressi/uscite"                                          819
+  "Display ingresso"                                                      820
+  "Display continuo ingressi"                                             821
+  "Modifica uscita"                                                       822
+  "Indirizzo"                                                             823
+  "Dato"                                                                  824
+  "Indirizzo iniziale"                                                    825
+  "Indirizzo finale"                                                      826
+  "Conferma"                                                              827
+  "Indirizzo destinazione"                                                828
+  "Dato 1"                                                                829
+  "Dato 2"                                                                830
+  "Ingresso 1"                                                            831
+  "Ingresso 2"                                                            832
+  "Numero"                                                                833
+26"BARRA  sospende display"                                               834
+25"MONITOR @%s%s@"                                                        835
+
+Qui iniziano i messaggi di AUTOAP.C
+  "@!851@"
+  "PROGRAMMIERUNG: @%s@"                                                  851
+40"FÅhre die abgeÑnderte Linie durch ?"                                   852
+  "Linie"                                                                 853
+  "Suche"                                                                 854
+  "Parallelprogramm"                                                      855
+  "Lôsche die Linie @%d@"                                                 856
+  "ProgrammierungmenÅ"                                                    857
+  "GPL MenÅ"                                                              858
+26"CTRL-P  bewegt Linie"                                                  859
+  "Auswahl Achse"                                                         860
+  "Maschinenvorrichtungen"                                                861
+  "Parallelfunktion"                                                      862
+15"N. Umdrehungen"                                                        863
+15"Geschwindigkeit"                                                       864
+26"B  Schutzanfang"                                                       865
+15"DurchfÅhrung"                                                          866
+15"Eingabe"                                                               867
+  "1-Automatik"                                                           868
+  "Das Programm @%s@ existiert schon. BestÑtigst du es ?"                 869
+  "Schritt fehlerhaft oder nicht vorhanden"                               870
+15"Stop"                                                                  871
+15"Absolutmass"                                                           872
+  "Detail"                                                                873
+12"Aktiv"                                                                 874
+12"Unaktiv"                                                               875
+16"Warte auf aktiv"                                                       876
+18"Warte auf unaktiv"                                                     877
+18"Spring wenn aktiv"                                                     878
+18"Spring wenn unakt."                                                    879
+  "EingÑnge"                                                              880
+  "AusgÑnge"                                                              881
+26"CTRL-S  MP-Kartenwechsel"                                              882
+26"LEERTASTE  AusfÅhren"                                                  883
+26"TAB  Bewegen"                                                          884
+  "1-HauptmenÅ"                                                           885
+15"Zugabe"                                                                886
+13"in AusfÅhrung"                                                         887
+26"ALT  MenÅ"                                                             888
+26"CTRL-T  toggle box"                                                    889
+26"CTRL-<ƒŸ  fÅhrt aus"                                                   890
+26"CTRL-DEL  lôscht Reihe"                                                891
+  "Loeschen die Zeilen von @%d@ bis @%d@"                                 892
+  "Aktiviere Parallelfunktion"                                            893
+  "Parallelprogrammname zu lang"                                          894
+12"Aktiviere"                                                             895
+12"Disaktiviere"                                                          896
+26"CTRL-P  Ende Bewegung"                                                 897
+  "5-UnbefÑhigen"                                                         898
+  "6-Suche"                                                               899
+15"BefÑhigen"                                                             900
+  "UnbefÑhigte Linie"                                                     901
+20"beim timeout springe"                                                  902
+11"zum Fehler"                                                            903
+11"zur Etiket."                                                           904
+10"BESCHLEUN."                                                            905
+10"BEHARRUNG."                                                            906
+10"VERZôGER."                                                             907
+10"THEORET."                                                              908
+10"IN MASS"                                                               909
+26"E  Schutzende"                                                         910
+  "Anzahl von Wiederholungen"                                             911
+  "Springe zu"                                                            912
+  "Etikette noch in Gebrauch"                                             913
+  "1-Achsenverwaltung"                                                    914
+  "2-Vorrichtungen"                                                       915
+  "4-Springen"                                                            916
+  "5-Wiederholen"                                                         917
+  "7-Befehl GPL"                                                          918
+  "3-Mitteilung"                                                          919
+  "8-Programmverwaltung"                                                  920
+  "9-Kartenwechsel"                                                       921
+  "6-Wartung Parallelfunktion"                                            922
+  "B-Bearbeitung"                                                         923
+  "2-Speichern"                                                           924
+  "3-DrÅcken"                                                             925
+  "4-Kommentar"                                                           926
+  "Mitteilung"                                                            927
+  "Springen"                                                              928
+  "Wiederholen"                                                           929
+  "Programmverwaltung"                                                    930
+  "Bearbeitung"                                                           931
+
+Fine dei messaggi
+
+
+

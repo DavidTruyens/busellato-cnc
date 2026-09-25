@@ -1,0 +1,21 @@
+0       0"@!1000@"             <---********** PRINTDIR.EXE  (Cristiano)
+25"Stampa del direttorio"                                               // +0
+08"Modulo"								// +1
+08"Moduli"								// +2
+10"Menu"								// +3
+30"Cambio modulo"                                                       // +4
+30"Stampa totale archivio"                                              // +5
+30"Stampa su iniziale"                                                  // +6
+30"Stampa su iniziale e finale"                                         // +7
+20"Uscita"                                                              // +8
+20"Iniziale"                                                            // +9
+20"Finale"                                                              //+10
+20"Stampa"								//+11
+40"Confermi stampa totale @%s@"                                         //+12
+50"Impossibile aprire @%s@"                                             //+13
+50"File @%s@ vuoto"                                                     //+14
+40"Nessun programma stampato"                                           //+15
+40"Stampante non disponibile"                                           //+16
+03"0"	per debug memory						//+17
+55"Stampa da iniziale @%s@ a finale @%s@"                               //+18
+55"Stampa da iniziale @%s@"                                             //+19

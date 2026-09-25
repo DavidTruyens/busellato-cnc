@@ -1,0 +1,8 @@
+ Volume in drive : has no label
+ Volume Serial Number is 381E-14D6
+Directory for ::/
+
+EDIGRAF2 EXE    562416 1992-05-19   3:02 
+        1 file              562 416 bytes
+                            894 976 bytes free
+
