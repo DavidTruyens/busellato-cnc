@@ -83,6 +83,34 @@ function onOpen() {
   progComment = String(programComment || "").toUpperCase().replace(/[^\x20-\x7E]/g, "").replace(/[()]/g, "").substr(0, 30);
 }
 
+function parseAllowed(text) {
+  var allowed = {};
+  var parts = String(text).split(",");
+  for (var i = 0; i < parts.length; ++i) {
+    var p = parts[i].replace(/\s+/g, "");
+    if (!p) {
+      continue;
+    }
+    var m = p.match(/^(\d+)-(\d+)$/);
+    if (m) {
+      for (var t = parseInt(m[1], 10); t <= parseInt(m[2], 10); ++t) {
+        allowed[t] = true;
+      }
+    } else if (/^\d+$/.test(p)) {
+      allowed[parseInt(p, 10)] = true;
+    } else {
+      error("Allowed tool numbers: cannot read '" + parts[i] + "'.");
+    }
+  }
+  return allowed;
+}
+
+function onRadiusCompensation() {
+  if (radiusCompensation != RADIUS_COMPENSATION_OFF) {
+    error("Cutter compensation must be 'In computer' (found compensation in control).");
+  }
+}
+
 function onSection() {
   inContour = false;
   if (!stock) {
@@ -97,6 +125,17 @@ function onSection() {
   }
   sectionTool = tool.number;
   sectionRpm = tool.spindleRPM;
+  var strategy = currentSection.strategy || getParameter("operation-strategy", "");
+  if (["contour2d", "pocket2d", "drill"].indexOf(strategy) < 0) {
+    error("Operation " + getParameter("operation-comment", "") + " (" + strategy +
+      ") is not supported. Use 2D contour, 2D pocket or drilling.");
+  }
+  if (hasParameter("operation:compensationType") && getParameter("operation:compensationType") != "computer") {
+    error("Cutter compensation must be 'In computer' in operation " + getParameter("operation-comment", "") + ".");
+  }
+  if (!parseAllowed(getProperty("allowedTools"))[tool.number]) {
+    error("Tool T" + tool.number + " is not in the allowed tool list (" + getProperty("allowedTools") + ").");
+  }
 }
 
 function checkDepth(z) {

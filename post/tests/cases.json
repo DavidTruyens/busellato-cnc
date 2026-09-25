@@ -28,6 +28,8 @@
   "CTRLCOMP": {"ok": false, "error": "compensation", "props": {}, "assert": []},
   "TOOL99": {"ok": false, "error": "T99", "props": {}, "assert": []},
   "DEEP": {"ok": false, "error": "Depth", "props": {}, "assert": []},
+  "RECT.tools": {"case": "RECT", "ok": false, "error": "T65", "props": {"allowedTools": " 1 - 30 , 66 "}, "assert": []},
+  "DRILL.tools": {"case": "DRILL", "ok": true, "props": {"allowedTools": "1-30, 65,66"}, "assert": ["checker"]},
   "BADORIG": {"ok": false, "error": "TOP surface", "props": {}, "assert": []},
   "BADNAME": {"ok": false, "error": "program name", "props": {}, "assert": []}
 }

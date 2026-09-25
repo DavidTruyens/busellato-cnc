@@ -100,6 +100,11 @@ class PostCaseTest(unittest.TestCase):
                 for a in spec['assert']:
                     self.check_assertion(key, a, text, spec.get('case', key))
 
+    def test_allowed_tools_parsing(self):
+        for key in ('RECT.tools', 'DRILL.tools'):
+            ok, _, log = run_case(key, CASES[key])
+            self.assertEqual(ok, CASES[key]['ok'], f'{key}\n{log[-1500:]}')
+
     def test_circpock_ramp_depth(self):
         """CIRCPOCK's profile ramp follows a full circle, so (unlike RAMP's rectangle) almost
         the whole descent is arcs. Guards against the depth being silently dropped on a
