@@ -1,0 +1,22 @@
+00"@!1000@"             <---********** PRINTDIR.EXE  (Cristiano)
+25"Imprimante du directoire"                                           // +0
+08"Module"                                                             // +1
+08"Modules"                                                            // +2
+10"Menu"                                                               // +3
+30"Change le module"                                                   // +4
+30"Imprimante du fichier"                                              // +5
+30"Imprimante sur le d‚but"                                            // +6
+30"Imprimante su le d‚but et la fin"                                   // +7
+20"Sortie"                                                             // +8
+20"D‚but"                                                              // +9
+20"Fin"                                                                //+10
+20"Imprimante"                                                         //+11
+40"Confirme l'imprimante @%s@"                                         //+12
+50"Impossible ouvrir @%s@"                                             //+13
+50"Prg @%s@ vide"                                                      //+14
+40"Pas de programme imprim‚"                                           //+15
+40"Imprimante non disponible"                                          //+16
+03"0"   per debug memory                                               //+17
+55"Stampa du b‚but @%s@ jusqu'… @%s@"                                  //+18
+55"Imprimante du d‚but @%s@"                                           //+19
+03"1"	1 = stampante grafica, 0 = stampante testo		       //+20

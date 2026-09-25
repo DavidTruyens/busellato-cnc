@@ -1,0 +1,35 @@
+         prog
+         normal    xyz
+         setq      x         0
+         setq      y         0
+         setq      z         0
+         video     COLLAUDO INTERPOLAZIONI
+         scount    0,0
+salto:   vcount
+         linear    xy,06,1000,1000
+         wend      xy,q
+         delay     3
+         linear    xz,06,-1000,1000
+         wend      xz,q
+         delay     3
+         linear    yz,06,-1000,-1000
+         wend      yz,q
+         delay     3
+         circle    xy,o,06,500
+         wend      xy,q
+         delay     3
+         circle    xz,a,06,500
+         wend      xz,q
+         delay     3
+         circle    yz,o,06,500
+         wend      yz,q
+         delay     3
+         helic     xyz,a,06,500,500,0,500
+         wend      xyz,q
+         delay     3
+         helic     xyz,o,06,-500,500,0,-500
+         wend      xyz,q
+         delay     3
+         icount    0
+         bra       salto
+         end

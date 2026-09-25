@@ -1,0 +1,49 @@
+//  **************** FILE : COMPILA.ENG (lingua : inglese) ***************
+00"@!1000@"
+50"COMPILER"
+20"Messages :"
+20"Program :"
+55"Compile single program "
+55"Compile whole archive. @<ESC>@ to interrupt"
+55"Compile on program initial. @<ESC>@ to interrupt"
+55"Compile on assigned Group. @<ESC>@ to interrupt"
+55"Compile on assigned Outfit. @<ESC>@ to interrupt"
+40"Usable keys@ : <PGUP> <PGDW> <ESC>@"
+10" "                                                       //009
+23"Single program"
+23"Whole archive"
+23"On prog. initial"
+23"By Group"
+23"By Outfit"
+23"Print errors"
+20"Initial "
+20"Group  "
+20"Outfit "
+10" "                                                       //019
+60"@|2|@<ESC> exit from compiler and from Help "
+60"<ESC> exit from multiple compilations "
+00"@!1050@"                      <---- ***** COMPILA.EXE (Massimo) ERRORI COMPILA
+60"MEMORY NOT AVAILABLE"
+60"Programm not specified"
+00"@!1100@"                      <---- ***** COMPILA.EXE (Massimo)
+60"Limit switch axis X in line : "
+60"Limit switch axis Y in line : "
+60"Limit switch axis Z in line : "
+60"Entry slow down quote not allowed in line : "
+60"Exit slow down quote not allowed in line : "
+60"Operation not allowed in line :  "
+60"Operation on face not allowed in line : "
+60"Drilling speed not defined in line : "
+60"Frequency of Real Time not defined in line : "
+60"Working ouside panel in line :  "
+60"Max. spindle turns not defined in line : "
+60"Insertion speed not defined in line : "
+60"Uncorrect Outfit in line : "
+60"Holes outside panel in line : "
+60"Program too long !!" 					** 14 **
+60"Error on debug file access!!"				** 15 **
+60"Out of limit horizzontal drilling in line : "		** 16 **
+60"Out of limit lateral drilling in line : "			** 17 **
+60"Out of limit rauter in line : "				** 18 **
+60"Out of limit blade in line : "				** 19 **
+

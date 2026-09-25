@@ -1,0 +1,49 @@
+//  **************** FILE : COMPILA.ITA (lingua : italiano) *************
+00"@!1000@"
+50"COMPILADOR  "         //000
+20"Mensajes  :"                                             //001
+20"Programa :"                                             //002
+55"Compilacion de singulo programa"                         //003
+55"Compilacion total de archivo     <ESC> suspende"       //004
+55"Compila con inicial de programa <ESC> suspende"       //005
+55"Compila con Grupo Especificado <ESC> suspende"          //006
+55"Compila con Herramientas Especificadas <ESC> suspende"   //007
+40"Teclas utilizables : <PGUP> <PGDW> <ESC>"                //008
+10" "                                                       //009
+23"Singulo programa"                                       //010
+23"Total  archivo"                                         //011
+23"Para inicial programa"                                   //012
+23"Para Grupo"                                              //013
+23"Para Herramientas"                                       //014
+23"Impresion Errores"                                       //015
+20"Inicial  "                                               //016
+20"Grupo  "                                                //017
+20"Herramientas "                                           //018
+10" "                                                       //019
+60"@|2|@Con <ESC> se sale del compilador y del  Help "    //020
+60"Con <ESC> se sale de compilacion multipla      "         //021
+00"@!1050@"                      <---- ***** COMPILA.EXE (Massimo) ERRORI COMPILA
+60"MEMORIA INSUFICIENTE PARA ELABORAR "
+60"Ninguno programa seleccionado"
+00"@!1100@"                      <---- ***** COMPILA.EXE (Massimo)
+60"Fuera de limites eje X en linea: "                           ** 00 **
+60"Fuera de limites eje X en linea:"                           ** 01 **
+60"Fuera de limites eje X en linea:"                           ** 02 **
+60"Cota  rall. Entrada no admitida en linea : "               ** 03 **
+60"Quota rall. Salida  no admitida en linea : "               ** 04 **
+60"Funcionalidad no admitida en linea :  "                      ** 05 **
+60"Funcionalidad en cara no admitida en linea : "             ** 06 **
+60"Vel. de taladrado no asignada en linea : "                ** 07 **
+60"Frequencia Real Time no asignada en linea : "             ** 08 **
+60"Trabaho fuera del panel en linea :  "                   ** 09 **
+60"Numero max rev. mandrin no asignado en linea : "         ** 10 **
+60"Velocidad de insercion no asignada en linea : "         ** 11 **
+60"Herramienta incorrecto en linea : "                     ** 12 **
+60"Agujeros fuera del panel en linea : "                      ** 13 **
+60"Programa demasiado largo !!"                                   ** 14 **
+60"Error en acceso file de debug !!"                      ** 15 **
+60"Taladrado frontal demasiado profundo en linea : "          ** 16 **
+60"Taladrado lateral demasiado profundo en linea :"           ** 17 **
+60"Fresado fuera limite en linea : "                          ** 18 **
+60"Corte fuera limite en linea : "                          ** 19 **
+

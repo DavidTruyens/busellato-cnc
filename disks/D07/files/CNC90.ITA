@@ -1,0 +1,624 @@
+ //  **************** FILE : CNC90.ITA (lingua : italiano) ******************
+ 3"S@/@N"                                         //msg 0  carattere si/no nazionale
+25"CONFERMI@ (%s) ?@"                             //msg 1
+25"@%s @in corso..."                              //msg 2
+10"HELP"                                          //msg 3
+10"ERRORE"                                        //msg 4
+15"@<Alt+H=@HELP@>@"                              //msg 5
+50"file@ %s @non trovato"                         //msg 6
+50"file@ %s @gi… esistente"                       //msg 7
+50"modo errato di accesso a file@ %s@"            //msg 8
+50"disco@ %c: @pieno"                             //msg 9
+50"errore su periferica"                          //msg 10
+50"errore su stampante"                           //msg 11
+50"disco protetto in scrittura"                   //msg 12
+50"disco non pronto in drive@ %c:@"               //msg 13
+50"errore su disco"                               //msg 14
+50"errore interno"                                //msg 15
+50"memoria insufficiente"                         //msg 16
+50"accesso negato"                                //msg 17
+50"Non Gestito"                                   //msg 18
+50"Vuoi riprovare@ (%s) ?@"                       //msg 19
+50"Sei sicuro di abbandonare@ (%s) ?@"            //msg 20
+50"Impossibile aprire file@ %s@"                  //msg 21
+50"Programma@ %s @non in direttorio"              //msg 22
+50"Programma@ %s @in direttorio"                  //msg 23
+50"Errore : file di lingua non corretto"          //msg 24
+70"Errore : impossibile settare modo video VGA"   //msg 25
+70"Errore : impossibile settare i font TPA"       //msg 26
+70"Errore : environ@ %s @non valido"              //msg 27
+70"Errore : environ@ %s @non trovato"             //msg 28
+70"Errore : file@ %s @non valido"                 //msg 29
+70"Errore : file@ %s @non trovato"                //msg 30
+03"D@/@S"                                         //msg 31 caratteri destro/sinistro nazionale
+08"Nome"                                          //msg 32
+03"Num"                                           //msg 33
+03"Typ"                                           //msg 34
+03"Inp"                                           //msg 35
+03"Out"                                           //msg 36
+20"Programma"                                     //msg 37
+20"Lista"                                         //msg 38
+20"Bar-Code"                                      //msg 39
+40"Tasti utilizzabili : @<PGUP> <PGDW> <ESC>@"    //msg 40
+40"Direttorio Programmi"                          //msg 41
+40"Visualizzazione Errori"                        //msg 42
+08"Escl"                                          //msg 43
+40"Errore : direttorio pieno"                     //msg 44
+00"@!065@"                                 <---- *****
+01""                                      //msg 65 libero !!??
+80"@CNC90 %s - T.P.A. SpA   Sesto S. G."  //msg 66 INTESTAZIONE ESEGUIBILI
+14"@00000000000000@"                      //msg 67 Maschera psw su menu di plancia
+01""                                      //msg 68 libero !!??
+01""                                      //msg 69 libero !!??
+//
+00"@!070@"                 <---- ***** OFFSETS SUGLI ESEGUIBILI
+04"@100@"                  //offset PLANCIA.EXE
+04"@500@"                  //offset EDIPART.EXE   (msg generali)
+04"@600@"                  //offset EDIGRAF.EXE
+04"@1000@"                 //offset COMPILA.EXE
+04"@1000@"                 //offset EDIPART.EXE
+04"@1000@"                 //offset EDIPAR.EXE
+04"@1000@"                 //offset EDILIST.EXE
+04"@1000@"                 //offset COPIA.EXE
+04"@1000@"                 //offset ESTERNO.EXE
+04"@1000@"                 //offset VENTOSE.EXE
+04"@1000@"                 //offset IMPORT.EXE
+04"@1000@"                 //offset MSGEDIATT
+04"@1030@"                 //offset MSGEDITEC0
+04"@1200@"                 //offset MSGEDITEC1öMSGEDITEC10
+04"@1230@"                 //offset MSGEDITEC11
+04"@1270@"                 //offset MSGEDITEC12
+04"@1300@"                 //offset MSGEDITEC13
+04"@1000@"                 //offset MSGPRINTDIR
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+04"@1000@"                 //offset per prossimo eseguibile
+//
+00"@!100@"                 <---- ***** PLANCIA.EXE (Giorgio)
+80"AUTOMATICO"                                                          //50
+06"auto"                                                                //51
+06"start"                                                               //52
+06"stop"                                                                //53
+06"set-p"                                                               //54
+06"manual"                                                              //55
+06"end"                                                                 //56
+06"r_list"                                                              //57
+06"s_list"                                                              //58
+06"diagn"                                                               //59
+05"menu"                                                                //60
+33"Editor di Programmi"                                                 //61
+33"Compilatore di Programmi"                                            //62
+33"Parametri Tecnologici"                                               //63
+33"Parametri Utensili"                                                  //64
+33"Attrezzaggi"                                                         //65
+33"Editor delle Liste"                                                  //66
+33"Gestione Archivio"                                                   //67
+33"Ausiliario di Sistema"                                               //68
+33"Chiamata CAD"                                                        //69
+33"Connessione in Rete"                                                 //70
+33"Chiamata programma esterno"                                          //71
+33"Cambio stazione per quote assi"                                      //72
+33"Shell al DOS"                                                        //73
+33"Uscita Sistema CNC90"                                                //74
+33"Parametri Generali"                                                  //75
+33"Parametri Gruppo @1@"                                                //76
+33"Parametri Gruppo @2@"                                                //77
+33"Parametri Gruppo @3@"                                                //78
+33"Parametri Gruppo @4@"                                                //79
+33"Parametri Gruppo @5@"                                                //80
+33"Parametri Gruppo @6@"                                                //81
+33"Parametri Gruppo @7@"                                                //82
+33"Parametri Gruppo @8@"                                                //83
+33"Parametri Gruppo @9@"                                                //84
+33"Parametri Gruppo @10@"                                               //85
+33"Correttori di linearit…"                                             //86
+33"Settaggi"                                                            //87
+33"Parametri Custom"                                                    //88
+33"Attrezzaggio @%d@"                                                   //89
+33"-"                                                                   //90
+33"-"                                                                   //91
+33"-"                                                                   //92
+33"-"                                                                   //93
+33"-"                                                                   //94
+33"-"                                                                   //95
+33"-"                                                                   //96
+33"-"                                                                   //97
+33"-"                                                                   //98
+80"-"                                                                   //99
+63"-"                                                                   //100
+40"Programma @%s.%d@ troppo lungo"                                      //101
+40"Programma @%s.%d@ non compilato"                                     //102
+60"Function @%d@ della stazione @%d@ Š duplicata"                       //103
+60"Trasm function @%03d@ a staz. @%2d@"                                 //104
+60"Trasm parametri a stazione @%2d@"                                    //105
+60"Trasm program @%s@ stazione @%d@"                                    //106
+60"Modulo : @%d@"                                                       //107
+60"File di function @%s.%d@ non compilato"                              //108
+60"Trasm correttori a stazione @%d@"                                    //109
+60"Numero quote > memoria disponibile"                                  //110
+60"Fuori range quota @%d@ tab. @%d@ asse @%c@"                          //111
+60"Stazione @%d@ del modulo @%d@ non Š configurata"                     //112
+60"Task"                                                                //113
+60"Numero stazioni diverso da quelle configurate"                       //114
+60"Stazione : @%d@"                                                     //115
+64"@|50|@Premere il tasto funzione per l'operativit… desiderata :"      //116 max 50
+64"@F1@             Richiama l'operativit… di Automatico"
+64"@F4@             Richiama l'operativit… di Set Point"
+64"@F5@             Richiama l'operativit… di Manuale"
+64"@F7@             Richiama lista da direttorio"
+64"@F8@             Salvataggio lista automatico in direttorio liste"
+64"@F9@             Richiama l'operativit… di Diagnostica"
+64"@F10@            Abilita la gestione del Menu"
+64"@F11@            Editor contemporaneo (DV2)"
+64""
+64"   AUTOMATICO"
+64"@ESC@            Cancella i caratteri di una casella"
+64"@TAB@            Sposta la barra a destra di una casella"
+64"@SHIFT+TAB@      Sposta la barra a sinistra di una casella"
+64"@RETURN@         Passa al prossimo campo da editare"
+64"@CTRL+Y@         Cancellazione della riga"
+64"@CTRL+U@         Ripristina l'ultima riga cancellata"
+64"@CTRL+RETURN@    Inserimento di una riga"
+64"@CTRL+HOME@      Posizionamento rapido in testa alla lista"
+64"@CTRL+END@       Posizionamento rapido in coda alla lista"
+64"@CTRL+D@         Svuota la lista corrente"
+64"@CTRL+N@         Per inserimento numero ripetizioni"
+64"@CTRL+S@         Ricerca di una parola nella lista"
+64"@PGUP@           Passa alla pagina precedente"
+64"@PGDW@           Passa alla pagina successiva"
+64"@\x18@              Passa alla riga precedente"
+64"@\x19@              Passa alla riga successiva"
+64"@F2@             Manda in esecuzione la lista"
+64"@F3@             Mette in stato di stop la lista"
+64"@F6@             Termina l'esecuzione della lista ed esce"
+64"@F7@             Richiama lista da direttorio"
+64"@F8@             Salvataggio lista automatico in direttorio liste"
+64"@F10@            Acquisizione diretta programmi da direttorio"
+64""
+64"   SET POINT & DIAGNOSTICA"
+64"@F2@             Manda in esecuzione la procedura"
+64"@F3@             Mette in stato di stop il programma"
+64"@F6@             Termina l'esecuzione della procedura"
+64""
+64"   MENU & HELP"
+64"@ESC@            Uscita dal MENU e dall' HELP"
+64"@PGUP@           Passa alla pagina precedente"
+64"@PGDW@           Passa alla pagina successiva"
+64"@\x18@              Passa alla riga precedente"
+64"@\x19@              Passa alla riga successiva"
+64"@ENTER@          Seleziona la voce evidenziata"
+64""
+64"@ALT+M@          Monitor PTP1000"
+64"@ALT+R@          Ritrasmissione parametri, programmi, function."
+64"@CTRL+R@         Ripulisce zona messaggi"
+08"-"                     <------------------------------------ IndiceMsgVari
+80"Digitare @EXIT@ + @<ENTER>@ per ritornare al CNC90."                     1
+40"Premere @%s@ per continuare"                                             2
+50" Inizializzazione fallita."                                              3
+30" Vuoi riprovare @%s@ ?"                                                  4
+65"Attrezzaggio non congruente nel programma @%s@"                          5
+65"Impossibile avviare AUTOMATICO, SET POINT NON ESEGUITO !"                6
+65"Impossibile aprire file @%s@"                                            7
+65"Programma @%s@ NON presente in direttorio"                               8
+65"Inserire il numero dell' ATTREZZAGGIO presente sulla macchina"           9
+65"Campo numerico errato nel programma @%s@"                               10
+65"Function inesistente : Programma %s, Funz. %d, Staz. %d"                11
+65"Programma troppo lungo per stare in memoria"                            12
+65"Tipo di lavorazione non ammessa nel programma @%s@"                     13
+65"Errore nel file compilato del programma @%s@"                           14
+05"dir"                                                                    15
+06"f_rate"                                                                 16
+65"Inserire il nome lista destinataria"                                    17
+65"Lista @%s@ gi… presente, salvataggio abortito !"                        18
+65"Impossibile salvare lista @%s@, salvataggio fallito !"                  19
+14"*111Menu"                                                               20
+65"Inserire la password per procedere"                                     21
+65"Sei sicuro di voler uscire dal sistema @(%s)@ ?"                        22
+65"Numero di param. errati nella function n. @%s@"                         23
+65"Password errata, impossibile procedere."                                24
+50"Configurazione ventose errata o mancante"                               25
+65"Lista non presente, impossibile avviare AUTOMATICO!"                    26
+65"Configurazione ventose CAD del file @%s@ non trovata"                   27
+65"Errore attivate troppe traverse per semiarea nel pgm @%s@"              28
+65"Le traverse del programma @%s@ non rispettano i limiti"                 29
+65"Numero codifiche riservate al CAD errato o insufficiente"               30
+65"Il programma @%s@ deve essere ricompilato, esecuzione terminata"        31
+65"Inserire codice di lavorazione da BARCODE"                              32
+65"Programma non contenuto nella lista @%s@"                               33
+65"Programma @%s@ non eseguibile sull' area specificata"                   34
+65"Inserire il campo da ricercare"                                         35
+65"Errore nel file di lista @%s@"                                          36
+60"HELP Errore di Sistema N.@%d@"                                          37
+60"@<%d/%m/%y> <%H:%M:%S>@"                                                38
+60"@%s <%-*s> <%-*s %-*s>\x0A@"                                            39
+60"@<%d/%m/%y> <%H:%M:%S>@"                                                40
+60"@%s\x0A<%s>\x0A@"                                                       41
+60"@%s <%s>\x0A@"                                                          42
+06"@DIAGN1@"                                                               43
+06"@DIAGN2@"                                                               44
+06"@DIAGN3@"                                                               45
+06"@DIAGN4@"                                                               46
+06"@DIAGN5@"                                                               47
+06"@DIAGN6@"                                                               48
+06"@DIAGN7@"                                                               49
+06"@DIAGN8@"                                                               50
+06"@DIAGN@"                                                                51
+06"exit"                                                                   52
+65"Attrezzaggio Programma @%d@, Attrezzaggio Macchina @%d@."               53
+//
+00"@!500@"                 <-- ***** EDIPART.EXE (Messaggi generali) (Giorgio)
+75"PARAMETRICA"
+64"@|16|@ESC               Esce senza salvare le ultime variazioni"
+64"@END@               Esce salvando le ultime variazioni"
+64"@PGUP@              Passa alla pagina precedente"
+64"@PGDW@              Passa alla pagina successiva"
+64"@\x18@                 Passa al parametro precedente"
+64"@\x19@                 Passa al parametro successivo"
+64"@ENTER@             Passa al parametro successivo"
+64"@F1@                Ripete l'ultimo inserimento fatto"
+64"@F2@                Somma al parametro corrente il valore 32"
+64"@F3@                Sottrae al parametro corrente il valore 32"
+64"COLORI :          0=Nero,          1=Blu,       2=Verde"
+64"                  3=Azzurro,       4=Rosso      5=Magenta"
+64"                  6=Giallo,        7=Bianco,    8=Grigio"
+64"                  9=Blu L,        10=Verde L,  11=Azzurro L"
+64"                 12=Rosso L,      13=Magenta L"
+64"                 14=Giallo L,     15=Bianco L"
+80"File di definizione @%s@ non trovato !"
+80"Dati del file di definizione (@%s@) errati !"
+80"Errore in lettura su file parametri @%s@ !"
+80"Errore in scrittura su file parametri @%s@ !"
+80"Unit… di misura non ricosciuta"
+80"Errore nei messaggi di help"
+80"Errore nei messaggi dei parametri"
+15"Pag @%d@/@%d@"
+25"-"
+50"Sei sicuro di abbandonare ?"
+//
+00"@!600@"                     <-- ***** EDIGRAF.EXE      (Luisa)
+15"EDITOR"                         // 0
+20"NOME"                           //+1
+20"Commento"                       //+2
+20"Unit…@ (M/I)@"                 //+3
+20"Lunghezza@ L@"                  //+4
+20"Altezza  @ H@"                  //+5
+20"Spessore @ S@"                  //+6
+20"Attrezzaggio@ (0-49)@"           //+7
+20"Codifica ventose"               //+8
+08"Data"                           //+9
+04"Lato"         //lati pezzo      //+10
+06"Faccia"                         //+11
+20""             //libero          //+12
+10"N.o prg"                        //+13
+10"Pagina "                        //+14
+60"@|16|TAB@       Commuta tra NOME e pagina grafica"  //+15 max 25  //HELP SU DIRETTORIO
+60"@PG UP@     Impagina su pagina precedente"            //+16
+60"@PG DN@     Impagina su pagina successiva"            //+17
+60"@HOME@      Impagina su prima pagina"                 //+18
+60"@END@       Impagina sull'ultima pagina"              //+19
+60"@0ö9;AöZ@   Cerca programmi su iniziale specificata"  //+20
+60"@\x18@         Sposta il cursore sulla riga precedente"//+21
+60"@\x19@         Sposta il cursore sulla riga successiva"//+22
+60"@\x1A \x1B@       Scorre la pagina in orizzontale"     //+23
+60"@ALT+E@     Pathname completo"                         //+24
+60"@ENTER@     Conferma la/le selezioni"                  //+25
+60"@ESC@       Annulla su operazione in corso"            //+26
+60""                                                      //+27
+60"     Su selezione multipla :"                          //+28
+60"@SPACE@     Seleziona la linea, se non marcata su ''" //+29
+60"@SPACE@     Deseleziona la linea, se marcata su ''"   //+30
+// MENU` DI DESTRA (8 +8)
+08"FILES"                           //+31  (1ø pagina)
+08"INSERT U"                        //+32
+08"INSERT D"                        //+33
+08"MODIFICA"                        //+34
+08"CANCELLA"                        //+35
+08"LINEA"                           //+36
+08"DIM"                             //+37
+08"R. FRESA"                        //+38
+08"LATO"                            //+39  (2ø pagina)
+08"VENTOSE"                         //+40
+08"ESCLUDI"                         //+41
+08"@?@"                             //+42
+08"@?@"               merge         //+43
+08"@?@"               zoom          //+44
+08"@?@"               zoom off      //+45
+08"@?@"                             //+46
+// men— su selezione FILES (previste 10)
+20"@0 @APRE@/@NUOVO"               //+47
+20"@1 @SALVA"                      //+48
+20"@2 @SALVA CON NOME"             //+48 ??!!
+20"@3 @CANCELLA"                   //+49
+20"@4 @COPIA"                      //+50
+20"@5 @RINOMINA"                   //+51
+20"@6 @STAMPA"                     //+52
+20"@7 @DIRETTORIO"                 //+53
+20"@8 @ESEGUI"                     //+54 ??!!
+20"@9 @COMPILA"                    //+55
+20"@A @RITORNO"                    //+56
+20"@B @CAMBIO MODULO"              //+57
+20"@A @MENU` 3"                    //+58
+20""                               //+59
+20""                               //+61
+//MENU` 3
+33"Editor di Programmi"            //+62
+33"Cambio Modulo"                  //+63
+33"Compilatore di Programmi"       //+64
+33"Parametri Tecnologici"          //+65
+33"Parametri Utensili"             //+66
+33"Attrezzaggi"                    //+67
+33"Editor delle Liste"             //+68
+33"Gestione Archivio"              //+69
+33"Chiamata CAD"                   //+70
+33"Programma esterno"              //+71
+33""                               //+72
+// men— su selezione lavorazioni
+10"FACCIA"                         //+73
+20"RAPIDO@ x,y,z H@"               //+74
+20"RAPIDO@ x,y,z,w,v H@"           //+75
+20"FORI"                           //+76
+20"LAMA x"                         //+77
+20"LAMA y"                         //+78
+20"FRESATE"                        //+79
+20"SPECIALI"                       //+80
+20"INSERIMENTI"                    //+81
+20"SOTTOPROGRAMMA"                 //+82
+20"FORI SPECIALI"                  //+83
+20"@?@"                            //+84
+20"@?@"                            //+85
+20"@?@"                            //+86
+20"@?@"                            //+87
+20"@?@"                            //+88
+//              men— di fori
+20"FORO@ (x,y,z)@"                 //+89
+20"FORO@ (x,y; u,a)@"              //+90
+20"FITTING x"                      //+91
+20"FITTING y"                      //+92
+20"RIPETI x"                       //+93
+20"RIPETI y"                       //+94
+20"RIPETI xy"                      //+95
+20"RIPETI xy (u,a)"                //+96
+20"FORI SU CERCHIO"                //+97
+20"@?@"                            //+98
+20"@?@"                            //+99
+20"@?@"                            //+100
+//              men— di fresata
+20"SET FRESA@ (x,y,z)@"            //+101
+20"SET FRESA@ (x,y; u,a)@"         //+102
+20"@L1 (x,y,z)@"                   //+103
+20"@L2 (x,y; u,a)@"                //+104
+20"@L3 (u,a)@"                     //+105
+20"@L4 (tg; u)@"                   //+106
+20"@C1 (x1,x2; c; rot)@"           //+107
+20"@C2 (x,y; u; rot)@"             //+108
+20"@C3 (c; a; rot)@"               //+109
+20"@C4 (tg; x,y; rot)@"            //+110
+20"ELICOIDALE C1"                  //+111
+20"ELICOIDALE C2"                  //+112
+20"ELICOIDALE C3"                  //+113
+20"OVALE"                          //+114
+20"SMUSSO"                         //+115
+20"RACCORDO"                       //+116
+20"@C5 (xi,yi; x,y)@"              //+117
+20"@?@"                            //+118
+//              men— di speciali
+20"RITARDO"                        //+119
+20"MESSAGGIO"                      //+120
+20"MISURA @L@"                     //+121
+20"MISURA @H@"                     //+122
+20"MISURA @S@"                     //+123
+20"OFFSET"                         //+124
+20"LAMA Aø"                        //+125
+20"@?@"                            //+126
+20"@?@"                            //+127
+20"@?@"                            //+128
+20"@?@"                            //+129
+20"@?@"                            //+130
+//              men— di inserimento
+20"BASETTA"                        //+131
+20"BUSSOLA"                        //+132
+20"CERNIERA"                       //+133
+20"REGGIRIPIANO"                   //+134
+20"GENERICO @1@"                   //+135
+20"GENERICO @2@"                   //+136
+20"SPINATURA"                      //+137
+20"@?@"                            //+138
+20"@?@"                            //+139
+20"@?@"                            //+140
+//              men— di fori speciali
+20"FORO CON SCARICO"               //+141
+20"MASCHIATURA"                    //+142
+20"@?@"                            //+143
+20"@?@"                            //+144
+20"@?@"                            //+145
+//
+20"@?@"     disponibile per nuovo  //+146
+20"@?@"           sottomenu        //+147
+20"@?@"                            //+148
+20"@?@"                            //+149
+20"@?@"                            //+150
+20"@?@"                            //+151
+// MESSAGGI GENERALI
+25"@F11=DV1@"                      //+152
+20"Attuale"      //msg su modulo   //+153
+20"Nuovo"        //msg su modulo   //+154
+25"Stampa su SUB@ (%s) ?@"         //+155
+25"Destinatario"                   //+156
+25"Nome NUOVO"                     //+157
+20"@Rf@ non presente"              //+158
+30"Testo non valido"               //+159
+30"Campo@ %s @errato"              //+160
+30""                               //+161
+30""                               //+162
+30""                               //+163
+30""                               //+164
+30""                               //+165
+30""                               //+166
+30""                               //+167
+30""                               //+168
+30""                               //+169
+30""                               //+170
+30""                               //+171
+//HELP SU OPEN/NEW
+20"@ESC@   Annulla"                                 //+172
+20"@ENTER@ Conferma"                                //+173
+20"@\x18 \x19@   Selezione "                        //+174
+20"@PG UP@ Pagina su"                               //+175
+20"@PG DN@ Pagina gi—"                              //+176
+20""                                                //+177
+//HELP SU MENU` <-
+50"@|17|HOME@      Selezione sul primo campo" max 25       //+178
+50"@END@       Selezione sull'ultimo campo"                //+179
+50"@\x18 \x19@       Sposta la selezione in verticale"     //+180
+50"@\x1A \x1B@       Sposta la selezione in orizzontale"   //+181
+50"@PG UP/DN@  Impagina su pagina successiva"              //+182
+50"@ENTER@     Conferma la selezione"                      //+183
+50"@TAB@       Commuta su men— di destra"                  //+184
+50"     Comandi selezionabili :"                           //+185
+50"FILES     Selezione su Men— principale"                 //+186
+50"INSERT U  Inserisce sopra la linea attuale"             //+187
+50"INSERT D  Inserisce sotto la linea attuale"             //+188
+50"MODIFICA  Modifica la linea attuale"                    //+189
+50"CANCELLA  Cancellazione su una o pi— linee"             //+190
+50"LINEA     Posiziona ad una linea "                      //+191
+50"DIM       Imposta su dimensioni, etc"                   //+192
+50"R. FRESA  Grafica su profilo corretti"                  //+193
+50"LATO      Commuta su altro lato di programma"           //+194
+50""                                                       //+195
+50""                                                       //+196
+50""                                                       //+197
+50""                                                       //+198
+50""                                                       //+199
+50""                                                       //+200
+50""                                                       //+201
+50""                                                       //+202
+//HELP SU MENU` ->
+50"@|21|@ Funzioni disponibili su gestione programma :"  max 30  //+203
+50""                                                      //+204
+50"@HOME@    Selezione su prima linea di testo"           //+205
+50"@END@     Selezione su ultima linea di testo"          //+206
+50"@\x18@       Selezione su linea precedente"            //+207
+50"@\x19@       Selezione su linea successiva"            //+208
+50"@\x1A \x1B@     Selezione su 2ø pagina attuale"        //+209
+50"@PG UP@   Selezione su pagina precedente"              //+210
+50"@PG DN@   Selezione su pagina successiva"              //+211
+50"@Alt+G@   Finestra grafica su lavorazione"             //+212
+50"@Alt+S@   Finestra su sottoprogramma"                  //+213
+50"@Alt+L@   Finestra di testo ISO"                       //+214
+50"@Alt+D@   Finestra su parametri aggiunti"              //+215
+50"@Alt+T@   Finestra grafica su gruppo"                  //+216
+50"@Ctrl \x1A@  Scorre il campo XYZ in orizzontale"       //+217
+50"@Ctrl \x1B@  Scorre il campo XYZ in orizzontale"       //+218
+50"@ENTER@   Lampeggia su linea attuale"                  //+219
+50"@Ctrl+Y@  Cancella la linea attuale"                   //+220
+50""                                                      //+221
+50"@TAB@     Commuta su men— di sinistra"                 //+222
+50"@0 \xF6 F@   Selezione su men— di sinistra"            //+223
+50""                                                      //+224
+//HELP SU INSERT/MODIFICA
+50"@|24|TAB@        Cursore su campo successivo"  max 25   //+225
+50"@SHIFT-TAB@  Cursore su campo precedente"               //+226
+50"@\x19@          Cursore su campo successivo"             //+227
+50"@\x18@          Cursore su campo precedente"             //+228
+50"@HOME@       Cursore su primo campo"                    //+229
+50"@END@        Cursore su ultimo campo"                   //+230
+50"@SPACE@      Edit guidato @(\x01)@"                     //+231
+50"@ENTER@      Conferma sui dati"                         //+232
+50"@ESC@        Annulla operazione"                        //+233
+50"@Alt+G@      Apre /Chiude finestra grafica"             //+234
+50"@Alt+T@      Parametrica su campo @T@"                  //+235
+50"@Alt+D@      Finestra su parametri aggiunti"            //+236
+50""                                                       //+237
+50"     Su lavorazione SOTTOPROGRAMMA : "                  //+238
+50"@Alt+P@      Selezione sottoprogramma da direttorio"    //+239
+50"@Alt+S@      Finestra su sottoprogramma"                 //240
+50""                                                       //+241
+50"     In fase di MODIFICA : "                            //+242
+50"@PG UP@      Passa alla linea precedente"               //+243
+50"@PG DN@      Passa alla linea successiva"               //+244
+50""                                                       //+245
+50"     In fase di diagnostiche su OPEN : "                //+246
+50"@Ctrl+Y@     Cancella la linea attuale"                 //+247
+50"@ESC@        Svuota il programma"                       //+248
+50""                                                       //+249
+//  ERRORI editor
+30"Testo SRG completo"                    //+250 (1)
+30"Testo TAB completo"                    //+251 (2)
+30"Campo@ %s @sintassi errata"            //+252 (3)
+30"Campo@ %s @valore non valido"          //+253 (4)
+30"Gruppo non abilitato"                  //+254 (5)
+30"Utensili :sintassi errata"             //+255 (6)
+30"Utensile non valido"                   //+256 (7)
+30"Campo@ %s @non impostato"              //+257 (8)
+30"Passo=0 o Nt=1"                        //+258 (9)
+30"N. battute =0"                         //+259 (10)
+30"Codice non valido"                     //+260 (11)
+30"Interpolazione:@ %s @"                 //+261 (12)
+30"Faccia non abilitata"                  //+262 (13)
+30""                                      //+263 (14)
+30"Modulo@ %s @non valido"                //+264 (15)
+30"Raggio fresa:@ %s @"                   //+265 (16)
+30""                                      //+266 (17)
+30""                                      //+267 (18)
+30""                                      //+268 (19)
+30""                                      //+269 (20)
+30""                                      //+270 (21)
+30""                                      //+271 (22)
+30""                                      //+272 (23)
+30""                                      //+273 (24)
+30""                                      //+274 (25)
+30""                                      //+275 (26)
+30""                                      //+276 (27)
+30""                                      //+277 (28)
+30""                                      //+278 (29)
+30""                                      //+279 (30)
+30""                                      //+280 (31)
+// Messaggi su Alt+t (help su gruppo o utensili
+16"CORRET.@X.@:"                          //+281
+16"CORRET.@Y.@:"                          //+282
+16"CORRET.@Z.@:"                          //+283
+16"INGOMB. MAX @X+@:"                     //+284
+16"INGOMB. MAX @X-@:"                     //+285
+16"INGOMB. MAX @Y+@:"                     //+286
+16"INGOMB. MAX @Y-@:"                     //+287
+16"INGOMB. MAX @Z+@:"                     //+288
+16"DIAM.UTEN.:"                           //+289
+16"NUM.UTEN.:"                            //+290
+16"INTERASS.UTEN.:"                       //+291
+16"TIPO TEST.:"                           //+292
+16"VEL. MIN. :"                           //+293
+16"VEL. MAX. :"                           //+294
+16"TESTINA ANG.:"                         //+295
+16"PARAMETRO @17@:"                       //+296
+16"Cor.@ X.@ (gr)"                        //+297
+16"Cor.@ Y.@ (gr)"                        //+298
+16"Cor.@ Z.@ (gr)"                        //+299
+//         disponibili
+20""                            //+300
+20""                            //+301
+20""                            //+302
+20""                            //+303
+20""                            //+304
+20""                            //+305
+20""                            //+306
+20""                            //+307
+//              Messaggi di errore su ritorno da prg figlio
+60"Errore 1 : file DIGI.CNF non trovato"
+60"Errore 2 : programma sorgente non trovato"
+60"Errore 3 : accesso negato su BASE.DGT o file non trovato"
+60"Errore 4 : accesso negato su VINCOLI.VNT o file non trovato"
+60"Errore 5 : programma troppo lungo per il testo DGT"
+60"Errore 6 : lancio sul programma CAD non valido"
+60"Errore 7 : accesso negato su PARTECx.PAT o file non trovato"
+60"Errore 8 : troppe traverse sul campo macchina"
+60"Errore 9 : "
+60"Errore 10 : lancio su operativit… VENTOSE non valido"

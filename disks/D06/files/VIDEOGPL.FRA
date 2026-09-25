@@ -1,0 +1,75 @@
+
+;>>>>>>>>>>>>FILE DI LINGUA < VIDEOGPL.FRA > PER FUNZIONI -GPL1000-
+
+"URGENCE GENERELLE"                                 ;1  SETP
+"URGENCE AXE X"                                     ;2  SETP
+"URGENCE AXE Y"                                     ;3  SETP
+"URGENCE AXE Z"                                     ;4  SETP
+"URGENCE AIR COMPRIME'"                             ;5  SETP
+"REMISE A ZERO OK!"                                 ;6  SETP
+"ATTENTE CHARGEM. PANNEAU"                          ;7  CARSCA
+"PROCEDURE PAS CORRECT"                             ;8  CARSCA
+"ATTENTE START N"                                   ;9  CARSCA
+"ATTENTE START M"                                   ;10 CARSCA
+"ATTENTE START S"                                   ;11 CARSCA
+"ATTENTE START A"                                   ;12 CARSCA
+"ATTENTE START T"                                   ;13 CARSCA
+"ATTENTE START R"                                   ;14 CARSCA
+"ATTENTE START N/"                                  ;15 CARSCA
+"ATTENTE START M/"                                  ;16 CARSCA
+"ATTENTE START S/"                                  ;17 CARSCA
+"ATTENTE START A/"                                  ;18 CARSCA
+"ATTENTE START T/"                                  ;19 CARSCA
+"ATTENTE START R/"                                  ;20 CARSCA
+"DEPART CICLE OK !"                                 ;21 CARSCA
+"FIN DU CICLE"                                      ;22 CARSCA
+"FIN DU CICLE AREA N"                               ;23 CARSCA
+"FIN DU CICLE AREA M"                               ;24 CARSCA
+"FIN DU CICLE AREA S"                               ;25 CARSCA
+"FIN DU CICLE AREA A"                               ;26 CARSCA
+"FIN DU CICLE AREA T"                               ;27 CARSCA
+"FIN DU CICLE AREA R"                               ;28 CARSCA
+"FIN DU CICLE AREA N/"                              ;29 CARSCA
+"FIN DU CICLE AREA M/"                              ;30 CARSCA
+"FIN DU CICLE AREA S/"                              ;31 CARSCA
+"FIN DU CICLE AREA A/"                              ;32 CARSCA
+"FIN DU CICLE AREA T/"                              ;33 CARSCA
+"FIN DU CICLE AREA R/"                              ;34 CARSCA
+"ENBRAYER LA PUMPE A VIDE!"                         ;35 PLC
+"URGENCE FOTOCELLE"                                 ;36 PLC
+"POINT ZERO Z AXE-OK!"                              ;37 SERVIZI
+"POINT ZERO Y AXE-OK!"                              ;38 SERVIZI
+"POINT ZERO X AXE-OK!"                              ;39 SERVIZI
+"POINT ZERO W AXE-OK!"                              ;40 SERVIZI
+"ATTENTE CONFIRMATION MOTEURS"                      ;41 UTENTE
+"ATTENTE VITESSE PROGR. A L'INVERTER"               ;42 UTENTE
+"ATTENTE ROTAT. LAME EN DIRECTION X"                ;43 UTENTE
+"ATTENTE ROTATION LAME EN DIRECTION Y"              ;44 UTENTE
+"ATTENTION!! LAVORATION MIRROIR"                    ;45 UTENTE
+"ATTENTE POSIT. LAME A 45 DEG."                     ;46 UTENTE
+"ATTENTE CONFIRM. VITESSE 0 DE L'INVERTER"          ;47 UTENTE
+"ATTENTE ROTATION DEFONC. EN X"                     ;48 UTENTE
+"ATTENTE ROTATION DEFONC. EN Y"                     ;49 UTENTE
+"URGENCE AXE"                                       ;50 SERVIZI
+"NUMERO FUNCTION ERRONEE"                           ;51 SERVIZI
+"EXECUTION STOP PROGRAMEE"                          ;52 UTENTE
+"URGENCE INVERTER"                                  ;53 PLC
+"ATTENTE INTERMITTORE POS 1"                        ;54 PLC
+"ATTENTE INTERMITTORE POS 2"                        ;55 PLC
+"ATTENTE INTERMITTORE POS 3"                        ;56 PLC
+"ATTENTE ENTRATA MAGAZZINO"                         ;57 PLC
+"ATTENTE SALITA PISTONE"                            ;58 PLC
+"ATTENTE SBLOCCAGGIO UTENSILE"                      ;59 PLC
+"ATTENTE DISCESA PISTONE"                           ;60 PLC
+"ATTENTE USCITA MAGAZZINO"                          ;61 PLC
+"ATTENTE BLOCCAGGIO UTENSILE"                       ;62 PLC
+"POINT ZERO V AXE-OK!"                              ;63 SERVIZI
+"ATTENTE CORSA IND 1"                               ;64 SERVIZI    
+"ATTENTE CORSA IND 2"                               ;65 SERVIZI    
+"ATTENTE CORSE IND 1 - 2"                           ;66 SERVIZI    
+"ATTENTE CILID. ESTRAZIONE BASSO"                   ;67 SERVIZI    
+" "                                                ;68 GENERICA
+"ATTESA FRESA 1 ALTA"                              ;69 PLC.1     
+"ATTESA FRESA 2 ALTA"                              ;70 PLC.1
+"ATTESA SLITTA 1 INDIETRO"                         ;71 SERVIZI
+"ATTESA SLITTA 2 INDIETRO"                         ;72 SERVIZI

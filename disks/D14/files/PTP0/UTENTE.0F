@@ -1,0 +1,435 @@
+; ************************ FUNZIONI (UTENTE) ******************************
+
+FUN      75,FconfMF                    ;Funzione di conferma motori frese
+         RES       MTMAND1
+         RES       MTMAND2
+         RES       MTMAND5
+         OR        0+PORTINS8,2+PORTINS9,FATTFL1
+         OR        3+PORTINS9,FATTFL1
+         OR        4+PORTINS9,FATTFL1,MTFRESA1     ;Set motore fresa 1
+
+         OR        1+PORTINS8,5+PORTINS9,FATTFL1
+         OR        6+PORTINS9,FATTFL1
+         OR        7+PORTINS9,FATTFL1,MTFRESA2     ;Set motore fresa 2
+
+         SKZ       2+PORTINS8
+         SET       MTFRESA3            ;Set motore fresa 3
+         SKZ       3+PORTINS8
+         SET       MTFRESA4            ;Set motore fresa 4
+         SKZ       4+PORTINS8
+         SET       MTFRESA5            ;Set motore fresa 5
+         SNZ       5+PORTINS8,TSTFR6
+         SKZ       7+PORTINS8,TSTFR6B
+TSTFR6:  SET       MTFRESA6            ;Set motore fresa 6
+TSTFR6B: SNZ       6+PORTINS8,TSTFR7
+         SKZ       0+PORTINS9,ROTAZINV
+TSTFR7:  SET       MTFRESA7            ;Set motore fresa 7
+         SET       MTFRECRO            ;Set motore fresa croce
+
+ROTAZINV:SKZ       ROTINV
+         SET       ABILROT
+
+RIPETI:  SNZ       FCMOTORI,RIPETI1
+         MESSAGE   41,2                ;Attesa conferma motori
+         BRA       RIPETI
+
+RIPETI1: OUT       000+236,3
+         SET       ABILINV
+         OR        FCINV,FCINV,FATTFL1 ;Flag di comodo
+         SNZ       FATTFL1,ESCI
+         MESSAGE   42,2                ;Attesa velocita max inverter
+         DELAY     0.5
+         MESSAGE   68,2
+         BRA       RIPETI1
+ESCI:    NOP
+         FRET
+
+FUN      76,FrotLam                    ;Funzione di rotazione lama
+
+         RES       MTMAND1
+         RES       MTMAND2
+         RES       MTMAND5
+         SKZ       LAMROT,RIPETI1      ;Test flag PLC se lama rotante
+         SKZ       3+PORTINS7,TSTLAMA2 ;Lama1 in X
+LOOPX:   SNZ       PLAMAX,RESX45
+         FCALL     77                  ;Spegnimento motori
+         RES       ROTLAMY
+         SET       ROTLAMX
+         MESSAGE   43,2                ;Attesa rotaz. lama in X
+         BRA       LOOPX
+RESX45:  RES       BLOC45
+         BRA       RIPETI
+TSTLAMA2:SKZ       4+PORTINS7,TSTLAM45 ;Lama1 in Y
+LOOPY:   SNZ       PLAMAY,RESY45
+         FCALL     77                  ;Spegnimento motori
+         SKZ       PLAM45,LOOPY45
+         SET       ROTLAMX
+         RES       BLOC45
+         DELAY     1
+
+LOOPY45: RES       ROTLAMX
+         SET       ROTLAMY
+         MESSAGE   44,2                ;Attesa rotaz. lama in Y
+         BRA       LOOPY
+RESY45:  RES       BLOC45
+         BRA       RIPETI
+
+TSTLAM45:SKZ       7+PORTINS9,RIPETI   ;Rotazione a 45 gradi
+         FCALL     77                  ;Spegnimento motori
+MIRROR:  SKZ       4+ATTUALE,LOOP45    ;Test se lav. lama 45 e mirror
+         MESSAGE   45,2                ;Attenzione lav. speculare
+         DELAY     0.5
+         MESSAGE   68,2
+         DELAY     0.5
+         BRA       MIRROR
+LOOP45:  SNZ       PLAM45,RIPETI
+LOPX45:  SNZ       PLAMAX,ROT45
+         RES       ROTLAMY
+         SET       ROTLAMX
+         MESSAGE   43,2                ;Attesa rotaz. lama in X
+         BRA       LOPX45
+ROT45:   SNZ       PLAM45,RIPETI
+         RES       ROTLAMX
+         SET       BLOC45
+         DELAY     0.5
+         SET       ROTLAMY             ;Rotazione 45
+         MESSAGE   46,2                ;Attesa rotaz. lama a 45 gradi
+         BRA       ROT45
+
+RIPETI:  MESSAGE   68,2
+         DELAY     0.1
+         RES       ROTLAMX
+         RES       ROTLAMY
+         OR        3+PORTINS7,4+PORTINS7,LAMA1
+         OR        7+PORTINS9,LAMA1
+         OR        6+PORTINS7,LAMA1              ;Lama rotante 0 - 360
+         OR        5+PORTINS7,5+PORTINS7,LAMA2   ;Lama fissa 2
+         DELAY     0.3
+         BRA       USCITA
+RIPETI1: MESSAGE   68,2                             ;Selezione lame fisse
+         OR        3+PORTINS7,4+PORTINS7,LAMA1
+         OR        5+PORTINS7,5+PORTINS7,LAMA2
+USCITA:  FRET
+
+FUN      61,FunSetML                   ;Funz. set motori lame
+         SKZ       3+PORTINS7,LAY
+         RES       MTLAMA2
+         SET       MTLAMA1
+         BRA       RIPETI
+LAY:     SKZ       4+PORTINS7,LA2
+         RES       MTLAMA2
+         SET       MTLAMA1
+         BRA       RIPETI
+LA2:     SKZ       5+PORTINS7,LA3
+         RES       MTLAMA1
+         SET       MTLAMA2
+LA3:     SKZ       6+PORTINS7,ESCI
+         RES       MTLAMA2
+         SET       MTLAMA1
+
+RIPETI:  SNZ       FCMOTORI,RIPETI1
+         MESSAGE   41,2                ;Attesa conferma motori
+         BRA       RIPETI
+RIPETI1: DELAY     0.3
+         SET       ABILINV
+         RES       FATTFL1
+         OR        FCINV,FCINV,FATTFL1 ;Flag di comodo
+         SNZ       FATTFL1,ESCI
+         MESSAGE   42,2                ;Attesa conf. velocita inverter
+         DELAY     0.1
+         MESSAGE   68,2
+         BRA       RIPETI1
+ESCI:    DELAY     0.3
+         FRET
+
+FUN      77,FresMtLF                   ;Funzione di spegn.motori frese lame
+
+         VOUT      6,0
+ATTESA:  SNZ       FINV0,ATTESA1       ;Attesa inverter a 0
+         MESSAGE   47,2                ;Attesa conf. velocita inverter a 0
+         DELAY     0.1
+         MESSAGE   68,2
+         BRA       ATTESA
+ATTESA1: RES       ABILROT             ;Abilitazione rotaz. inversa fresa
+         RES       ABILINV
+         RES       MTFRESA1
+         RES       MTFRESA2
+         RES       MTFRESA3
+         RES       MTFRESA4
+         RES       MTFRESA5
+         RES       MTFRESA6
+         RES       MTFRESA7
+         RES       MTFRECRO
+         RES       MTLAMA1
+         RES       MTLAMA2
+         FRET
+
+FUN      78,FrotFre                    ;Funzione di rotazione fresa
+
+         SKZ       FREROT,ESC          ;Test PLC se fresa rotante
+         SNZ       5+PORTINS8,ROTFRX   ;Utensile 70
+         SNZ       7+PORTINS8,ROTFRX   ;   "     72
+         SNZ       6+PORTINS8,ROTFRY   ;   "     71
+         SNZ       0+PORTINS9,ROTFRY   ;   "     73
+         BRA       ESC
+         FCALL     77                  ;Spegnimento motori
+ROTFRX:  SNZ       FRESY,RIP
+         RES       MTFRX
+         SET       MTFRY
+         MESSAGE   48,2                ;Attesa rotazione fresa in X
+         BRA       ROTFRX
+
+ROTFRY:  SNZ       FRESX,RIP
+         RES       MTFRY
+         SET       MTFRX
+         MESSAGE   49,2                ;Attesa rotazione fresa in Y
+         BRA       ROTFRY
+RIP:     MESSAGE   68,2
+         DELAY     0.1
+         RES       MTFRX
+         RES       MTFRY
+         DELAY     0.1
+ESC:     FRET
+
+FUN      79,ResPortIns                 ;Funz. di reset portins
+
+         OUT       000+PORTINS1
+         OUT       000+PORTINS2
+         OUT       000+PORTINS3
+         OUT       000+PORTINS4
+         OUT       000+PORTINS5
+         OUT       000+PORTINS6
+         OUT       000+PORTINS7
+         OUT       000+PORTINS8
+         OUT       000+PORTINS9
+         FRET
+
+
+FUN      80,FresMot        ;Funzione di spegn.motori frese lame utilizzata
+                           ;nelle funzioni di End, Emergenza, Errori Sist.
+
+         RES       MTMAND1
+         RES       MTMAND2
+         RES       MTMAND5
+         VOUT      6,0
+         DELAY     2
+         RES       ABILROT             ;Abilitaz. rotazione inversa fresa
+         RES       ABILINV
+         DELAY     2
+         RES       MTFRESA1
+         RES       MTFRESA2
+         RES       MTFRESA3
+         RES       MTFRESA4
+         RES       MTFRESA5
+         RES       MTFRESA6
+         RES       MTFRESA7
+         RES       MTFRECRO
+         RES       MTLAMA1
+         RES       MTLAMA2
+         FRET
+
+FUN      81,SetUtOL                    ;Funz. set utens. a fori oriz/later
+
+         OR        3+PORTINS6,3+PORTINS6,EVUT52
+         OR        4+PORTINS6,4+PORTINS6,ORI53
+         OR        5+PORTINS6,5+PORTINS6,ORI54
+         OR        6+PORTINS6,6+PORTINS6,ORI55
+         OR        7+PORTINS6,7+PORTINS6,LATER56
+         OR        0+PORTINS7,0+PORTINS7,LATER57
+         FRET
+
+FUN      82,SetUtFr                    ;Funz. set utensili fresa
+
+         OR        0+PORTINS8,2+PORTINS9,FATTFL1  ;Su ut. 65/75/76/77
+         OR        3+PORTINS9,FATTFL1             ;set fresa1
+         OR        4+PORTINS9,FATTFL1,FRESA1
+         OR        1+PORTINS8,5+PORTINS9,FATTFL1  ;Su ut. 66/78/79/80
+         OR        6+PORTINS9,FATTFL1             ;set fresa2
+         OR        7+PORTINS9,FATTFL1,FRESA2
+         OR        2+PORTINS8,2+PORTINS8,FRESA3
+         OR        3+PORTINS8,3+PORTINS8,FRESA4
+         OR        4+PORTINS8,4+PORTINS8,FRESA5
+         OR        5+PORTINS8,7+PORTINS8,FRESAX
+         OR        6+PORTINS8,0+PORTINS9,FRESAY
+         FRET
+
+FUN     83,SetMtmand                   ;Funz. accensione motori mandrini
+
+         OUT       000+COMANDR
+         COMP      PORTOUT0,<>,COMANDR,255,SETMT1
+         COMP      PORTOUT1,<>,COMANDR,255,SETMT1
+         COMP      PORTOUT2,<>,COMANDR,255,SETMT1
+         COMP      PORTOUT3,<>,COMANDR,7,SETMT1
+         COMP      PORTINS6,<>,COMANDR,248,SETMT1 ;Per utens. oriz/later
+         COMP      PORTINS7,=,COMANDR,1,TEST         ;Per utens. oriz/later
+
+SETMT1:  SET       MTMAND1
+         RES       MTMAND2
+         RES       MTMAND5
+TEST:    COMP      PORTOUT3,<>,COMANDR,248,SETMT2
+         COMP      PORTOUT4,<>,COMANDR,255,SETMT2
+         COMP      PORTOUT5,=,COMANDR,1,TEST1
+SETMT2:  SET       MTMAND2
+         RES       MTMAND1
+         RES       MTMAND5
+TEST1:   COMP      PORTOUT5,<>,COMANDR,254,SETMT5
+         COMP      PORTOUT6,=,COMANDR,3,FIN83
+SETMT5:  SET       MTMAND5
+         RES       MTMAND1
+         RES       MTMAND2
+FIN83:   FRET
+
+FUN      98,FunStop                    ;Funzione di stop programmato
+
+         SET       STOPPRG
+         MESSAGE   52,2
+         FCALL     94                  ;Funz. di scarico
+         RES       STOPPRG
+
+         MESSAGE   7,2                 ;Attesa carico pannello
+         OUT       047+COMODO          ;Scrittura lavorazione -N-
+         COMP      COMODO,=,ATTUALE,255,LAVN
+         OUT       031+COMODO          ;Scrittura lavorazione -M-
+         COMP      COMODO,=,ATTUALE,255,LAVM
+         OUT       044+COMODO          ;Scrittura lavorazione -S-
+         COMP      COMODO,=,ATTUALE,255,LAVS
+         OUT       028+COMODO          ;Scrittura lavorazione -A-
+         COMP      COMODO,=,ATTUALE,255,LAVA
+         OUT       035+COMODO          ;Scrittura lavorazione -T-
+         COMP      COMODO,=,ATTUALE,255,LAVT
+         OUT       019+COMODO          ;Scrittura lavorazione -R-
+         COMP      COMODO,=,ATTUALE,255,LAVR
+;Lavorazioni su aree corte
+         OUT       046+COMODO          ;Scrittura lavorazione -N/-
+         COMP      COMODO,=,ATTUALE,255,LAVNC
+         OUT       023+COMODO          ;Scrittura lavorazione -M/-
+         COMP      COMODO,=,ATTUALE,255,LAVMC
+         OUT       040+COMODO          ;Scrittura lavorazione -S/-
+         COMP      COMODO,=,ATTUALE,255,LAVSC
+         OUT       020+COMODO          ;Scrittura lavorazione -A/-
+         COMP      COMODO,=,ATTUALE,255,LAVAC
+         OUT       034+COMODO          ;scrittura lavorazione -T/-
+         COMP      COMODO,=,ATTUALE,255,LAVTC
+         OUT       017+COMODO          ;Scrittura lavorazione -R/-
+         COMP      COMODO,=,ATTUALE,255,LAVRC
+
+;>>>>>>>>>>>>>>>>>>>> SUBROUTINE
+
+LAVN:    NOP
+         MESSAGE   9,2                 ;Attesa start N
+LOOPN:   COMP      COMODO,<>,PLCBLCE,15,LOOPN
+         RES       EVRMSN
+         SET       FLAGA1
+         SET       FLAGA2
+         FRET
+
+LAVM:    NOP
+         MESSAGE   10,2                 ;Attesa start M
+LOOPM:   COMP      COMODO,<>,PLCBLCE,15,LOOPM
+         RES       EVRMMR
+         SET       FLAGA1
+         SET       FLAGA2
+         FRET
+
+LAVS:    NOP
+         MESSAGE   11,2                ;Attesa start S
+LOOPS:   COMP      COMODO,<>,PLCBLCE,12,LOOPS
+         RES       EVRMSN
+         SET       FLAGA1
+         FRET
+
+LAVA:    NOP
+         MESSAGE   12,2                 ;Attesa start A
+LOOPA:   COMP      COMODO,<>,PLCBLCE,12,LOOPA
+         RES       EVRMA
+         SET       FLAGA1
+         FRET
+
+LAVT:    NOP
+         MESSAGE   13,2                ;Attesa start T
+LOOPT:   COMP      COMODO,<>,PLCBLCE,3,LOOPT
+         RES       EVRMT
+         SET       FLAGA2
+         FRET
+
+LAVR:    NOP
+         MESSAGE   14,2                ;Attesa start R
+LOOPR:   COMP      COMODO,<>,PLCBLCE,3,LOOPR
+         RES       EVRMMR
+         SET       FLAGA2
+         FRET
+
+;Carico lavorazioni area corte
+
+LAVNC:   NOP
+         MESSAGE   15,2                ;Attesa start N/
+LOOPNC:  COMP      COMODO,<>,PLCBLCE,14,LOOPNC
+         RES       EVRMSN
+         SET       FLAGA1
+         SET       FLAGA2
+         FRET
+
+LAVMC:   NOP
+         MESSAGE   16,2                ;Attesa start M/
+LOOPMC:  COMP      COMODO,<>,PLCBLCE,7,LOOPMC
+         RES       EVRMMR
+         SET       FLAGA1
+         SET       FLAGA2
+         FRET
+
+LAVSC:   NOP
+         MESSAGE   17,2                ;Attesa start S/
+LOOPSC:  COMP      COMODO,<>,PLCBLCE,8,LOOPSC
+         RES       EVRMSN
+         SET       FLAGA1
+         FRET
+
+LAVAC:   NOP
+         MESSAGE   18,2                ;Attesa start A/
+LOOPAC:  COMP      COMODO,<>,PLCBLCE,4,LOOPAC
+         RES       EVRMA
+         SET       FLAGA1
+         FRET
+
+LAVTC:   NOP
+         MESSAGE   19,2                ;Attesa start T/
+LOOPTC:  COMP      COMODO,<>,PLCBLCE,2,LOOPTC
+         RES       EVRMT
+         SET       FLAGA2
+         FRET
+
+LAVRC:   NOP
+         MESSAGE   20,2                ;Attesa start R/
+LOOPRC:  COMP      COMODO,<>,PLCBLCE,1,LOOPRC
+         RES       EVRMMR
+         SET       FLAGA2
+         FRET
+
+FUN      71,FtestEscl                 ;Funz. di test sulle esclusioni
+
+         AND       0+ESCLUSI,0+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       1+ESCLUSI,1+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       2+ESCLUSI,2+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       3+ESCLUSI,3+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       4+ESCLUSI,4+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       5+ESCLUSI,5+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       6+ESCLUSI,6+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU,ESCI
+         AND       7+ESCLUSI,7+FITTIZ3,FLGESCLU
+         SNZ       FLGESCLU
+ESCI:    FRET
+
+FUN      73,FcarAgg               ;Funz. di test su cod. di output
+                                  ;per no sblocc. pannello per prog. succ.
+
+         COMP      ATTUALE,<>,SUCCESS,255,FINE73
+         OUT       001+FCOMOD
+         COMP      COATT,<>,FCOMOD,255,FINE73
+         SET       NOSBLOPA
+FINE73:  FRET

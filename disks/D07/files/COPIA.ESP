@@ -1,0 +1,67 @@
+//  **************** FILE : COPIA.ITA (lingua : italiano) *************
+ 0"@!1000@"                                                   //OFSET
+80"GESTION  ARCHIVO"                                          // Mgs 0
+13"@*111@ Menu"                                               // Mgs 1
+18"@|9|@Copia Programas"                                      // Mgs 2
+18"Canc. Programas"                                           // Mgs 3
+18"Copia Listas"                                              // Mgs 4
+18"Cancela Listas"                                            // Mgs 5
+18"Copia Tot. Progtc"                                         // Mgs 6
+18"Canc.Tot. Prog."                                           // Mgs 7
+18"Copia Parametros"                                          // Mgs 8
+18"Driver Fuente "                                            // Mgs 9
+18"Driver Destino"                                            // Mgs 10
+53" Fuente   "                                                // Mgs 11
+53" Destino"                                                  // Mgs 12
+53" Mensajes "                                                // Mgs 13
+53"Seleccionar voz  MENU             < Alt+H=HELP >"          // Mgs 14
+20" PATH DISPONIBILES"                                        // Mgs 15
+20"Seleccion Driver"                                          // Mgs 16
+53"Confirma Drive Fuente  :"                                  // Mgs 17
+53"CUIDADO: FILE DE INFORMACION DRIVER AUSENTE   "            // Mgs 18
+20"@*011@ DRIVER DISPONIBLES "                                // Mgs 19
+53"AUSENTE"                                                   // Mgs 20
+53"CUIDADO : Drive fuente y drive destino iguales"            // Mgs 21
+53"Errores encontrados en l'operacion corriente    "          // Mgs 22
+21"@%ld@ byte libres"                                         // Mgs 23
+21"@%ld@ byte ocupados"                                       // Mgs 24
+53"CUIDAO: Introducir el FLOPPY DISK y presionar @<ENTER>@"   // Mgs 25
+53"Presionar una tecla para continuar"                        // Mgs 26
+80" DIRECTORIO PROGRAMAS "                                    // Mgs 27
+53"CUIDADO: Espacio insuficiente en drive destino"            // Mgs 28
+70"Prog. copiado: @%s@"                                       // Mgs 29
+53"OPERACION DE COPIA FRACASADA"                              // Mgs 30
+20"@*011@PROG. EXIST"                                         // Mgs 31
+53"Seleccionar programas para copiar  "                       // Mgs 32
+53"OPERACION DE COPIA ACABADA CORRECTAMENTE"                  // Mgs 33
+80"PROG. FUENTE AUSENTE"                                      // Mgs 34
+53"OPERACION DE COPIA EN CURSO     N.prg. @%d@"               // Mgs 35
+53"CUIDADO: Indice programas ausente"                         // Mgs 36
+53"OPERACION DI CANCELAZIONE EN CURSO   N.prg. @%d@"          // Mgs 37
+70"Prog. cancelado: @%s@"                                     // Mgs 38
+53"OPERACION DE CANCELACION FRACASADA"                        // Mgs 39
+53"OPERACION DE CANCELACION TERMINADA CORRECTAMENTE"          // Mgs 40
+53"Seleccinar las listas para copiar "                        // Mgs 41
+53"@*011@LISTAS"                                              // Mgs 42
+53"CUIDADO: File Listas ausente. - Presionar una tecla-"      // Mgs 43
+70"Lista copiada: @%s@"                                       // Mgs 44
+53"@*011@LISTE EXIST."                                        // Mgs 45
+53"Seleccionar las listas para cancelar "                     // Mgs 46
+53"Lista: @%s@ AUSSENTE"                                      // Mgs 47
+70"Lista cancelada: @%s@"                                     // Mgs 48
+53"Subdirectorio  @%s@ AUSENTE"                               // Mgs 49
+53"Subdirectorio  @%s@ VACIO"                                 // Mgs 50
+53"OPERACION DE COPIA PARAMETROS EN CURSO"                    // Mgs 51
+70"File param. copiado: @%s@"                                 // Mgs 52
+53"Espacio insuficiente para copia - Presionar @ESC@ -"       // Mgs 53
+53"OPERACION DE COPIA LISTAS EN CURSO   N.prg. @%d@"          // Mgs 54
+53"Ambiente destino ausente. Queres crearlo : @%s@"           // Mgs 55
+53"CUIDADO: Ambiente de fuente ausente."                      // Mgs 56
+53"CUIDADO: Numero Drive mayor que @10@"                      // Mgs 57
+80"PROG. COMPILADO AUSENTE"                                   // Mgs 58
+53"AMBIENTE HARD_DISK AUSENTE"                                // Mgs 59
+65"@|5|@ TECLAS   DESCRIPCION :"                              // Mgs 60
+65"@< ESC >@   SALIDA PROGRAMA."                              // Mgs 61
+65"@<   >@   UTILIZADAS PARA SELECCIONAR ITEMS MENU"        // Mgs 62
+65"@< RET >@   CONFIRMA LAS OPERACIONES EJECUTADAS"           // Mgs 63
+65"@< F1  >@   LLAMA VISUALIZACION ERRORES     "              // Mgs 64

@@ -1,0 +1,74 @@
+;>>>>>>>> FILE DI LINGUA < VIDEOGPL.ITA > PER FUNZIONI -GPL1000- BUSELLATO
+
+"EMERGENZA GENERALE"                               ;1  SETP                                                     ;1  SETP
+"EMERGENZA ASSE X"                                 ;2  SETP                                                     ;2
+"EMERGENZA ASSE Y"                                 ;3  SETP                                                     ;3
+"EMERGENZA ASSE Z"                                 ;4  SETP                                                     ;4
+"EMERGENZA PRESSIONE ARIA"                         ;5  SETP                                                     ;5
+"SET POINT TOTALE OK!"                             ;6  SETP                                                     ;6
+"ATTESA CARICO PANNELLO"                           ;7  CARSCA                                                   ;7  CARSCA
+"CODICE LAVORAZIONE NON CORRETTO"                  ;8  CARSCA                                                   ;8
+"ATTESA START  N"                                  ;9  CARSCA                                                   ;9
+"ATTESA START  M"                                  ;10 CARSCA                                                                       ;10
+"ATTESA START  S"                                  ;11 CARSCA                                                                       ;11
+"ATTESA START  A"                                  ;12 CARSCA                                                                       ;12
+"ATTESA START  T"                                  ;13 CARSCA                                                                       ;13
+"ATTESA START  R"                                  ;14 CARSCA                                                                       ;14
+"ATTESA START  N/"                                 ;15 CARSCA                                                        ;9
+"ATTESA START  M/"                                 ;16 CARSCA                                                                        ;10
+"ATTESA START  S/"                                 ;17 CARSCA                                                                        ;11
+"ATTESA START  A/"                                 ;18 CARSCA                                                                        ;12
+"ATTESA START  T/"                                 ;19 CARSCA                                                                        ;13
+"ATTESA START  R/"                                 ;20 CARSCA                                                                        ;14
+"INIZIO CICLO OK !"                                ;21 CARSCA                                                       ;15
+"FINE CICLO"                                       ;22 CARSCA                                                                       ;16
+"FINE CICLO AREA N"                                ;23 CARSCA                                                       ;17
+"FINE CICLO AREA M"                                ;24 CARSCA                                                       ;18
+"FINE CICLO AREA S"                                ;25 CARSCA                                                       ;19
+"FINE CICLO AREA T"                                ;26 CARSCA                                                       ;20
+"FINE CICLO AREA A"                                ;27 CARSCA                                                       ;21
+"FINE CICLO AREA R"                                ;28 CARSCA                                                       ;22
+"FINE CICLO AREA N/"                               ;29 CARSCA                                                        ;17
+"FINE CICLO AREA M/"                               ;30 CARSCA                                                        ;18
+"FINE CICLO AREA S/"                               ;31 CARSCA                                                        ;19
+"FINE CICLO AREA T/"                               ;32 CARSCA                                                        ;20
+"FINE CICLO AREA A/"                               ;33 CARSCA                                                        ;21
+"FINE CICLO AREA R/"                               ;34 CARSCA                                                        ;22
+"INSERIRE POMPA DEL VUOTO!"                        ;35 PLC                                                         ;23  PLC
+"EMERGENZA FOTOCELLULE"                            ;36 PLC                                                         ;24
+"SET POINT ASSE Z-OK!"                             ;37 SERVIZI                                              ;25  SERV
+"SET POINT ASSE Y-OK!"                             ;38 SERVIZI                                              ;26
+"SET POINT ASSE X-OK!"                             ;39 SERVIZI                                              ;27
+"SET POINT ASSE W-OK!"                             ;40 SERVIZI                                              ;28
+"ATTESA CONFERMA MOTORI"                           ;41 UTENTE                                                       ;29  UTENT
+"ATTESA CONF. VELOCITA PROGR. DA INVERTER"         ;42 UTENTE                                                       ;30
+"ATTESA ROTAZ. LAMA DIREZIONE X"                   ;43 UTENTE                                                       ;31
+"ATTESA ROTAZ. LAMA DIREZIONE Y"                   ;44 UTENTE                                                       ;32
+"ATTENZIONE LAV. SPECULARE"                        ;45 UTENTE                                                       ;33
+"ATTESA POSIZ. LAMA A 45 GRADI"                    ;46 UTENTE                                                       ;34
+"ATTESA CONF. VELOCITA' 0 INVERTER"                ;47 UTENTE                                                       ;36
+"ATTESA ROTAZ. FRESA DIREZIONE X"                  ;48 UTENTE                                                       ;37
+"ATTESA ROTAZ. FRESA DIREZIONE Y"                  ;49 UTENTE                                                       ;38
+"EMERGENZA ASSI"                                   ;50 SERVIZI                                                       ;39  SETP
+"NUMERO FUNZIONE ERRATA"                           ;51 SERVIZI
+"ESECUZ. STOP PROGRAMMATO"                         ;52 SERVIZI
+"EMERGENZA INVERTER"                               ;53 SERVIZI
+"ATTESA INTERMITTORE POS 1"                        ;54 PLC     
+"ATTESA INTERMITTORE POS 2"                        ;55 PLC     
+"ATTESA INTERMITTORE POS 3"                        ;56 PLC     
+"ATTESA ENTRATA MAGAZZINO"                         ;57 PLC     
+"ATTESA SALITA PISTONE"                            ;58 PLC     
+"ATTESA SBLOCCAGGIO UTENSILE"                      ;59 PLC     
+"ATTESA DISCESA PISTONE"                           ;60 PLC     
+"ATTESA USCITA MAGAZZINO"                          ;61 PLC     
+"ATTESA BLOCCAGGIO UTENSILE"                       ;62 PLC     
+"SET POINT ASSE V O.K."                            ;63 SERVIZI    
+"ATTESA CORSA IND 1"                               ;64 SERVIZI    
+"ATTESA CORSA IND 2"                               ;65 SERVIZI    
+"ATTESA CORSE IND 1 - 2"                           ;66 SERVIZI    
+"ATTESA CILID. ESTRAZIONE BASSO"                   ;67 SERVIZI    
+" "                                                ;68 GENERICA
+"ATTESA FRESA 1 ALTA"                              ;69 PLC.1     
+"ATTESA FRESA 2 ALTA"                              ;70 PLC.1
+"ATTESA SLITTA 1 INDIETRO"                         ;71 SERVIZI
+"ATTESA SLITTA 2 INDIETRO"                         ;72 SERVIZI

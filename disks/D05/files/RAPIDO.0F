@@ -1,0 +1,40 @@
+;>>>>>>>>>>>>>>> FUNZIONE DI RAPIDO CHE RICHIAMA FUN. UTENTE
+
+FUN      155,FRapF5                    ;Funz. di rapido faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su escusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         MOV       X,&QUOTA            ;
+         MOV       Y,&QUOTA            ;
+         BRA       NOZETA
+         MOV       Z,&QUOTA            ;
+NOZETA:  WEND      XYZ,Q               ;
+         CALL      RICHFUN             ;Richiama num. funzione
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F155) PER LA FACCIA 1 ********************
+
+RICHFUN: NOP
+         SCOUNT    NUMFUN,&NUMBAT      ;Settaggio count numero funzione
+         FCALL     162                 ;Funz. di rihiamo Fun. Utente
+         RET
+
+; ********* NOTE: FUNZIONE (F155) FUNZIONE DI RAPIDO FACCIA 1 *************
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 Esclusioni
+;04  --> QUOTA X
+;05  --> QUOTA Y
+;06  --> QUOTA Z
+;07  --> NUMERO FUNZIONE DA RICHIAMARE

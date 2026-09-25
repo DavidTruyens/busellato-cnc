@@ -1,0 +1,309 @@
+;* DEFINIZIONI SIMBOLICHE INPUT/OUTPUT DELLE FUNZIONI STANDARD-BUSELLATO
+;* VALIDA PER TUTTE LE MACCHINE PUNTO PUNTO
+
+;>>>>>>>>>>>>>> DEFINE COUNTER  UTILIZZATI SULLA TASK 0
+
+FITTING  0         ;Counter numero battute sul fitting
+COUNTATT 1         ;Counter utilizzato in PLC per pan. attuale
+COUNTS   2         ;Counter utilizzato in PLC per pan. successivo
+COUNTS1  3         ;Counter utilizzato in PLC per pan. succes.+1
+COUNTS2  4         ;Counter utilizzato in PLC per pan. succes.+2
+COUNTSBL 5         ;Counter utilizzato in PLC per Sblocco pan.
+CFERMIS1 6         ;Counter utilizzato in PLC per fermi scomparsa
+CFERMIS2 7         ;Counter utilizzato in PLC per fermi scomparsa
+NUMFUN   20        ;Counter settato su numero funz. in RAPIDO
+PANNEL   21        ;Counter settato in PLC su pan. att/suc/suc1/suc2
+CONTAT   27        ;Contatore fattore moltiplicativo attuale
+
+;>>>>>>>> CODICI DI INPUT
+
+FCSPX    0000      ;Fotc. setpoint asse X
+FCSPY    1000      ;Fotc. setpoint asse Y
+FCSPZ    2000      ;Fotc. setpoint asse Z
+FCSPW    3000      ;Fotc. setpoint asse W
+EMERGX   4000      ;Emerg. asse X
+EMERGY   5000      ;Emerg. asse Y
+EMERGZ   6000      ;Emerg. asse Z
+EMERGW   7000      ;Emerg. asse W
+
+DFIL0    0001      ;Conferma doppio filo 0
+FCMOTORI 1001      ;Conferma Motori Frese Lame
+FCSPV    2001      ;Fotc. setpoint asse V
+;........3001      ;libero
+CONFMAUT 4001      ;Conf. macchina in automatico
+CBATTYSC 5001      ;Conf. discesa battute Y in automatico
+PLAMAX   6001      ;Posizione lama asse X
+PLAMAY   7001      ;Posizione lama asse Y
+
+FINV0    0002      ;Coferma inverter a 0
+IQUADROT 1002      ;Allarme simodrive
+FRESX    2002      ;Conferma fresa parassiale X
+FRESY    3002      ;Conferma fresa parassiale Y
+EMERGPA  4002      ;Emerg. pressione aria       (OK = 1)
+EMERGAZ  5002      ;Emergenza azionamento assi
+EMERINV  6002      ;Emergenza inverter          (OK = 1)
+EMERGEN  7002      ;Emerg. Generale
+
+FOTCSA   4003      ;Fotc. S - A
+FOTCTR   5003      ;Fotc. T - R
+FCTUTCMP 6003      ;Fotc. tutto campo posteriore
+FCINV    7003      ;Conferma inverter a regime
+
+FCBLS    0004      ;Pulsante bloccaggio area S
+FCBLA    1004      ;Pulsante bloccaggio area A
+FCBLT    2004      ;Pulsante bloccaggio area T
+FCBLR    3004      ;Pulsante bloccaggio area R
+STARTS   4004      ;Start area S
+STARTA   5004      ;Start area A
+STARTT   6004      ;Start area T
+STARTR   7004      ;Start area R
+
+;>>>>>>>>>>>>>>>>> CODICI DI OUTPUT
+
+EVUT1    0016      ;E.V. Utensile 1
+EVUT2    1016      ;E.V. Utensile 2
+EVUT3    2016      ;E.V. Utensile 3
+EVUT4    3016      ;E.V. Utensile 4
+EVUT5    4016      ;E.V. Utensile 5
+EVUT6    5016      ;E.V. Utensile 6
+EVUT7    6016      ;E.V. Utensile 7
+EVUT8    7016      ;E.V. Utensile 8
+
+EVUT9    0017      ;E.V. Utensile 9
+EVUT10   1017      ;E.V. Utensile 10
+EVUT11   2017      ;E.V. Utensile 11
+EVUT12   3017      ;E.V. Utensile 12
+EVUT13   4017      ;E.V. Utensile 13
+EVUT14   5017      ;E.V. Utensile 14
+EVUT15   6017      ;E.V. Utensile 15
+EVUT16   7017      ;E.V. Utensile 16
+
+LAMPLS   0018      ;Lampada segnalazione area S
+LAMPLA   1018      ;Lampada segnalazione area A
+LAMPLT   2018      ;Lampada segnalazione area T
+LAMPLR   3018      ;Lampada segnalazione area R
+EVRMSN   4018      ;EV Riferimento meccanico aree S/N
+EVRMA    5018      ;EV Riferimento meccanico area A 5018
+EVRMT    6018      ;EV Riferimento meccanico area T
+EVRMMR   7018      ;EV Riferimento meccanico area M/R
+
+EVFSS    0019      ;Battute a scomparsa S
+EVFSA    1019      ;Battute a scomparsa A
+EVFST    2019      ;Battute a scomparsa T
+EVFSR    3019      ;Battute a scomparsa R
+EVBLS    4019      ;EV Bloccaggio su area S
+EVBLA    5019      ;EV Bloccaggio su area A
+EVBLT    6019      ;EV Bloccaggio su area T
+EVBLR    7019      ;EV Bloccaggio su area R
+
+ORI53    0020      ;Ev. orizzontale T/C (53)
+LATER56  1020      ;Ev. laterale (56)
+ABILROT  2020      ;Inversione senso di rotazione fresa
+ABILINV  3020      ;Abilitazione inverter
+ROTLAMX  4020      ;Rotazione lama parassiale X
+ROTLAMY  5020      ;Rotazione lama parassiale Y
+MTMAND1  6020      ;Motore mandrini (1 - 27)
+POWER    7020      ;Consenso di potenza
+
+MTLAMA1  0021      ;Motore Lama 1  (60 / 61)
+MTFRESA1 1021      ;Motore Fresa 1 (65)
+MTFRESA2 2021      ;Motore Fresa 2 (66)
+MTFRESA3 3021      ;Motore Fresa 3 (67)
+LAMA1    4021      ;E.V. Utensile lama 1 (60 / 61)
+FRESA1   5021      ;E.V. Utensile fresa  (65)
+FRESA2   6021      ;E.V. Utensile fresa  (66)
+FRESA3   7021      ;E.V. Utensile fresa  (67)
+
+EVUT17   0022      ;E.V. Utensile 17
+EVUT18   1022      ;E.V. Utensile 18
+EVUT19   2022      ;E.V. Utensile 19
+EVUT20   3022      ;E.V. Utensile 20
+EVUT21   4022      ;E.V. Utensile 21
+EVUT22   5022      ;E.V. Utensile 22
+EVUT23   6022      ;E.V. Utensile 23
+EVUT24   7022      ;E.V. Utensile 24
+
+MTFRESA4 0023      ;Motore fresa 4 (68)
+MTFRESA5 1023      ;Motore fresa 5 (69)
+ORI54    4023      ;E.V. Utensile 54 orizzontale testa/coda
+LATER57  5023      ;E.V. Utensile 57 laterale
+FRESA4   6023      ;E.V. Utensile 68 fresa 4
+FRESA5   7023      ;E.V. Utensile 69 fresa 5
+
+EVUT25   0024      ;E.V. Utensile 25
+EVUT26   1024      ;E.V. Utensile 26
+EVUT27   2024      ;E.V. Utensile 27
+EVUT28   3024      ;E.V. Utensile 28
+EVUT29   4024      ;E.V. Utensile 29
+EVUT30   5024      ;E.V. Utensile 30
+EVUT31   6024      ;E.V. Utensile 31
+EVUT32   7024      ;E.V. Utensile 32
+
+EVUT33   0025      ;E.V. Utensile 33
+EVUT34   1025      ;E.V. Utensile 34
+EVUT35   2025      ;E.V. Utensile 35
+EVUT36   3025      ;E.V. Utensile 36
+EVUT37   4025      ;E.V. Utensile 37
+EVUT38   5025      ;E.V. Utensile 38
+EVUT39   6025      ;E.V. Utensile 39
+EVUT40   7025      ;E.V. Utensile 40
+
+LAMA2    0026      ;E.V. Utensile 62 lama 2
+ORI55    1026      ;E.V. Utensile 55 orizzontale testa/coda
+FRESAX   2026      ;E.V. Utensile 70/72 fresa in X (fresa 6)
+FRESAY   3026      ;E.V. Utensile 71/73 fresa in Y (fresa 7)
+MTLAMA2  4026      ;Motore lama 2
+MTFRESA6 5026      ;Motore fresa 6
+MTFRESA7 6026      ;Motore fresa 7
+MTMAND2  7026      ;Motore mandrini (28 - 41)
+
+EVUT41   0027      ;E.V. Utensile 41
+EVUT42   1027      ;E.V. Utensile 42
+EVUT43   2027      ;E.V. Utensile 43
+EVUT44   3027      ;E.V. Utensile 44
+EVUT45   4027      ;E.V. Utensile 45
+EVUT46   5027      ;E.V. Utensile 46
+EVUT47   6027      ;E.V. Utensile 47
+EVUT48   7027      ;E.V. Utensile 48
+
+EVUT49   0028      ;E.V. Utensile 49
+EVUT50   1028      ;E.V. Utensile 50
+ABLAMR   2028      ;Abilitazione asse lama rotante
+EVUT52   3028      ;E.V. orizzontale testa/coda
+MTFRECRO 4028      ;Motore fresa a croce
+MTFRX    5028      ;Motore fresa parassiale X
+MTFRY    6028      ;Motore fresa parassiale Y
+MTMAND5  7028      ;Motore mandrini (42 - 50)
+
+PORTOUT0 016       ;Mask selezione Utensili
+PORTOUT1 017       ;Mask selezione Utensili
+PORTOUT2 022       ;Mask selezione Utensili
+PORTOUT3 024       ;Mask selezione Utensili
+PORTOUT4 025       ;Mask selezione Utensili
+PORTOUT5 027       ;Mask selezione Utensili
+PORTOUT6 028       ;Mask selezione Utensili
+PORTOUT7 031       ;Mask selezione Utensili
+PORTOUT8 031       ;Mask selezione Utensili
+PORTOUT9 031       ;Mask selezione Utensili
+
+;>>>>>>>>>>>>>>>>>>>> DEF. PORTI CODICI LOGICI
+
+ATTUTFOR 168       ;Mnemonico funzione Servizio attiva utensili
+DISUTFOR 169       ;Mnemonico    "         "    disattiva utens.
+PORTUT1  170       ;Porto utensile 1 lav.
+PORTUT2  171       ;Porto utensile 2 lav.
+PORTUT3  172       ;Porto utensile 3 lav.
+PORTUT4  173       ;Porto utensile 4 lav.
+PORTUT5  174       ;Porto utensile 5 lav.
+PORTUT6  175       ;Porto utensile 6 lav.
+PORTUT7  176       ;Porto utensile 7 lav.
+PORTUT8  177       ;Porto utensile 8 lav.
+PORTUT9  178       ;Porto utensile 9 lav.
+PORTUT10 179       ;Porto utensile 10 lav.
+PUT10    190       ;Porto ut. dopo 10 lav. passato alle lavorazioni
+PLCUT1   63        ;Porto utensile 1 lav  in PLC
+PLCUT2   62        ;Porto utensile 2 lav  in PLC
+PLCUT3   61        ;Porto utensile 3 lav  in PLC
+PLCUT4   60        ;Porto utensile 4 lav  in PLC
+PLCUT5   59        ;Porto utensile 5 lav  in PLC
+PLCUT6   58        ;Porto utensile 6 lav  in PLC
+PLCUT7   57        ;Porto utensile 7 lav  in PLC
+PLCUT8   56        ;Porto utensile 8 lav  in PLC
+PLCUT9   55        ;Porto utensile 9 lav  in PLC
+PLCUT10  54        ;Porto utensile 10 lav in PLC
+PLCATT   192       ;Porto pannello attuale in PLC
+PLCSUC   193       ;Porto pannello successivo in PLC
+PLCSUC1  194       ;Porto pannello successivo + 1 in PLC
+PLCSUC2  195       ;Porto pannello successivo + 2 in PLC
+PLCBLC   196       ;Porto maschera aree bloccate  in PLC
+PLCBLCE  197       ;Porto maschera aree bloccate ed eseguibii in PLC
+FATMOLAT 206       ;Porto fattore moltiplicativo
+COATT    210       ;Porto di output attuale passato dalla plancia
+COSUCC   211       ;Porto di output successivo passato dalla plancia
+ATTUALE  216       ;Porto pannello attuale
+SUCCESS  217       ;Porto pannello successivo
+SUCCES1  218       ;Porto pannello successivo + 1
+SUCCES2  219       ;Porto pannello successivo + 2
+ESCLUSI  221       ;Porto passato dalla plancia sulle escusioni
+COMODO   225       ;Porto utilizzato nella Fun di carico pannello
+COMANDR  226       ;Porto di appoggio usato nella funz. accensione mandr.
+COMPLC   227       ;Porto di flag generici utilizzati in Fun PLC
+FCOMOD   228       ;Porto di serviz. utiliz. funz. 73 no sblocc. pannello
+APPOPLC  230       ;Porto di appoggio per PLC
+PORTRM1  231       ;Porto per maschera riferimenti mecc. pan. attuale+succ.
+PORTRM2  232       ;Porto per maschera riferimenti mecc. pan. succ1+succ2.
+BLOPED   234       ;Flag di boccaggio pedale
+FITTIZ1  244       ;Porto fittizio 1
+FITTIZ2  245       ;Porto fittizio 2
+FITTIZ3  251       ;Porto fittizio 3 esclusioni
+PORTINS0 246       ;Mask Fittiz utensili inserimento
+PORTINS1 246       ;              "
+PORTINS2 246       ;              "
+PORTINS3 246       ;              "
+PORTINS4 246       ;              "
+PORTINS5 246       ;              "
+PORTINS6 247       ;              "
+PORTINS7 248       ;              "
+PORTINS8 249       ;              "
+PORTINS9 250       ;              "
+
+;>>>>>>>>>>>>> DEF. BIT+PORTO CODICI LOGICI
+
+CIATT    0200      ;Codice input lavorazione pannello attuale
+CISUCC   4201      ;Codice input lavorazione pannello successivo
+CISUC1   0203      ;Codice input lavorazione pannello successivo + 1
+CISUC2   4204      ;Codice input lavorazione pannello successivo + 2
+
+BLOCALL  0222      ;Flag di blocall
+RESCAR   1222      ;Flag per reset
+STOPPRG  3222      ;Flag per utilizzo funz. di stop
+FLAGEN   7222      ;Flag di utilizzo generale
+
+SEL1     4223      ;Selettore zona 1
+SEL2     5223      ;Selettore zona 2
+
+FLAG1    0224      ;Flag di lavorazione mirror
+CODICL   1224      ;Flag di scarico codice input lavorazione
+FLGESCLU 2224      ;Flag utilizzato per il test su esclusioni Fun 71
+SINCPLC  3224      ;Flag di sincronismo per PLC
+
+FLAGA1   0235      ;Flag area 1
+FLAGA2   1235      ;Flag area 2
+FLGSBLO  2235      ;Flag che indica fun plc di sbloccare tutte le aree
+                   ;su premuta di uno dei pulsanti di bloccaggio
+                   ;dopo emergenza o end con orizzontali o frese attivi
+NOSBLOPA 3235      ;Flag settato su cod. out per esec. pan. succ. senza
+                   ;Sbloccare pannello
+
+FATTFL1  0236      ;Flag di comodo per fun 75 - 76
+FATTFL2  1236      ;Flag di comodo per fun 75 - 76
+STOPCA   2236      ;Flag di emergenza fotocellule
+STARCA   3236      ;Flag di ripristino emergenza fotocellule
+
+LAMROT   0242      ;Flag PLC lama rotante
+FREROT   1242      ;Flag PLC fresa rotante
+PARKEASY 2242      ;Flag PLC per parcheggio a fine progr. per S.EASY
+CAMBUT   3242      ;Flag PLC per magazzino cambio utensile
+
+ABILX    0243      ;Flag di abilitazione asse X
+ABILY    1243      ;Flag di abilitazione asse Y
+ABILZ    2243      ;Flag di abilitazione asse Z
+ABILW    3243      ;Flag di abilitazione asse W
+ABILV    4243      ;Flag di abilitazione asse V
+
+STESSUT  0244      ;Se=1 prossima battuta stesso utensile
+STUTPREC 1244      ;Se=1 battua precedente con stessi utensili
+STESLAV  2244      ;Se=1 prossima battuta stessa lavorazione
+STLAPREC 3244      ;Se=1 battuta precedente stessa lavorazione
+SCABASSO 4244      ;Se=1 esec. proc. cambio ut. a (ARIA BASSA)
+FCONTOR  5244      ;Flag se=1 contornatura se=0 no contornatura
+PNEUMAT  6244      ;Flag Gruppo Pneumatico Se=1 (senza Z)
+FITTIZIO 7244      ;Flag Gruppo Fittizio Se=1 (senza YZ)
+
+INSAVVIT 0245      ;Fleg di inserimenti (Pressione)/(Avvitati=1)
+ROTINV   0245      ;Fleg di rotazione inversa fresa
+ORIG0    1245      ;Flag di origine 0
+ORIG1    2245      ;Flag di origine 1
+FINCONT  3245      ;Flag fine contornatura
+BLOC45   4245      ;
+PLAM45   5245      ;

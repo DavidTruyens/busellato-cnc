@@ -1,0 +1,57 @@
+ Volume in drive : has no label
+ Volume Serial Number is 15EA-2752
+Directory for ::/
+
+FONT3             3584 1980-01-01   7:12 
+ERRSYS   DAN      3681 1992-09-16   0:00 
+TSIMB    DAN       857 1992-05-19   3:00 
+VIDEOGPL DAN      4587 1992-06-26  15:06 
+ERRSYS   DEU      3750 1992-06-19  13:57 
+MESSPTP  DEU     48395 1992-05-28  12:00 
+TSIMB    DEU       857 1992-05-19   3:00 
+VIDEOGPL DEU      4533 1992-06-26  15:07 
+ERRSYS   ENG      3687 1992-06-19  13:59 
+MESSPTP  ENG     48466 1992-05-28  12:00 
+TSIMB    ENG       857 1992-05-19   3:00 
+VIDEOGPL ENG      4587 1992-06-26  15:07 
+ERRSYS   ESP      3789 1992-06-19  13:41 
+TSIMB    ESP       857 1992-05-19   3:00 
+VIDEOGPL ESP      7714 1992-06-26  15:06 
+AUTOAP   EXE    140230 1992-05-28  12:00 
+CONFMAIN EXE     80097 1992-05-28  12:00 
+MENU     EXE     68782 1992-05-28  12:00 
+MESSAGES EXE     16240 1992-01-14  15:31 
+MILLE    EXE     18070 1992-05-28  12:00 
+OSCI     EXE    106645 1992-05-28  12:00 
+PLANCIA  EXE     93449 1992-05-28  12:00 
+VIED     EXE     98063 1992-05-28  12:00 
+ERRSYS   FRA      3755 1992-06-19  14:01 
+MESSPTP  FRA     48398 1992-05-28  12:00 
+TSIMB    FRA       857 1992-05-19   3:00 
+VIDEOGPL FRA      4662 1992-06-26  15:07 
+ERRSYS   ITA      3789 1992-06-19  13:41 
+INFO     ITA      4822 1992-05-28  12:00 
+MESSOSCI ITA      7149 1992-04-22  14:03 
+MESSPTP  ITA     48400 1992-05-28  12:00 
+TSIMB    ITA       857 1992-05-19   3:00 
+VIDEOGPL ITA      7714 1992-06-26  15:06 
+LINGUE   MNU        70 1992-12-07  10:49 
+ERRSYS   NED      3687 1992-06-19  13:59 
+MESSPTP  NED     48466 1992-05-28  12:00 
+TSIMB    NED       857 1992-05-19   3:00 
+VIDEOGPL NED      4587 1992-06-26  15:07 
+ENVIRON  TPA       664 1992-12-11  11:50 
+GPL1000  TPA      1269 1992-05-28  12:00 
+SYSTEM~1     <DIR>     2021-01-02   0:28  System Volume Information
+       41 files             951 780 bytes
+
+Directory for ::/System Volume Information
+
+.            <DIR>     2021-01-02   0:28 
+..           <DIR>     2021-01-02   0:28 
+        2 files                   0 bytes
+
+Total files listed:
+       43 files             951 780 bytes
+                            495 616 bytes free
+

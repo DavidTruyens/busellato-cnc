@@ -1,0 +1,72 @@
+//  **************** FILE : EDIPAR.ITA (lingua : italiano) *************
+ 0"@!1000@"                                                         //OFSET
+80"PARAMETRICA TESTINE"                                             // Msg 0
+25" VISUALIZZAZIONE GRAFICA "                                       // Msg 1
+50"Vuoi salvare modifiche @ (%s) ?@ "                               // Msg 2
+80""                                                                // Msg 3
+80""                                                                // Msg 4
+16"NUM.PROG.:"                                                      // Msg 5
+16"CORRET.@X.@:"                                                    // Msg 6
+16"CORRET.@Y.@:"                                                    // Msg 7
+16"CORRET.@Z.@:"                                                    // Msg 8
+16"INGOMB. MAX @X+@:"                                               // Msg 9
+16"INGOMB. MAX @X-@:"                                               // Msg 10
+16"INGOMB. MAX @Y+@:"                                               // Msg 11
+16"INGOMB. MAX @Y-@:"                                               // Msg 12
+16"INGOMB. MAX @Z+@:"                                               // Msg 13
+16"DIAM.UTEN.:"                                                     // Msg 14
+16"NUM.UTEN.:"                                                      // Msg 15
+16"INTERASS.UTEN.:"                                                 // Msg 16
+16"TIPO TEST.:"                                                     // Msg 17
+16"VEL. MIN. :"                                                     // Msg 18
+16"VEL. MAX. :"                                                     // Msg 19
+16"TESTINA ANG.:"                                                   // Msg 20
+16"PARAMETRO @17@:"                                                 // Msg 21
+16"EDIT PARAMETRI"                                                  // Msg 22
+30"COMMENTO :"                                                      // Msg 23
+ 8"TESTINA"                                                         // Msg 24
+15"Nuovo valore :"                                                  // Msg 25
+18"Digita N.testina :"                                              // Msg 26
+40"< ERRORE : INTERASSE UTENSILE ERRATO >"                          // Msg 27
+40"< PARAMETRI NULLI >"                                             // Msg 28
+40"< ERRORE : PARAMETRI ERRATI >"                                   // Msg 29
+40"< ERRORE : NUMERO UTENSILE ERRATO >"                             // Msg 30
+40"< TESTINA ANGOLARE NON VISUALIZZABILE >"                         // Msg 31
+65"@|9|@ TASTI    DESCRIZIONE :"                                    // Msg 32
+65"@< TAB >@   UTILIZZATO PER SELEZIONARE I CAMPI INDICATI"         // Msg 33
+65"@< INS >@   UTILIZZATO PER L'INSERIMENTO DATI E RICERCA TESTINA" // Msg 34
+65"@< RET >@   CONFERMA LE OPERAZIONI SVOLTE"                       // Msg 35
+65"@< CTRL+D>@ CANCELLAZIONE TOTALE PARAMETRICA TESTINA"            // Msg 36
+65"@< CTRL+Y>@ CANCELLAZIONE SINGOLA PARAMETRICA TESTINA"           // Msg 37
+65"@< ESC >@   USCITA PROGRAMMA"                                    // Msg 38
+65"@<   >@   UTILIZZATE PER LA RICERCA TESTINA"                   // Msg 39
+65""                                                                // Msg 40
+60"@|29|@       <<<<<<<<<<<<<<  TIPO TESTINE  >>>>>>>>>>>>>>"	// Msg 41
+60"FORI:   1-5 UT. FORATURA F. (1=F5, 2=F3, 3=F4, 4=F1, 5=F2)"		// Msg 42
+60"        6   UTENSILE FORATURA ORIZZONTALE TESTA/CODA"            // Msg 43
+60"        7   UTENSILE FORATURA LATERALE INF/SUP"                  // Msg 44
+60"        8   UTENSILE FORATURA ORIZZONTALE A CROCE"               // Msg 45
+60"FRESA:  11-15 UT. PANT. F.(11=F5,12=F3,13=F4,14=F1,15=F2)"		// Msg 46
+60"        16  UTENSILE PANTOGRAFO DI TESTA/CODA"                   // Msg 47
+60"        17  UTENSILE PANTOGRAFO LATERALE INF/SUP"                // Msg 48
+60"        18  UTENSILE PANTOGRAFO A CROCE"                         // Msg 49
+60"LAMA:   20  LAMA IN X"											// Msg 50
+60"        21  LAMA IN Y"                                           // Msg 51
+60"        22  LAMA ROTANTE DI 90ø (X+Y)"							// Msg 52
+60"        23  LAMA 45ø"											// Msg 53
+60"        24  LAMA ROTANTE (X+Y) + 45ø"							// Msg 54
+60"INSER:  30  BASETTE FACCIA 5"									// Msg 55
+60"        31  BUSSOLE FACCIA 5"									// Msg 56
+60"        32  CERNIERE FACCIA 5"									// Msg 57
+60"        33  REGGIRIPIANI FACCIA 5"								// Msg 58
+60"        34  GENERICO 1 FACCIA 5" 								// Msg 59
+60"        35  GENERICO 2 FACCIA 5" 								// Msg 60
+60"        36  SPINE FACCIA 5"										// Msg 61
+60"        37  INSERITORE UNIVERSALE FACCIA 5"						// Msg 62
+60"        38  INSERITORE UNIVERSALE FACCE 1,2,3,4,5,"				// Msg 63
+60"        40-43 INSER. UNIVERS F.(40=F1,41=F2,42=F3,43=F4)"		// Msg 65
+60"        44  INSERITORE UNIVERSALE FACCIA 1 e 2"					// Msg 66
+60"        45  INSERITORE UNIVERSALE FACCIA 3 e 4"					// Msg 67
+60"MASCHIA:51-55 UTENS.MASCHIA (52=F1,53=F2,54=F3,55=F4,51=F5)"		// Msg 68
+60"MISURA: 90-94 TASTA. MIS. F.(90=F5,91=F3,92=F4,93=F1,94=F2)"		// Msg 69
+60"        95    TASTATORE MISURA UNIVERSALE FACCE 1,2,3,4,5"		// Msg 70
