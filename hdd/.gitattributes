@@ -1,0 +1,2 @@
+# Byte-exact DOS files: never convert line endings or treat as text.
+* -text
