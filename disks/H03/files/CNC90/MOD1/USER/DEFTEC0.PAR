@@ -1,0 +1,15 @@
+        13
+        "Assegnazione Gr. #50#Fi#2#0.0#21.0#1"
+        "Vel. di lavoro   #18#Vf#9#0.01#32000#1"
+        "Quote aria       #7#Qf#10#-99999.999#99999.999#1"
+        "Quote max lavor. #5#Qf#10#-99999.999#99999.999#1"
+        "Offset pressori  #5#Qf#10#-99999.999#99999.999#1"
+        "Battute campi    #8#Qf#10#-99999.999#99999.999#1"
+        "Quote di scarico #2#Qf#10#-99999.999#99999.999#1"
+        "Parametri asse X #6#Mf#10#-99999.999#99999.999#1"
+        "Blocc. orizz.    #4#Mf#10#-99999.999#99999.999#1"
+        "Blocc. vertic.   #3#Mf#10#-99999.999#99999.999#1"
+        "Flag per PLC     #24#Fc#1#0#1#1"
+        "Param x Rete     #5#Fi#4#0#7255#0"
+	"Param. Ventose   #13#Qf#10#-99999.999#99999.999#1#6"
+

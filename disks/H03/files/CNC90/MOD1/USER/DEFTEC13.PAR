@@ -1,0 +1,6 @@
+	5
+	"Attrezzaggio     #1#Ac#10#0#0#1"
+	"Dieci Stringhe   #10#Ac#12#0#0#1"
+	"Dieci Interi     #10#Ni#5#-32000#32000#1"
+	"Dieci Float      #10#Mf#10#-99999.999#99999.999#1"
+	"Battute campi    #8#Qf#10#-99999.999#99999.999#1"
