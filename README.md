@@ -27,8 +27,7 @@ genuinely cannot provide. "It's old" is not a trigger.
 
 - **This repo** — text: notes, transcribed parameters, terminal-strip
   tables, part programs, and later any LinuxCNC config and HAL files.
-- **Google Drive** — photos, video, scanned schematics, vendor PDFs.
-  <https://drive.google.com/drive/folders/13UeDKkH23NIK_m7m3_Y3FiJwd0A7dI5h>
+- **Proton Drive** — photos, video, scanned schematics, vendor PDFs.
 
 Transcriptions belong here rather than in Drive, so that corrections to
 misread values leave a history.
@@ -42,6 +41,9 @@ docs/
   drives/         AXOR and Berges settings, DIP switch positions
   io/             pneumatics, boring head, vacuum zones, I/O count
 programs/         part programs recovered from floppy / COM2
+disks/            byte-exact diskette images + extracted files (index in disks/README.md)
+hdd/              files copied from the control's hard disk C:
+tools/            imaging scripts (image-disk.sh, extract-disk.sh)
 NOTES.md          running log, dated entries, newest last
 ```
 
