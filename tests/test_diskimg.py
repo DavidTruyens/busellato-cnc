@@ -41,6 +41,16 @@ MAP_BAD = """# Mapfile. Created by GNU ddrescue version 1.30
 0x00001600  0x00166A00  +
 """
 
+# Real D06 map: with `ddrescue -s 1474560` a '?' block runs from the end
+# of the diskette to the largest possible offset.
+MAP_CAPPED = """# Mapfile. Created by GNU ddrescue version 1.30
+# current_pos  current_status  current_pass
+0x00160000     +               1
+#      pos        size  status
+0x00000000  0x00168000  +
+0x00168000  0x7FFFFFFFFFE97FFF  ?
+"""
+
 
 def floppy_bytes(files=None):
     with tempfile.TemporaryDirectory() as tmp:
@@ -130,6 +140,9 @@ class DamagedFilesTest(unittest.TestCase):
     def test_unread_free_space_is_harmless(self):
         self.assertEqual(diskimg.damaged_files(self.data, set(range(2000, 2880))), [])
 
+    def test_unread_sectors_ignores_block_beyond_diskette(self):
+        self.assertEqual(diskimg.unread_sectors(MAP_CAPPED, IMG_SIZE), set())
+
     def test_unread_sectors_from_map_and_short_image(self):
         self.assertEqual(diskimg.unread_sectors(MAP_BAD, IMG_SIZE), set(range(8, 11)))
         self.assertEqual(diskimg.unread_sectors(MAP_CLEAN, 0x110000),
@@ -139,6 +152,9 @@ class DamagedFilesTest(unittest.TestCase):
 class BadBytesTest(unittest.TestCase):
     def test_clean_map(self):
         self.assertEqual(diskimg.bad_bytes(MAP_CLEAN), 0)
+
+    def test_block_beyond_diskette_ignored(self):
+        self.assertEqual(diskimg.bad_bytes(MAP_CAPPED), 0)
 
     def test_bad_and_untrimmed_areas_counted(self):
         self.assertEqual(diskimg.bad_bytes(MAP_BAD), 0x400 + 0x200)

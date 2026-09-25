@@ -67,28 +67,31 @@ def make_working(data):
     raise ValueError('not a recognisable 1.44 MB FAT12 image')
 
 
-def bad_bytes(map_text):
-    """Sum of block sizes in a ddrescue map whose status is not '+'."""
+def _unrescued_blocks(map_text):
+    """(start, end) byte ranges in a ddrescue map whose status is not '+',
+    clipped to the diskette. `ddrescue -s` adds a '?' block running from the
+    end of the diskette to the largest possible offset; clipping drops it."""
     lines = [l for l in map_text.splitlines() if l.strip() and not l.startswith('#')]
-    total = 0
     for line in lines[1:]:  # lines[0] is the current_pos/status/pass line
-        _pos, size, status = line.split()[:3]
-        if status != '+':
-            total += int(size, 16)
-    return total
+        pos, size, status = line.split()[:3]
+        start = int(pos, 16)
+        end = min(start + int(size, 16), IMG_SIZE)
+        if status != '+' and start < end:
+            yield start, end
+
+
+def bad_bytes(map_text):
+    """Bytes of the diskette that ddrescue did not rescue."""
+    return sum(end - start for start, end in _unrescued_blocks(map_text))
 
 
 def unread_sectors(map_text, img_len):
     """Sector numbers ddrescue did not rescue, plus any beyond a short image."""
-    lines = [l for l in map_text.splitlines() if l.strip() and not l.startswith('#')]
     unread = set()
-    for line in lines[1:]:
-        pos, size, status = line.split()[:3]
-        if status != '+':
-            start, end = int(pos, 16), int(pos, 16) + int(size, 16)
-            unread.update(range(start // SECTOR, (end + SECTOR - 1) // SECTOR))
+    for start, end in _unrescued_blocks(map_text):
+        unread.update(range(start // SECTOR, (end + SECTOR - 1) // SECTOR))
     unread.update(range(img_len // SECTOR, IMG_SIZE // SECTOR))
-    return {s for s in unread if s < IMG_SIZE // SECTOR}
+    return unread
 
 
 def damaged_files(data, unread):
