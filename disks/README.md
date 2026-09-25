@@ -43,5 +43,6 @@ sector. The `.img` still holds exactly what is on the diskette.
 | D16 | C:\CNC90 3 (red label) | 2026-09-25 | `2798be44a808920c9c96347c7e1cd1d028c82faaa1825d44aba8dcf844e0272f` | 0 | no count / 1 | OK | `EDIGRAF2.EXE` only (2001 set) |
 | D17 | C:\CNC90\LINGUE (red label) | 2026-09-25 | `451c04e7bd40af571f6477ce902231c4f801a1b6432c7cf27048e148b6a8d1e3` | 0 | no count / 75 | OK | `C:\CNC90\LINGUE\` (2001 set) |
 | H01 | H01 listing (diskette was D15, reformatted) | 2026-09-25 | `6cd27d1d295a89173012515481341faa990f6e0bb9829c2d6280b04de43ddfde` | 0 | 5 / 5 (+3 macOS `.fseventsd`) | OK | `CHKDSK C:`, `DIR C:\ /S`, `ATTRIB C:\*.* /S`, `CONFIG.SYS`, `AUTOEXEC.BAT` (copied to `hdd/`). Machine clock reads 2008-10-17 |
+| H02 | SORG samples Z+W with COMP (diskette H01 reused) | 2026-09-25 | `cf38c33e62a913bdeded2e2565bf06b8658c7c591218de3e0d5fb120c6c92dd0` | 0 | 382 / 382 checked against LISTING.TXT | OK | Program sources `SORG\SRG\Z`,`W`, tables `SORG\TAB\Z`,`W`, compiled `COMP\NOC\Z`,`W`, `COMP\SPC\Z`; H01 files still present |
 
 Photo of the green set: `2026-09-25_diskettes-set-of-7.jpg`. Photos of all disks and labels: Proton Drive, folder `busellato-cnc-images`.
