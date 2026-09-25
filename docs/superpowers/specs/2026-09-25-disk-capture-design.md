@@ -32,10 +32,23 @@ the current state in Proton Drive) gets its own design later.
   | D06 | PTP1000 | 40 |
   | D07 | LINGUE — 1/1 | 75 |
 
-- The diskettes look like installation media. The machine-specific
-  state (parameters, tool tables, programs) most likely lives only on C:.
-  So C: is the priority. The diskettes are imaged as well, because
-  they are the only copy of the installation software.
+- TPA's own save script `SALVAINA.BAT` (found on D01) backs up these
+  folders from C: to a "custom diskette": `C:\PTP1000\` (incl.
+  `ENVIRON.TPA`), `C:\PTPSYS\`, `C:\PTP0\`, `C:\CNC90\LINGUE\`,
+  `C:\CNC90\MOD1\USER\` and the files in `C:\CNC90\`. The seven labels
+  carry the same names, so the diskettes are most likely copies of the
+  machine's custom data, of unknown age. Part programs
+  (`C:\CNC90\MOD1\SORG\`, `COMP\`, `LISTE\`) are not in that script. C:
+  is still the priority: it is the current state, and the only place the
+  programs live.
+- D01 was imaged on 2026-09-25 as a first probe: all 2880 sectors read
+  cleanly, but sector 0 had been overwritten with a hard-disk MBR
+  (Windows XP boot code, one FAT16 partition, geometry 614 × 4 × 17). The
+  FAT copies and root directory are intact, and a
+  `System Volume Information` folder dated 2021 shows the disk has been
+  written to by Windows. With a standard 1.44 MB boot sector substituted,
+  the disk yields 28 files, matching the label. Other disks may have the
+  same damage.
 
 ## Decisions
 
@@ -89,6 +102,7 @@ One row per disk:
 | SHA-256 | Of `<ID>.img` |
 | Bad sectors | Count from the map; 0 if clean |
 | Files expected / found | Expected from the label (D-disks) or the copy plan (H-disks) |
+| Boot sector | OK, or "substituted" (overwritten on the original) |
 | Contents | One line |
 
 ## Procedure
@@ -110,8 +124,15 @@ For each of D01–D07:
    2. runs `ddrescue -d -n` (fast pass, no retries), then
       `ddrescue -d -r3` (retry bad sectors up to 3 times);
    3. writes `<ID>.img` and `<ID>.map`, and prints the SHA-256;
-   4. extracts all files with `mcopy -s -m` into `files/`;
-   5. prints the extracted file count and the number of bad sectors.
+   4. checks sector 0 for a valid 1.44 MB floppy boot sector. If it is
+      missing or overwritten but sector 1 starts with a FAT (`F0 FF FF`)
+      and the two FAT copies are identical, it builds a temporary working
+      copy with a standard 1.44 MB boot sector. `<ID>.img` itself is never
+      modified, and the working copy is not committed;
+   5. extracts all files with `mcopy -s -m` into `files/`, from the
+      working copy if one was built;
+   6. prints the extracted file count, the number of bad sectors, and
+      whether the boot sector had to be substituted.
 4. Fill in the index row, compare the file count with the label, and
    commit the disk.
 
@@ -162,6 +183,8 @@ These go at the top of every command sheet:
 
 - Never type `FORMAT`, `DEL`, `CHKDSK /F`, or any command with `C:` as
   its destination.
+- Never run `SALVAINC.BAT`: it copies a diskette over the machine's data
+  on C:.
 - Don't restart the machine with a diskette in the drive.
 - If anything unexpected shows up on screen, stop and take a photo.
 
