@@ -1,0 +1,25 @@
+ Volume in drive : is H01        
+ Volume Serial Number is 7EF1-1319
+Directory for ::/
+
+CHKDSK   TXT       518 2008-10-17   3:21 
+LISTING  TXT    523760 2008-10-17   3:31 
+ATTRIB   TXT    541866 2008-10-17   3:50 
+CONFIG   SYS       158 1992-09-09  12:05 
+AUTOEXEC BAT       184 1992-09-10   9:20 
+FSEVEN~6     <DIR>     2026-09-25  12:29  .fseventsd
+        6 files           1 066 486 bytes
+
+Directory for ::/.fseventsd
+
+.            <DIR>     2026-09-25  12:30 
+..           <DIR>     2026-09-25  11:47 
+FSEVEN~2            36 2026-09-25  12:30  fseventsd-uuid
+000000~2            47 2026-09-25  12:30  00000000006ef650
+000000~3            71 2026-09-25  12:30  00000000006ef651
+        5 files                 154 bytes
+
+Total files listed:
+       11 files           1 066 640 bytes
+                            387 584 bytes free
+

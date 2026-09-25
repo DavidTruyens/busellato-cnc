@@ -1,0 +1,16 @@
+
+Volume MS-DOS_5    creato il 09-09-1992 11:45a 
+Il numero di serie del volume Š 1929-5DB2
+
+  52094976 byte di spazio complessivo su disco
+     73728 byte in 2 file nascosti 
+    681984 byte in 190 directory
+  34623488 byte in 11840 file utente
+  16715776 byte disponibili su disco
+
+      2048 byte in ogni unit… di allocazione
+     25437 unit… di allocazione su disco complessive
+      8162 unit… di allocazione disponibili su disco
+
+    655360 byte di memoria complessiva
+    221664 byte disponibili
