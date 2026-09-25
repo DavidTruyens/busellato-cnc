@@ -7,8 +7,8 @@ Status: approved in chat, awaiting written-spec review
 
 Draw and set up machining in Autodesk Fusion (Manufacture workspace) and
 get a program the Busellato S.EASY can run, without typing it into the
-control by hand. Version 1 covers **contour routing** and **vertical
-drilling** on the top face.
+control by hand. Version 1 covers **contour routing**, **2D pockets** and
+**vertical drilling** on the top face.
 
 ## Context: the CNC90 program format
 
@@ -69,7 +69,7 @@ Conventions seen in the samples:
 | Fallback | Setting to output straight lines only, with a segment length | Emergency only, if arcs misbehave |
 | Cutter compensation | In Fusion ("in computer"); never `G41`/`G42` | The machine follows exactly the path shown in Fusion |
 | Moves between contours | Dropped; each contour starts with `G88` | Same as the existing programs; the control handles rapids |
-| Scope v1 | Contours + vertical drilling, top face (`P5`), origin `G54` | User's choice |
+| Scope v1 | Contours, 2D pockets, vertical drilling; top face (`P5`), origin `G54` | User's choice; pockets use the same lines/arcs as contours |
 | Tools | Fusion tool number `nn` → `T01nn` | The user's existing Fusion tool library, renumbered to match the machine |
 | Loading onto the machine | Copy a new, uniquely named file into `SORG\SRG\<letter>\` and compile on the machine; in parallel with the hard disk backup | User's choice; only new files and `INDICE.PRG` (backed up on H03) change |
 
@@ -123,9 +123,12 @@ One Fusion setup → one CNC90 source file.
 - No stock, or the setup origin is not on the top surface of the stock
   (within 0.01 mm).
 - Cutter compensation set to "in control", "wear" or "inverse wear".
-- An arc that changes Z (helix), or an arc not in the XY plane.
-- Any operation other than a 2D contour or plain drilling (e.g. pocket,
-  adaptive, tapping, boring cycles, 3D, multi-axis, turning).
+- An arc that changes Z (helix), or an arc not in the XY plane. The
+  message tells the user to set the entry to plunge or ramp (Fusion's
+  pocket default is a helix).
+- Any operation other than 2D contour, 2D pocket or plain drilling (e.g.
+  adaptive clearing, which makes very many tiny moves; tapping, boring
+  cycles, 3D, multi-axis, turning).
 - Tool number not in the allowed list.
 - Depth deeper than stock thickness + max depth setting.
 - A contour whose first cut starts with Z above the stock top (no plunge).
@@ -159,8 +162,8 @@ positions, asymmetric so that any mirroring or wrong origin is visible.
    version 5.413.5 on this Mac) runs `post/busellato-cnc90.cps` on fixed
    intermediate (`.cnc`) toolpaths. Each output is compared with a
    reviewed expected file and passed through the checker. Cases: contour
-   with lines and arcs, drilling, several depth passes, arc over 180°,
-   helix (must fail), wrong origin (must fail).
+   with lines and arcs, 2D pocket with plunge entry, drilling, several
+   depth passes, arc over 180°, helix (must fail), wrong origin (must fail).
 3. **Test toolpaths** come from Autodesk's sample intermediate files (from
    the Fusion post-processor VS Code extension) and from one Fusion
    document of the test piece made by David with his tool library. The
@@ -183,6 +186,6 @@ tools/
 
 ## Out of scope for version 1
 
-Pockets, saw cuts (`G85`), rows of holes (`G183`–`G186`), horizontal
+Adaptive clearing, saw cuts (`G85`), rows of holes (`G183`–`G186`), horizontal
 drilling, faces other than the top, `G55` workflows, formula output
 (`=l`, `=h`), generating `TAB` or compiled files, transfer over COM2.
