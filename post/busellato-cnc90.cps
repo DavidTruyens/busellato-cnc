@@ -204,6 +204,21 @@ function onSectionEnd() {
   inContour = false;
 }
 
+function onCycle() {
+  inContour = false;
+  if (cycleType != "drilling") {
+    error("Drill cycle '" + cycleType + "' is not supported; use plain drilling (drilling - rapid out).");
+  }
+}
+
+function onCyclePoint(x, y, z) {
+  checkDepth(cycle.bottom);
+  moves.push({kind: "G81", x: x, y: y, depth: -cycle.bottom, tool: sectionTool});
+}
+
+function onCycleEnd() {
+}
+
 function formatMoves() {
   var origin = getProperty("origin");
   var out = [];
@@ -229,6 +244,8 @@ function formatMoves() {
       var cw = getProperty("mirrorY") ? !m.cw : m.cw;
       out.push((cw ? "G2" : "G3") + "G90G17X" + fmt(m.end.x) + "Y" + fmt(outY(m.end.y)) + "U" + fmt(m.r));
       curX = m.end.x; curY = m.end.y; curZ = m.end.z;
+    } else if (m.kind == "G81") {
+      out.push("G81G90" + origin + "P5T01" + pad2(m.tool) + "X" + fmt(m.x) + "Y" + fmt(outY(m.y)) + "Z" + fmt(m.depth));
     }
   }
   return out;
