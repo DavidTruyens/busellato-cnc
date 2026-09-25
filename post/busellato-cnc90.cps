@@ -146,6 +146,52 @@ function onLinear(x, y, z, feed) {
   cut(getCurrentPosition(), {x: x, y: y, z: z}, feed);
 }
 
+function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
+  var p0 = getCurrentPosition();
+  if (getCircularPlane() != PLANE_XY) {
+    error("Only arcs in the XY plane are supported (operation " + getParameter("operation-comment", "") + ").");
+  }
+  // A genuine helical entry (Fusion's pocket rampType "helix", spiralling down over many
+  // turns) can't be represented by this control's G2/G3 (no Z word) and must be refused.
+  // A "profile" ramp (the alternative this message recommends) instead follows the wall,
+  // and its corner-rounding arcs can carry a few hundredths of a mm of incidental Z drift
+  // while still descending -- that's not a helix; the following G1 catches the Z up.
+  if (isHelical() && getParameter("operation:rampType", "") != "profile") {
+    error("Helical move (helix) in operation " + getParameter("operation-comment", "") +
+      ". Set the entry to plunge or ramp (Fusion's pocket default is a helix).");
+  }
+  var p1 = {x: x, y: y, z: z};
+  if (getProperty("arcOutput") == "lines") {
+    linearizeArc(p0, clockwise, cx, cy, p1, feed);
+    return;
+  }
+  if (p1.z >= -TOP) {
+    inContour = false;
+    return;
+  }
+  checkDepth(p1.z);
+  if (!inContour) {
+    emitG88(p0.x, p0.y, p0.z, feed);
+    inContour = true;
+  }
+  moves.push({kind: "ARC", end: p1, r: getCircularRadius(), cw: clockwise});
+}
+
+function linearizeArc(p0, clockwise, cx, cy, p1, feed) {
+  var r = Math.sqrt((p0.x - cx) * (p0.x - cx) + (p0.y - cy) * (p0.y - cy));
+  var sweep = getCircularSweep();            // radians, positive
+  var n = Math.max(1, Math.ceil(r * sweep / getProperty("segmentLength")));
+  var a0 = Math.atan2(p0.y - cy, p0.x - cx);
+  var dir = clockwise ? -1 : 1;
+  var prev = p0;
+  for (var i = 1; i <= n; ++i) {
+    var a = a0 + dir * sweep * i / n;
+    var p = (i == n) ? p1 : {x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: p1.z};
+    cut(prev, p, feed);
+    prev = p;
+  }
+}
+
 function onSectionEnd() {
   inContour = false;
 }
@@ -164,6 +210,9 @@ function formatMoves() {
       var f = (m.f != lastF) ? "F" + fmt(m.f) : "";
       lastF = m.f;
       out.push("G1G90" + f + "X" + fmt(m.end.x) + "Y" + fmt(outY(m.end.y)) + "Z" + fmt(-m.end.z));
+    } else if (m.kind == "ARC") {
+      var cw = getProperty("mirrorY") ? !m.cw : m.cw;
+      out.push((cw ? "G2" : "G3") + "G90G17X" + fmt(m.end.x) + "Y" + fmt(outY(m.end.y)) + "U" + fmt(m.r));
     }
   }
   return out;
