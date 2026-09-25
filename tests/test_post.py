@@ -100,6 +100,25 @@ class PostCaseTest(unittest.TestCase):
                 for a in spec['assert']:
                     self.check_assertion(key, a, text, spec.get('case', key))
 
+    def test_circpock_ramp_depth(self):
+        """CIRCPOCK's profile ramp follows a full circle, so (unlike RAMP's rectangle) almost
+        the whole descent is arcs. Guards against the depth being silently dropped on a
+        Z-changing arc written flat (no Z word) instead of interpolated lines: depth must
+        creep down in small steps and actually reach the full 10mm, not jump or stall."""
+        if MODE == 'A' and not POST_BIN:
+            self.skipTest('Fusion post engine not found')
+        if MODE == 'B' and not os.path.isdir(OUT_DIR):
+            self.skipTest('no captured cases and no Fusion outputs')
+        ok, text, log = run_case('CIRCPOCK', CASES['CIRCPOCK'])
+        self.assertTrue(ok, f'CIRCPOCK: ok=False\n{log[-2000:]}')
+        lines = lines_of(text)
+        depths = [float(re.search(r'Z(-?[\d.]+)$', l).group(1)) for l in lines if l.startswith('G1G90')]
+        self.assertTrue(depths, 'CIRCPOCK: no G1 lines found')
+        for prev, cur in zip(depths, depths[1:]):
+            self.assertLessEqual(abs(cur - prev), 0.05,
+                                  f'CIRCPOCK: depth step from {prev} to {cur} exceeds 0.05mm')
+        self.assertEqual(max(depths), 10, f'CIRCPOCK: maximum depth reached is {max(depths)}, expected 10')
+
 
 if __name__ == '__main__':
     unittest.main()

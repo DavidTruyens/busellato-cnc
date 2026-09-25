@@ -30,8 +30,8 @@ properties = {
     type: "boolean", value: false, scope: "post"},
   arcOutput: {title: "Arc output", description: "arcs: G2/G3. lines: straight segments only (emergency fallback).",
     type: "enum", values: [{id: "arcs", title: "G2/G3 arcs"}, {id: "lines", title: "Straight lines only"}], value: "arcs", scope: "post"},
-  segmentLength: {title: "Segment length (mm)", description: "Segment length when arc output = lines.",
-    type: "number", value: 2, scope: "post"},
+  segmentLength: {title: "Segment length (mm)", description: "Segment length when arc output = lines, or for an allowed Z-changing arc.",
+    type: "number", value: 1, scope: "post"},
   mergeTolerance: {title: "Merge tolerance (mm)", description: "Collinear straight moves within this distance are merged.",
     type: "number", value: 0.05, scope: "post"},
   lineWarning: {title: "Warn above N lines", description: "Largest program the machine is known to run is ~250 lines.",
@@ -148,25 +148,32 @@ function onLinear(x, y, z, feed) {
 
 function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
   var p0 = getCurrentPosition();
-  if (getCircularPlane() != PLANE_XY) {
-    error("Only arcs in the XY plane are supported (operation " + getParameter("operation-comment", "") + ").");
+  var p1 = {x: x, y: y, z: z};
+  if (p1.z >= -TOP) {        // retract or move in the air: ends the contour, nothing written
+    inContour = false;       // (checked first: an aerial lead-in/out arc can have an undefined
+    return;                  // plane or a Z "helix" that's irrelevant since nothing is cut)
   }
   // A genuine helical entry (Fusion's pocket rampType "helix", spiralling down over many
   // turns) can't be represented by this control's G2/G3 (no Z word) and must be refused.
   // A "profile" ramp (the alternative this message recommends) instead follows the wall,
   // and its corner-rounding arcs can carry a few hundredths of a mm of incidental Z drift
-  // while still descending -- that's not a helix; the following G1 catches the Z up.
-  if (isHelical() && getParameter("operation:rampType", "") != "profile") {
+  // while still descending -- that's not a helix; it is linearized below instead.
+  var helical = isHelical();
+  // getCircularPlane() is only meaningful for a flat arc: a helical one doesn't lie in a
+  // single plane by definition (Z moves too), so it reports "undefined" there -- correctly,
+  // not an error. Only refuse a genuinely non-XY *flat* arc.
+  if (!helical && getCircularPlane() != PLANE_XY) {
+    error("Only arcs in the XY plane are supported (operation " + getParameter("operation-comment", "") + ").");
+  }
+  if (helical && getParameter("operation:rampType", "") != "profile") {
     error("Helical move (helix) in operation " + getParameter("operation-comment", "") +
       ". Set the entry to plunge or ramp (Fusion's pocket default is a helix).");
   }
-  var p1 = {x: x, y: y, z: z};
-  if (getProperty("arcOutput") == "lines") {
+  // A Z-changing arc (the allowed "profile" ramp case above) can't be written as G2/G3
+  // either: that format carries no Z word, so the drop would silently be lost. Linearize
+  // it into interpolated-Z chords instead; only a truly flat arc becomes one G2/G3 line.
+  if (getProperty("arcOutput") == "lines" || helical) {
     linearizeArc(p0, clockwise, cx, cy, p1, feed);
-    return;
-  }
-  if (p1.z >= -TOP) {
-    inContour = false;
     return;
   }
   checkDepth(p1.z);
@@ -174,7 +181,7 @@ function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
     emitG88(p0.x, p0.y, p0.z, feed);
     inContour = true;
   }
-  moves.push({kind: "ARC", end: p1, r: getCircularRadius(), cw: clockwise});
+  moves.push({kind: "ARC", end: p1, r: getCircularRadius(), f: feedOut(feed), cw: clockwise});
 }
 
 function linearizeArc(p0, clockwise, cx, cy, p1, feed) {
@@ -186,7 +193,8 @@ function linearizeArc(p0, clockwise, cx, cy, p1, feed) {
   var prev = p0;
   for (var i = 1; i <= n; ++i) {
     var a = a0 + dir * sweep * i / n;
-    var p = (i == n) ? p1 : {x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: p1.z};
+    var z = p0.z + (p1.z - p0.z) * i / n;      // interpolate Z along the sweep
+    var p = (i == n) ? p1 : {x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: z};
     cut(prev, p, feed);
     prev = p;
   }
@@ -200,19 +208,27 @@ function formatMoves() {
   var origin = getProperty("origin");
   var out = [];
   var lastF = null;
+  var curX = 0, curY = 0, curZ = 0;    // position after the last emitted move (raw, unmirrored)
   for (var i = 0; i < moves.length; ++i) {
     var m = moves[i];
     if (m.kind == "G88") {
       lastF = m.f;
       out.push("G88G90" + origin + "P5T01" + pad2(m.tool) + (m.rpm > 0 ? "S" + Math.round(m.rpm) : "") +
         "F" + fmt(m.f) + "X" + fmt(m.x) + "Y" + fmt(outY(m.y)) + "Z" + fmt(-m.z));
+      curX = m.x; curY = m.y; curZ = m.z;
     } else if (m.kind == "G1") {
       var f = (m.f != lastF) ? "F" + fmt(m.f) : "";
       lastF = m.f;
       out.push("G1G90" + f + "X" + fmt(m.end.x) + "Y" + fmt(outY(m.end.y)) + "Z" + fmt(-m.end.z));
+      curX = m.end.x; curY = m.end.y; curZ = m.end.z;
     } else if (m.kind == "ARC") {
+      if (m.f != lastF) {          // the arc line itself carries no F: announce it first, in place
+        out.push("G1G90F" + fmt(m.f) + "X" + fmt(curX) + "Y" + fmt(outY(curY)) + "Z" + fmt(-curZ));
+        lastF = m.f;
+      }
       var cw = getProperty("mirrorY") ? !m.cw : m.cw;
       out.push((cw ? "G2" : "G3") + "G90G17X" + fmt(m.end.x) + "Y" + fmt(outY(m.end.y)) + "U" + fmt(m.r));
+      curX = m.end.x; curY = m.end.y; curZ = m.end.z;
     }
   }
   return out;

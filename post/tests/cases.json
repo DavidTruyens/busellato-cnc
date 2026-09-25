@@ -11,7 +11,7 @@
   "MULTIDEP": {"ok": true, "props": {}, "assert": [
     "checker", "count 3 ^G88", "has ^G88.*Z19$", "none ^G1G90.*Z-", "none ^G1G90.*Z0$"]},
   "CIRCLE": {"ok": true, "props": {}, "assert": [
-    "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$"]},
+    "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$", "has ^G1G90F3X"]},
   "CIRCLE.lines": {"case": "CIRCLE", "ok": true, "props": {"arcOutput": "lines", "segmentLength": 5}, "assert": [
     "checker", "none ^G[23]", "atleast 60 ^G1G90"]},
   "POCKET": {"ok": true, "props": {}, "assert": [
@@ -20,6 +20,8 @@
     "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$",
     "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$", "none Z-"]},
   "POCKHLX": {"ok": false, "error": "helix", "props": {}, "assert": []},
+  "CIRCPOCK": {"ok": true, "props": {}, "assert": [
+    "checker", "none ^G88.*Z-", "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$"]},
   "DRILL": {"ok": true, "props": {}, "assert": [
     "checker", "count 3 ^G81G90G54P5T0101X(320|352)Y(220|260)Z13$",
     "has ^G81.*X320Y220Z13$", "has ^G81.*X352Y220Z13$", "has ^G81.*X320Y260Z13$"]},
