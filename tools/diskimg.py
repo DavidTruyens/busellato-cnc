@@ -51,7 +51,13 @@ def classify(data):
 
 
 def make_working(data):
-    """Return (image, status). Never modifies `data`."""
+    """Return (image, status). Never modifies `data`.
+
+    A short image (ddrescue could not read the end of the disk) is padded
+    with zeros; the ddrescue map records which sectors those are.
+    """
+    if len(data) < IMG_SIZE and len(data) % SECTOR == 0:
+        data = data + bytes(IMG_SIZE - len(data))
     status = classify(data)
     if status == 'ok':
         return data, 'ok'

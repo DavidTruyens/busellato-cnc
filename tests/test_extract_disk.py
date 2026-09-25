@@ -122,6 +122,18 @@ class ExtractDiskTest(unittest.TestCase):
         self.assertIn('extraction failed', r.stdout)
         self.assertTrue(os.path.exists(os.path.join(self.dir, 'D09.dir.txt')))
 
+    def test_short_read_still_extracts(self):
+        make_floppy(self.img, {'A.TXT': b'a', 'B.TXT': b'b'})
+        full = read_bytes(self.img)
+        write_bytes(self.img, full[:0x110000])
+        write_text(os.path.join(self.dir, 'D09.map'), MAP_CLEAN.replace(
+            '0x00000000  0x00168000  +', '0x00000000  0x00110000  +\n0x00110000  0x00058000  -'))
+        r = self.run_script()
+        self.assertEqual(r.returncode, 3)
+        self.assertIn('| 704 | 2 / 2 |', r.stdout)
+        self.assertEqual(self.files(), ['A.TXT', 'B.TXT'])
+        self.assertEqual(read_bytes(self.img), full[:0x110000])  # raw image untouched
+
     def test_invalid_id_rejected(self):
         # ID '..' would resolve to <tmp>/...img and rm -rf <tmp>/files
         disks = os.path.join(self.tmp, 'disks')

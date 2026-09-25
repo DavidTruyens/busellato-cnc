@@ -94,6 +94,15 @@ class MakeWorkingTest(unittest.TestCase):
                                capture_output=True, check=True)
             self.assertEqual(r.stdout, b'@ECHO OFF\r\n')
 
+    def test_short_read_is_padded(self):
+        # ddrescue leaves the image short when the tail of the disk is unreadable
+        d = floppy_bytes()
+        out, status = diskimg.make_working(d[:0x110000])
+        self.assertEqual(status, 'ok')
+        self.assertEqual(len(out), IMG_SIZE)
+        self.assertEqual(out[:0x110000], d[:0x110000])
+        self.assertEqual(out[0x110000:], bytes(IMG_SIZE - 0x110000))
+
     def test_unrecognised_raises(self):
         with self.assertRaises(ValueError):
             diskimg.make_working(os.urandom(IMG_SIZE))
