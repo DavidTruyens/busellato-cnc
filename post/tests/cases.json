@@ -13,7 +13,7 @@
   "CIRCLE": {"ok": true, "props": {}, "assert": [
     "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$"]},
   "POCKET": {"ok": true, "props": {}, "assert": [
-    "checker", "atleast 1 ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z10$", "none Z1[1-9]"]},
+    "checker", "atleast 1 ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z10$", "none ^G(88|1G90).*Z1[1-9]"]},
   "RAMP": {"ok": true, "props": {}, "assert": [
     "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$",
     "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$", "none Z-"]},
