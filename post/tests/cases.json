@@ -9,13 +9,14 @@
     "checker", "count 1 ^G88", "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U9$",
     "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U21$"]},
   "MULTIDEP": {"ok": true, "props": {}, "assert": [
-    "checker", "count 3 ^G88", "has ^G88.*Z19$", "none ^G1G90.*Z-"]},
+    "checker", "count 3 ^G88", "has ^G88.*Z19$", "none ^G1G90.*Z-", "none ^G1G90.*Z0$"]},
   "CIRCLE": {"ok": true, "props": {}, "assert": [
     "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$"]},
   "POCKET": {"ok": true, "props": {}, "assert": [
     "checker", "atleast 1 ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z10$", "none Z1[1-9]"]},
   "RAMP": {"ok": true, "props": {}, "assert": [
-    "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$"]},
+    "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$",
+    "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$", "none Z-"]},
   "POCKHLX": {"ok": false, "error": "helix", "props": {}, "assert": []},
   "DRILL": {"ok": true, "props": {}, "assert": [
     "checker", "count 3 ^G81G90G54P5T0101X(320|352)Y(220|260)Z13$",
