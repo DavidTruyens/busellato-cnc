@@ -134,6 +134,16 @@ class ExtractDiskTest(unittest.TestCase):
         self.assertEqual(self.files(), ['A.TXT', 'B.TXT'])
         self.assertEqual(read_bytes(self.img), full[:0x110000])  # raw image untouched
 
+    def test_damaged_file_flagged(self):
+        make_floppy(self.img, {'A.TXT': b'a', 'BIG.BIN': os.urandom(40000)})
+        write_text(os.path.join(self.dir, 'D09.map'), MAP_CLEAN.replace(
+            '0x00000000  0x00168000  +',
+            '0x00000000  0x00007800  +\n0x00007800  0x00000200  -\n0x00007A00  0x00160600  +'))
+        r = self.run_script()
+        self.assertEqual(r.returncode, 3)
+        self.assertIn('1 damaged ⚠', r.stdout)
+        self.assertIn('BIG.BIN', r.stderr)
+
     def test_invalid_id_rejected(self):
         # ID '..' would resolve to <tmp>/...img and rm -rf <tmp>/files
         disks = os.path.join(self.tmp, 'disks')

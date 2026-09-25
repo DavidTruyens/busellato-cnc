@@ -71,6 +71,16 @@ fi
 if [[ "$bad" != 0 && "$bad" != "no map" ]]; then
   status=3
 fi
+if [[ -f "$map" ]]; then
+  damaged="$(python3 "$here/diskimg.py" damaged-files "$img" "$map")"
+  if [[ -n "$damaged" ]]; then
+    n_damaged="$(printf '%s\n' "$damaged" | wc -l | tr -d ' ')"
+    count="$count, $n_damaged damaged ⚠"
+    status=3
+    echo "Files with data in unread sectors (contents incomplete):" >&2
+    printf '  %s\n' "$damaged" >&2
+  fi
+fi
 if [[ "$copy_failed" == 1 ]]; then
   count="$count, extraction failed ⚠"
   status=3

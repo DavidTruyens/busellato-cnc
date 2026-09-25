@@ -6,6 +6,7 @@ See docs/superpowers/specs/2026-09-25-disk-capture-design.md.
   diskimg.py work IMG OUT        write a mtools-readable working copy of IMG
   diskimg.py bad-bytes MAP       bytes not rescued according to a ddrescue map
   diskimg.py find-floppy         read `diskutil list external physical` on stdin
+  diskimg.py damaged-files IMG MAP   files with data in sectors ddrescue could not read
 """
 import re
 import struct
@@ -77,6 +78,65 @@ def bad_bytes(map_text):
     return total
 
 
+def unread_sectors(map_text, img_len):
+    """Sector numbers ddrescue did not rescue, plus any beyond a short image."""
+    lines = [l for l in map_text.splitlines() if l.strip() and not l.startswith('#')]
+    unread = set()
+    for line in lines[1:]:
+        pos, size, status = line.split()[:3]
+        if status != '+':
+            start, end = int(pos, 16), int(pos, 16) + int(size, 16)
+            unread.update(range(start // SECTOR, (end + SECTOR - 1) // SECTOR))
+    unread.update(range(img_len // SECTOR, IMG_SIZE // SECTOR))
+    return {s for s in unread if s < IMG_SIZE // SECTOR}
+
+
+def damaged_files(data, unread):
+    """Paths of files (walking the FAT12 tree of working image `data`) whose
+    data or directory touches a sector in `unread`."""
+    bps, spc, res, nfats, roots, _total, _media, spf = struct.unpack_from(
+        '<HBHBHHBH', data, 11)
+    fat = data[res * bps:(res + spf) * bps]
+    root_start = res + nfats * spf
+    data_start = root_start + roots * 32 // bps
+
+    def chain(cluster):
+        seen = []
+        while 2 <= cluster < 0xFF0 and cluster not in seen and len(seen) < 4096:
+            seen.append(cluster)
+            off = cluster * 3 // 2
+            if off + 1 >= len(fat):
+                break
+            v = fat[off] | fat[off + 1] << 8
+            cluster = v >> 4 if cluster & 1 else v & 0xFFF
+        return [data_start + (c - 2) * spc + i for c in seen for i in range(spc)]
+
+    damaged = []
+
+    def walk(sectors, prefix):
+        buf = b''.join(data[s * bps:(s + 1) * bps] for s in sectors)
+        for i in range(0, len(buf), 32):
+            e = buf[i:i + 32]
+            if e[0] == 0:
+                break
+            attr = e[11]
+            if e[0] == 0xE5 or attr == 0x0F or attr & 0x08:
+                continue
+            base = e[0:8].decode('cp850').rstrip()
+            ext = e[8:11].decode('cp850').rstrip()
+            if base in ('.', '..'):
+                continue
+            name = prefix + base + ('.' + ext if ext else '')
+            secs = chain(struct.unpack_from('<H', e, 26)[0])
+            if unread.intersection(secs):
+                damaged.append(name)
+            if attr & 0x10:
+                walk(secs, name + '/')
+
+    walk(list(range(root_start, data_start)), '')
+    return damaged
+
+
 def find_floppy(diskutil_text):
     """/dev/diskN of the single external physical disk of 1.4-1.5 MB."""
     found = []
@@ -109,6 +169,19 @@ def main(argv):
     if cmd == 'bad-bytes' and len(argv) == 3:
         with open(argv[2]) as f:
             print(bad_bytes(f.read()))
+        return 0
+    if cmd == 'damaged-files' and len(argv) == 4:
+        with open(argv[2], 'rb') as f:
+            raw = f.read()
+        with open(argv[3]) as f:
+            unread = unread_sectors(f.read(), len(raw))
+        try:
+            work, _ = make_working(raw)
+        except ValueError as e:
+            print(f'error: {argv[2]}: {e}', file=sys.stderr)
+            return 2
+        for name in damaged_files(work, unread):
+            print(name)
         return 0
     if cmd == 'find-floppy' and len(argv) == 2:
         try:

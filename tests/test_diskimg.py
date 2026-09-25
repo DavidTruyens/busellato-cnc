@@ -115,6 +115,27 @@ class MakeWorkingTest(unittest.TestCase):
         self.assertEqual(status, 'substituted')
 
 
+class DamagedFilesTest(unittest.TestCase):
+    def setUp(self):
+        # A.TXT: 1 sector at 33. SUB/BIG.BIN: 40000 bytes after it.
+        self.data = floppy_bytes({'A.TXT': b'a', 'SUB/BIG.BIN': os.urandom(40000)})
+
+    def test_file_in_unread_sectors_is_reported(self):
+        unread = set(range(60, 2880))
+        self.assertEqual(diskimg.damaged_files(self.data, unread), ['SUB/BIG.BIN'])
+
+    def test_no_unread_sectors_no_damage(self):
+        self.assertEqual(diskimg.damaged_files(self.data, set()), [])
+
+    def test_unread_free_space_is_harmless(self):
+        self.assertEqual(diskimg.damaged_files(self.data, set(range(2000, 2880))), [])
+
+    def test_unread_sectors_from_map_and_short_image(self):
+        self.assertEqual(diskimg.unread_sectors(MAP_BAD, IMG_SIZE), set(range(8, 11)))
+        self.assertEqual(diskimg.unread_sectors(MAP_CLEAN, 0x110000),
+                         set(range(0x110000 // 512, 2880)))
+
+
 class BadBytesTest(unittest.TestCase):
     def test_clean_map(self):
         self.assertEqual(diskimg.bad_bytes(MAP_CLEAN), 0)
