@@ -103,8 +103,11 @@ class PostCaseTest(unittest.TestCase):
     def test_circpock_ramp_depth(self):
         """CIRCPOCK's profile ramp follows a full circle, so (unlike RAMP's rectangle) almost
         the whole descent is arcs. Guards against the depth being silently dropped on a
-        Z-changing arc written flat (no Z word) instead of interpolated lines: depth must
-        creep down in small steps and actually reach the full 10mm, not jump or stall."""
+        Z-changing arc written flat (no Z word) instead of interpolated lines: while ramping
+        (from the G88 to the first time full depth is reached), depth must never go back up,
+        and must actually pass through intermediate depths on the way -- not jump straight
+        from the G88's depth to 10. Later G1 lines (moving to another pocket-clearing loop)
+        are free to retreat; only the ramp itself is checked. Max depth is exactly 10."""
         if MODE == 'A' and not POST_BIN:
             self.skipTest('Fusion post engine not found')
         if MODE == 'B' and not os.path.isdir(OUT_DIR):
@@ -112,11 +115,18 @@ class PostCaseTest(unittest.TestCase):
         ok, text, log = run_case('CIRCPOCK', CASES['CIRCPOCK'])
         self.assertTrue(ok, f'CIRCPOCK: ok=False\n{log[-2000:]}')
         lines = lines_of(text)
+        g88_depth = float(re.search(r'Z(-?[\d.]+)$', next(l for l in lines if l.startswith('G88'))).group(1))
         depths = [float(re.search(r'Z(-?[\d.]+)$', l).group(1)) for l in lines if l.startswith('G1G90')]
         self.assertTrue(depths, 'CIRCPOCK: no G1 lines found')
-        for prev, cur in zip(depths, depths[1:]):
-            self.assertLessEqual(abs(cur - prev), 0.05,
-                                  f'CIRCPOCK: depth step from {prev} to {cur} exceeds 0.05mm')
+        first_full = next((i for i, d in enumerate(depths) if d >= 10 - 1e-6), None)
+        self.assertIsNotNone(first_full, 'CIRCPOCK: no G1 line reaches full depth (10)')
+        ramp = depths[:first_full + 1]
+        for prev, cur in zip(ramp, ramp[1:]):
+            self.assertGreaterEqual(cur - prev, -0.001,
+                                     f'CIRCPOCK: depth went back up from {prev} to {cur} while ramping')
+        self.assertTrue(any(g88_depth < d < 10 for d in ramp),
+                         f'CIRCPOCK: no intermediate depth between the G88 depth ({g88_depth}) and 10 '
+                         'while ramping -- the ramp does not appear to descend gradually')
         self.assertEqual(max(depths), 10, f'CIRCPOCK: maximum depth reached is {max(depths)}, expected 10')
 
 

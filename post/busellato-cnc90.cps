@@ -31,7 +31,7 @@ properties = {
   arcOutput: {title: "Arc output", description: "arcs: G2/G3. lines: straight segments only (emergency fallback).",
     type: "enum", values: [{id: "arcs", title: "G2/G3 arcs"}, {id: "lines", title: "Straight lines only"}], value: "arcs", scope: "post"},
   segmentLength: {title: "Segment length (mm)", description: "Segment length when arc output = lines, or for an allowed Z-changing arc.",
-    type: "number", value: 1, scope: "post"},
+    type: "number", value: 2, scope: "post"},
   mergeTolerance: {title: "Merge tolerance (mm)", description: "Collinear straight moves within this distance are merged.",
     type: "number", value: 0.05, scope: "post"},
   lineWarning: {title: "Warn above N lines", description: "Largest program the machine is known to run is ~250 lines.",
