@@ -40,7 +40,7 @@ M2
 
 | Code | Meaning (as far as decoded) |
 |---|---|
-| `G71 X Y Z T00 N L` | Panel length, width, thickness. `N` = total lines in the file, `L` = machining lines (all lines except `G71`, `G150`, `M2`). Verified on BJOLAN2 (7/4), WEVER3 (13/10), INKEL (23/20) |
+| `G71 X Y Z T00 N L` | Panel length, width, thickness. `N` = total lines in the file. `L` = program steps between `G150` and `M2`, where `G183`/`G184` count 2 and every other line 1. Both rules verified on all 118 samples. For the codes the post writes, `L` = `N` − 3 |
 | `G150(text)` | Program description; optional variables `A…D` (not used by the post) |
 | `G81 G90 G54 P5 T01nn X Y Z` | Single vertical hole, tool `nn`, depth `Z` |
 | `G88 G90 G54 P5 T01nn [S] F [G41/G42] X Y Z` | Start of a routed contour at X,Y, depth Z |
