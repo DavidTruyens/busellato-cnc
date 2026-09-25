@@ -1,0 +1,28 @@
+{
+  "RECT": {"ok": true, "props": {}, "assert": [
+    "checker", "crlf",
+    "line1 ^G71X400Y300Z18T00N\\d+L\\d+$", "line2 ^G150\\(.*\\)$", "last ^M2$",
+    "count 1 ^G88G90G54P5T0165S18000F1X[-\\d.]+Y[-\\d.]+Z19$",
+    "xy 29,29", "xy 171,29", "xy 171,111", "xy 29,111",
+    "none ^G[23]", "none G4[12]", "none Z-"]},
+  "LSHAPE": {"ok": true, "props": {}, "assert": [
+    "checker", "count 1 ^G88", "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U9$",
+    "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U21$"]},
+  "MULTIDEP": {"ok": true, "props": {}, "assert": [
+    "checker", "count 3 ^G88", "has ^G88.*Z19$", "none ^G1G90.*Z-"]},
+  "CIRCLE": {"ok": true, "props": {}, "assert": [
+    "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$"]},
+  "POCKET": {"ok": true, "props": {}, "assert": [
+    "checker", "atleast 1 ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z10$", "none Z1[1-9]"]},
+  "RAMP": {"ok": true, "props": {}, "assert": [
+    "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$"]},
+  "POCKHLX": {"ok": false, "error": "helix", "props": {}, "assert": []},
+  "DRILL": {"ok": true, "props": {}, "assert": [
+    "checker", "count 3 ^G81G90G54P5T0101X(320|352)Y(220|260)Z13$",
+    "has ^G81.*X320Y220Z13$", "has ^G81.*X352Y220Z13$", "has ^G81.*X320Y260Z13$"]},
+  "CTRLCOMP": {"ok": false, "error": "compensation", "props": {}, "assert": []},
+  "TOOL99": {"ok": false, "error": "T99", "props": {}, "assert": []},
+  "DEEP": {"ok": false, "error": "Depth", "props": {}, "assert": []},
+  "BADORIG": {"ok": false, "error": "TOP surface", "props": {}, "assert": []},
+  "BADNAME": {"ok": false, "error": "program name", "props": {}, "assert": []}
+}
