@@ -16,6 +16,10 @@ if [[ $# -ne 3 ]]; then
   exit 1
 fi
 disk_id="$1"; label="$2"; expected="$3"
+if [[ ! "$disk_id" =~ ^[DH][0-9]{2}$ ]]; then
+  echo "error: ID must look like D01 or H01, got '$disk_id'" >&2
+  exit 1
+fi
 dir="${DISKS_DIR:-$repo/disks}/$disk_id"
 img="$dir/$disk_id.img"
 map="$dir/$disk_id.map"
@@ -32,12 +36,16 @@ work="$tmp/work.img"
 # Fails with exit 2 before anything in $dir is touched.
 boot="$(python3 "$here/diskimg.py" work "$img" "$work")" || exit 2
 
+mdir -i "$work" -/ -a '::' > "$dir/$disk_id.dir.txt" 2>&1 || true
+
+# A damaged FAT or directory makes mcopy stop part-way. Keep what was
+# copied and still report, so a failing disk never goes unnoticed.
 rm -rf "$dir/files"
 mkdir "$dir/files"
+copy_failed=0
 if [[ -n "$(mdir -i "$work" -b '::' 2>/dev/null || true)" ]]; then
-  mcopy -i "$work" -s -m -n '::/*' "$dir/files/"
+  mcopy -i "$work" -s -m -n '::/*' "$dir/files/" || copy_failed=1
 fi
-mdir -i "$work" -/ -a '::' > "$dir/$disk_id.dir.txt" 2>&1 || true
 
 found="$(find "$dir/files" -type f -not -path '*/System Volume Information/*' | wc -l | tr -d ' ')"
 
@@ -61,6 +69,10 @@ if [[ "$found" != "$expected" ]]; then
   status=3
 fi
 if [[ "$bad" != 0 && "$bad" != "no map" ]]; then
+  status=3
+fi
+if [[ "$copy_failed" == 1 ]]; then
+  count="$count, extraction failed ⚠"
   status=3
 fi
 

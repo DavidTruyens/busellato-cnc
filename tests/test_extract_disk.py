@@ -111,6 +111,32 @@ class ExtractDiskTest(unittest.TestCase):
         r = self.run_script()
         self.assertEqual(r.returncode, 1)
 
+    def test_damaged_fat_still_reports(self):
+        make_floppy(self.img, {'A.TXT': b'a', 'BIG.BIN': os.urandom(40000)})
+        d = bytearray(read_bytes(self.img))
+        d[512:1024] = bytes(512)  # first FAT sector lost, as a bad sector leaves it
+        write_bytes(self.img, bytes(d))
+        r = self.run_script()
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertTrue(r.stdout.startswith('| D09 |'), r.stdout)
+        self.assertIn('extraction failed', r.stdout)
+        self.assertTrue(os.path.exists(os.path.join(self.dir, 'D09.dir.txt')))
+
+    def test_invalid_id_rejected(self):
+        # ID '..' would resolve to <tmp>/...img and rm -rf <tmp>/files
+        disks = os.path.join(self.tmp, 'disks')
+        os.mkdir(disks)
+        make_floppy(os.path.join(self.tmp, '...img'), {'A.TXT': b'a'})
+        os.mkdir(os.path.join(self.tmp, 'files'))
+        sentinel = os.path.join(self.tmp, 'files', 'KEEP')
+        write_bytes(sentinel, b'k')
+        os.mkdir(os.path.join(disks, 'D1'))
+        make_floppy(os.path.join(disks, 'D1', 'D1.img'), {'A.TXT': b'a'})
+        env = dict(os.environ, DISKS_DIR=disks)
+        for bad in ('..', 'D1'):
+            r = subprocess.run([SCRIPT, bad, 'L', '1'], capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 1, bad)
+        self.assertTrue(os.path.exists(sentinel))
 
 if __name__ == '__main__':
     unittest.main()

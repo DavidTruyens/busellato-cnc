@@ -18,10 +18,29 @@ if [[ $# -lt 3 || $# -gt 4 ]]; then
   exit 1
 fi
 disk_id="$1"; label="$2"; expected="$3"; src="${4:-}"
+if [[ ! "$disk_id" =~ ^[DH][0-9]{2}$ ]]; then
+  echo "error: ID must look like D01 or H01, got '$disk_id'" >&2
+  exit 1
+fi
 dir="${DISKS_DIR:-$repo/disks}/$disk_id"
-mkdir -p "$dir"
 img="$dir/$disk_id.img"
 map="$dir/$disk_id.map"
+
+# Resuming only makes sense for an unfinished read of the same disk.
+# Anything else is most likely the wrong ID and would mix two disks.
+if [[ -f "$img" && ! -f "$map" ]]; then
+  echo "error: $img exists without a map; refusing to overwrite it" >&2
+  exit 1
+fi
+if [[ -f "$map" && "$(python3 "$here/diskimg.py" bad-bytes "$map")" == 0 ]]; then
+  echo "error: $disk_id is already captured completely. Wrong ID?" >&2
+  echo "       To reprocess the image: tools/extract-disk.sh $disk_id \"label\" N" >&2
+  exit 1
+fi
+if [[ -f "$map" ]]; then
+  echo "Resuming the unfinished read of $disk_id: make sure the SAME diskette is inserted." >&2
+fi
+mkdir -p "$dir"
 
 if [[ -z "$src" ]]; then
   disk="$(diskutil list external physical | python3 "$here/diskimg.py" find-floppy)"
@@ -35,8 +54,9 @@ run() {
 }
 
 # Pass 1: everything, no retries. Pass 2: retry bad sectors up to 3 times.
-run ddrescue -n -b 512 "$src" "$img" "$map"
-run ddrescue -r3 -b 512 "$src" "$img" "$map"
+# -s caps the read at one 1.44 MB diskette, whatever SOURCE is.
+run ddrescue -n -b 512 -s 1474560 "$src" "$img" "$map"
+run ddrescue -r3 -b 512 -s 1474560 "$src" "$img" "$map"
 if [[ ! -f "$src" ]]; then
   sudo chown "$(id -u):$(id -g)" "$img" "$map"
 fi
