@@ -42,6 +42,6 @@ sector. The `.img` still holds exactly what is on the diskette.
 | D15 | C:\PTP1000.BAT (green label; diskette reused as H01 on 2026-09-25) | 2026-09-25 | `75c67b5b6236ba2bfbfb9ac33a1c44056c62c286f015db6a8d1e6d35e4b7a88e` | 0 | 1 / 1 | OK | `PTP1000.BAT`, identical to D09's |
 | D16 | C:\CNC90 3 (red label) | 2026-09-25 | `2798be44a808920c9c96347c7e1cd1d028c82faaa1825d44aba8dcf844e0272f` | 0 | no count / 1 | OK | `EDIGRAF2.EXE` only (2001 set) |
 | D17 | C:\CNC90\LINGUE (red label) | 2026-09-25 | `451c04e7bd40af571f6477ce902231c4f801a1b6432c7cf27048e148b6a8d1e3` | 0 | no count / 75 | OK | `C:\CNC90\LINGUE\` (2001 set) |
-
 | H01 | H01 listing (diskette was D15, reformatted) | 2026-09-25 | `6cd27d1d295a89173012515481341faa990f6e0bb9829c2d6280b04de43ddfde` | 0 | 5 / 5 (+3 macOS `.fseventsd`) | OK | `CHKDSK C:`, `DIR C:\ /S`, `ATTRIB C:\*.* /S`, `CONFIG.SYS`, `AUTOEXEC.BAT` (copied to `hdd/`). Machine clock reads 2008-10-17 |
+
 Photo of the green set: `2026-09-25_diskettes-set-of-7.jpg`. Photos of all disks and labels: Proton Drive, folder `busellato-cnc-images`.
