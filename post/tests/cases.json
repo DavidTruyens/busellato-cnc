@@ -1,0 +1,43 @@
+{
+  "RECT": {"ok": true, "props": {}, "assert": [
+    "checker", "crlf",
+    "line1 ^G71X400Y300Z18T00N\\d+L\\d+$", "line2 ^G150\\(.*\\)$", "last ^M2$",
+    "count 1 ^G88G90G54P5T0165S18000F1X[-\\d.]+Y[-\\d.]+Z19$",
+    "xy 29,29", "xy 171,29", "xy 171,111", "xy 29,111",
+    "none ^G[23]", "none G4[12]", "none Z-"]},
+  "LSHAPE": {"ok": true, "props": {}, "assert": [
+    "checker", "count 1 ^G88", "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U9$",
+    "atleast 1 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U21$"]},
+  "MULTIDEP": {"ok": true, "props": {}, "assert": [
+    "checker", "count 3 ^G88", "has ^G88.*Z19$", "none ^G1G90.*Z-", "none ^G1G90.*Z0$"]},
+  "CIRCLE": {"ok": true, "props": {}, "assert": [
+    "checker", "atleast 2 ^G[23]G90G17X[-\\d.]+Y[-\\d.]+U49$", "has ^G1G90F3X"]},
+  "CIRCLE.lines": {"case": "CIRCLE", "ok": true, "props": {"arcOutput": "lines", "segmentLength": 5}, "assert": [
+    "checker", "none ^G[23]", "atleast 60 ^G1G90"]},
+  "POCKET": {"ok": true, "props": {}, "assert": [
+    "checker", "atleast 1 ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z10$", "none ^G(88|1G90).*Z1[1-9]"]},
+  "RAMP": {"ok": true, "props": {}, "assert": [
+    "checker", "has ^G88G90G54P5T0166S18000F1X[-\\d.]+Y[-\\d.]+Z0$",
+    "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$", "none Z-"]},
+  "POCKHLX": {"ok": false, "error": "helix", "props": {}, "assert": []},
+  "CIRCPOCK": {"ok": true, "props": {}, "assert": [
+    "checker", "none ^G88.*Z-", "atleast 1 ^G1G90(F[\\d.]+)?X[-\\d.]+Y[-\\d.]+Z10$"]},
+  "DRILL": {"ok": true, "props": {}, "assert": [
+    "checker", "count 3 ^G81G90G54P5T0101X(320|352)Y(220|260)Z13$",
+    "has ^G81.*X320Y220Z13$", "has ^G81.*X352Y220Z13$", "has ^G81.*X320Y260Z13$"]},
+  "CTRLCOMP": {"ok": false, "error": "compensation", "props": {}, "assert": []},
+  "TOOL99": {"ok": false, "error": "T99", "props": {}, "assert": []},
+  "DEEP": {"ok": false, "error": "Depth", "props": {}, "assert": []},
+  "RECT.tools": {"case": "RECT", "ok": false, "error": "T65", "props": {"allowedTools": " 1 - 30 , 66 "}, "assert": []},
+  "DRILL.tools": {"case": "DRILL", "ok": true, "props": {"allowedTools": "1-30, 65,66"}, "assert": ["checker"]},
+  "BADORIG": {"ok": false, "error": "TOP surface", "props": {}, "assert": []},
+  "BADNAME": {"ok": false, "error": "program name", "props": {}, "assert": []},
+  "LSHAPE.mirror": {"case": "LSHAPE", "ok": true, "props": {"mirrorY": true}, "assert": ["checker"]},
+  "RECT.mmpm": {"case": "RECT", "ok": true, "props": {"feedUnit": "mmpm"}, "assert": [
+    "checker", "has ^G88.*F1000X", "has ^G1G90F3000X"]},
+  "RECT.g55": {"case": "RECT", "ok": true, "props": {"origin": "G55"}, "assert": ["checker", "has ^G88G90G55P5", "none G54"]},
+  "RECT.warn": {"case": "RECT", "ok": true, "props": {"lineWarning": 3}, "assert": ["checker"]},
+  "TWOOPS": {"ok": true, "props": {}, "assert": ["checker", "count 2 ^G88", "xy 29,29"]},
+  "TWOSETUP": {"ok": false, "error": "One setup per NC program", "props": {}, "assert": []},
+  "CIRCPOCK.nomerge": {"case": "CIRCPOCK", "ok": true, "props": {"mergeTolerance": 0}, "assert": ["checker"]}
+}
