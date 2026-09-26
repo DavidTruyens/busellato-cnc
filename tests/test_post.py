@@ -135,5 +135,89 @@ class PostCaseTest(unittest.TestCase):
         self.assertEqual(max(depths), 10, f'CIRCPOCK: maximum depth reached is {max(depths)}, expected 10')
 
 
+    def test_mirror_swaps_arcs(self):
+        ok1, plain, _ = run_case('LSHAPE', CASES['LSHAPE'])
+        ok2, mirrored, _ = run_case('LSHAPE.mirror', CASES['LSHAPE.mirror'])
+        self.assertTrue(ok1 and ok2)
+        a, b = lines_of(plain), lines_of(mirrored)
+        self.assertEqual(len(a), len(b))
+        for la, lb in zip(a[2:-1], b[2:-1]):
+            ya, yb = float(re.search(r'Y(-?[\d.]+)', la).group(1)), float(re.search(r'Y(-?[\d.]+)', lb).group(1))
+            self.assertAlmostEqual(ya + yb, 300, places=3, msg=f'{la} / {lb}')
+            if la[:2] in ('G2', 'G3'):
+                self.assertEqual({la[:2], lb[:2]}, {'G2', 'G3'}, f'{la} / {lb}')
+
+    def test_multidepth_three_contours(self):
+        ok, text, _ = run_case('MULTIDEP', CASES['MULTIDEP'])
+        depths = [float(re.search(r'Z([\d.]+)$', l).group(1)) for l in lines_of(text) if l.startswith('G88')]
+        self.assertEqual(len(depths), 3)
+        self.assertEqual(depths, sorted(depths))
+        self.assertEqual(depths[-1], 19)
+
+    def test_no_move_above_top(self):
+        for key in ('RECT', 'LSHAPE', 'MULTIDEP', 'POCKET', 'RAMP', 'CIRCLE'):
+            ok, text, _ = run_case(key, CASES[key])
+            for l in lines_of(text)[2:-1]:
+                if l.startswith('G1'):
+                    self.assertGreater(float(re.search(r'Z([\d.]+)$', l).group(1)), 0, f'{key}: {l}')
+
+    def test_line_warning(self):
+        if MODE != 'A':
+            self.skipTest('warnings are only visible in the CLI log')
+        ok, _, log = run_case('RECT.warn', CASES['RECT.warn'])
+        self.assertTrue(ok)
+        self.assertIn('lines', log.lower())
+        self.assertIn('warn', log.lower())
+
+    def test_merge_keeps_reversal(self):
+        # A merge across a reversal would drop the turn-around point and shrink the path's extents.
+        ok1, merged, _ = run_case('POCKET', CASES['POCKET'])
+        ok2, raw, _ = run_case('POCKET.nomerge', CASES['POCKET.nomerge'])
+        self.assertTrue(ok1 and ok2)
+
+        def extents(text):
+            pts = [tuple(map(float, re.search(r'X(-?[\d.]+)Y(-?[\d.]+)', l).groups())) for l in lines_of(text)[2:-1]]
+            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+            return min(xs), max(xs), min(ys), max(ys)
+        self.assertEqual(extents(merged), extents(raw))
+        self.assertLessEqual(len(lines_of(merged)), len(lines_of(raw)))
+
+    def test_merge_keeps_feed_change(self):
+        # Every feed change present without merging must still be written after merging.
+        ok1, merged, _ = run_case('POCKET', CASES['POCKET'])
+        ok2, raw, _ = run_case('POCKET.nomerge', CASES['POCKET.nomerge'])
+
+        def feeds(text):
+            return [re.search(r'F([\d.]+)', l).group(1) for l in lines_of(text) if re.match(r'G(88|1G90F)', l)]
+        self.assertEqual(feeds(merged), feeds(raw))
+
+    def test_merge_within_tolerance(self):
+        # Every point dropped by merging must lie within mergeTolerance (0.05) of the merged path.
+        # CIRCPOCK's linearized lead-out is a gentle curve: checking only the newest middle point
+        # lets the deviation accumulate far beyond the tolerance.
+        def pts(props):
+            spec = dict(CASES['CIRCPOCK'], props=props)
+            ok, text, log = run_case('CIRCPOCK', spec)
+            self.assertTrue(ok, log[-1500:])
+            return [tuple(map(float, re.search(r'X(-?[\d.]+)Y(-?[\d.]+)', l).groups()))
+                    + ((float(re.search(r'Z(-?[\d.]+)$', l).group(1)),) if 'Z' in l else (None,))
+                    for l in lines_of(text)[2:-1]]
+        raw, merged = pts({'mergeTolerance': 0}), pts({})
+        # Arc lines carry no Z: take the Z of the preceding point.
+        for seq in (raw, merged):
+            for i, p in enumerate(seq):
+                if p[2] is None:
+                    seq[i] = (p[0], p[1], seq[i - 1][2])
+
+        def dseg(p, a, b):
+            ab = [b[i] - a[i] for i in range(3)]
+            ap = [p[i] - a[i] for i in range(3)]
+            n = sum(x * x for x in ab)
+            t = max(0, min(1, sum(ab[i] * ap[i] for i in range(3)) / n)) if n else 0
+            return sum((ap[i] - t * ab[i]) ** 2 for i in range(3)) ** 0.5
+        for p in raw:
+            d = min(dseg(p, merged[i], merged[i + 1]) for i in range(len(merged) - 1))
+            self.assertLessEqual(d, 0.05 + 0.002, f'{p} is {d:.3f} mm from the merged path')
+
 if __name__ == '__main__':
     unittest.main()

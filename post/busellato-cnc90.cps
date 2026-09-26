@@ -149,8 +149,41 @@ function emitG88(x, y, z, feed) {
   moves.push({kind: "G88", x: x, y: y, z: z, f: feedOut(feed), tool: sectionTool, rpm: sectionRpm});
 }
 
+// b lies strictly between a and c, within mergeTolerance of the line a-c.
+function collinear(a, b, c) {
+  var tol = getProperty("mergeTolerance");
+  var acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z;
+  var abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+  var len2 = acx * acx + acy * acy + acz * acz;
+  if (len2 < 1e-12) {
+    return false;
+  }
+  var t = (abx * acx + aby * acy + abz * acz) / len2;
+  if (t <= 0 || t >= 1) {                 // b must lie strictly between a and c: no reversals
+    return false;
+  }
+  var cx = aby * acz - abz * acy, cy = abz * acx - abx * acz, cz = abx * acy - aby * acx;
+  return Math.sqrt(cx * cx + cy * cy + cz * cz) / Math.sqrt(len2) <= tol;
+}
+
 function addLine(p0, p1, feed) {
-  moves.push({kind: "G1", start: {x: p0.x, y: p0.y, z: p0.z}, end: {x: p1.x, y: p1.y, z: p1.z}, f: feedOut(feed)});
+  var f = feedOut(feed);
+  var last = moves.length ? moves[moves.length - 1] : null;
+  if (last && last.kind == "G1" && last.f == f) {
+    // Check every point this move already absorbed, not just its end: on a gentle curve
+    // (e.g. a linearized arc) checking only the newest point lets the deviation accumulate.
+    var between = last.via.concat([last.end]);
+    var ok = true;
+    for (var i = 0; i < between.length && ok; ++i) {
+      ok = collinear(last.start, between[i], p1);
+    }
+    if (ok) {
+      last.via.push(last.end);
+      last.end = {x: p1.x, y: p1.y, z: p1.z};
+      return;
+    }
+  }
+  moves.push({kind: "G1", start: {x: p0.x, y: p0.y, z: p0.z}, via: [], end: {x: p1.x, y: p1.y, z: p1.z}, f: f});
 }
 
 function cut(p0, p1, feed) {
@@ -300,5 +333,8 @@ function onClose() {
     "T00N" + n + "L" + (n - 3));
   for (var i = 0; i < lines.length; ++i) {
     writeln(lines[i]);
+  }
+  if (n > getProperty("lineWarning")) {
+    warning("Program has " + n + " lines; the largest program this machine is known to run has about 250 lines.");
   }
 }

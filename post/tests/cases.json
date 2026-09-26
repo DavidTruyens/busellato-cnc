@@ -31,5 +31,11 @@
   "RECT.tools": {"case": "RECT", "ok": false, "error": "T65", "props": {"allowedTools": " 1 - 30 , 66 "}, "assert": []},
   "DRILL.tools": {"case": "DRILL", "ok": true, "props": {"allowedTools": "1-30, 65,66"}, "assert": ["checker"]},
   "BADORIG": {"ok": false, "error": "TOP surface", "props": {}, "assert": []},
-  "BADNAME": {"ok": false, "error": "program name", "props": {}, "assert": []}
+  "BADNAME": {"ok": false, "error": "program name", "props": {}, "assert": []},
+  "LSHAPE.mirror": {"case": "LSHAPE", "ok": true, "props": {"mirrorY": true}, "assert": ["checker"]},
+  "RECT.mmpm": {"case": "RECT", "ok": true, "props": {"feedUnit": "mmpm"}, "assert": [
+    "checker", "has ^G88.*F1000X", "has ^G1G90F3000X"]},
+  "RECT.g55": {"case": "RECT", "ok": true, "props": {"origin": "G55"}, "assert": ["checker", "has ^G88G90G55P5", "none G54"]},
+  "RECT.warn": {"case": "RECT", "ok": true, "props": {"lineWarning": 3}, "assert": ["checker"]},
+  "POCKET.nomerge": {"case": "POCKET", "ok": true, "props": {"mergeTolerance": 0}, "assert": ["checker"]}
 }
