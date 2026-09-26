@@ -2,7 +2,8 @@
 
 Rules at the machine: never type FORMAT, DEL, CHKDSK /F, or SALVAINC; the only
 writes to C: are the new ZZT* files below. Photograph anything unexpected.
-Hand on the emergency stop for every run. Feed override at minimum for the first run.
+Hand on the emergency stop for every run. Feed override at minimum for steps 1-2;
+set it to 100% for the timing steps 3-4 only (a low override makes the timing wrong).
 Z reference check: in step 2 the tool must stay ~58 mm above the table.
 
 Fusion Personal cannot post a program with a tool change, so every test is split per
@@ -14,10 +15,18 @@ Before copying, check that the name is free (none of the ZZT* names is in
 
     DIR C:\CNC90\MOD1\SORG\SRG\Z\ZZT1A
 
-Copy (per program, from the shuttle diskette), then compile it in CNC90:
+Before starting, copy and compile ALL 9 programs (ZZT1, ZZT1D, ZZT1A, ZZT1AD, ZZT2A,
+ZZT3A-D) from the shuttle diskette, one COPY each, then compile each one in CNC90:
 
+    COPY A:\ZZT1   C:\CNC90\MOD1\SORG\SRG\Z\ZZT1
+    COPY A:\ZZT1D  C:\CNC90\MOD1\SORG\SRG\Z\ZZT1D
     COPY A:\ZZT1A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT1A
     COPY A:\ZZT1AD C:\CNC90\MOD1\SORG\SRG\Z\ZZT1AD
+    COPY A:\ZZT2A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT2A
+    COPY A:\ZZT3A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3A
+    COPY A:\ZZT3B  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3B
+    COPY A:\ZZT3C  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3C
+    COPY A:\ZZT3D  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3D
 
 | Program | Tool | Stock (G71 Z) | Content | Lines |
 |---|---|---|---|---|
@@ -33,12 +42,12 @@ Copy (per program, from the shuttle diskette), then compile it in CNC90:
 
 | # | Program | Panel on table | Watch / measure | Result |
 |---|---|---|---|---|
-| 1 | ZZT1A, ZZT1AD | none | Copy and compile both. Do they compile and appear in the program list? Note any compiler message. | |
+| 1 | all 9 | none | Copied and compiled above. Do they all compile and appear in the program list? Note any compiler message. | |
 | 2 | ZZT1A then ZZT1AD | none | Origin corner, Y direction, arc direction, order. Tool must stay ~58 mm above the table. If it goes lower, STOP: the Z reference is not "table + G71 thickness". ZZT1AD: hole positions and drill T1 selected | |
-| 3 | ZZT2A | none | Stopwatch over the 500 mm line (X0 → X500, beyond the 400 mm stock: check the travel is free): 30 s → F is m/min. If it barely moves (F1 = 1 mm/min would take 500 min), F is mm/min: STOP | |
-| 4 | ZZT3A–D | none | Time each circle (tool path Ø182 = 571.8 mm at F3 = 3 m/min → 11.4 s). Listen for stutter. Note the finest segment that still runs smoothly. ZZT3C (290 lines) and ZZT3D (576 lines) are longer than the largest known machine program (~250 lines): note whether they compile and load at all | |
+| 3 | ZZT2A | none | Feed override 100% — only after step 2 passed. Stopwatch over the 500 mm line (X0 → X500, beyond the 400 mm stock: check the travel is free): 30 s → F is m/min. If it barely moves (F1 = 1 mm/min would take 500 min), F is mm/min: STOP | |
+| 4 | ZZT3A–D | none | Feed override 100% — only after step 2 passed. Time each circle (tool path Ø182 = 571.8 mm at F3 = 3 m/min → 11.4 s). Listen for stutter. Note the finest segment that still runs smoothly. ZZT3C (290 lines) and ZZT3D (576 lines) are longer than the largest known machine program (~250 lines): note whether they compile and load at all | |
 | 5 | ZZT3A | none | The line `G1G90F3X291Y150Z2` immediately before the G3 arcs is a zero-length feed-change line (the machine's own programs never put F on arcs). Confirm the control accepts it and the circle runs at the new feed; if it errors, note the message. | |
-| 6 | ZZT1 then ZZT1D | 18 mm scrap | Copy and compile both, run one after the other. Measure: L outline, arc R, hole positions (320,220) (352,220) (320,260), depth 2 | |
+| 6 | ZZT1 then ZZT1D | 18 mm scrap | Feed override back to minimum. Run one after the other. STOP: if the tool goes deeper than 2 mm into the panel or towards the table, press the emergency stop. Measure: L outline, arc R, hole positions (320,220) (352,220) (320,260), depth 2 | |
 
 After the visit: set the post settings from the results (mirror Y, feed unit,
 origin, line warning) and record them in post/README.md.
