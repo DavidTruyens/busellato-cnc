@@ -46,6 +46,7 @@ var TOP = 0.0005;          // mm; at or above this Z counts as "not in the mater
 var moves = [];            // output lines between G150 and M2, as objects
 var stock = null;          // {lx, ly, lz, ux, uy, uz} in WCS mm
 var firstOrigin = null;    // work origin of the first section (one setup per program)
+var firstModelOrigin = null;
 var inContour = false;
 var progName = "";
 var progComment = "";
@@ -116,6 +117,17 @@ function sameXYZ(a, b) {
   return Math.abs(a.x - b.x) <= 0.01 && Math.abs(a.y - b.y) <= 0.01 && Math.abs(a.z - b.z) <= 0.01;
 }
 
+function sectionStock() {
+  var keys = ["stock-lower-x", "stock-lower-y", "stock-lower-z", "stock-upper-x", "stock-upper-y", "stock-upper-z"];
+  for (var i = 0; i < keys.length; ++i) {
+    if (!hasParameter(keys[i])) {
+      error("Operation " + getParameter("operation-comment", "") + " has no stock information (" + keys[i] + ").");
+    }
+  }
+  return {lower: {x: getParameter("stock-lower-x"), y: getParameter("stock-lower-y"), z: getParameter("stock-lower-z")},
+    upper: {x: getParameter("stock-upper-x"), y: getParameter("stock-upper-y"), z: getParameter("stock-upper-z")}};
+}
+
 function onSection() {
   inContour = false;
   var opName = getParameter("operation-comment", "");
@@ -134,10 +146,16 @@ function onSection() {
     }
     stock = {lx: box.lower.x, ly: box.lower.y, lz: box.lower.z, ux: box.upper.x, uy: box.upper.y, uz: box.upper.z};
     firstOrigin = currentSection.workOrigin;
-  } else if (!box || !sameXYZ(box.lower, {x: stock.lx, y: stock.ly, z: stock.lz}) ||
-      !sameXYZ(box.upper, {x: stock.ux, y: stock.uy, z: stock.uz}) ||
-      !sameXYZ(currentSection.workOrigin, firstOrigin)) {
-    // header dimensions and the depth limit come from the first section only
+    firstModelOrigin = currentSection.getModelOrigin();
+  }
+  // Header dimensions and the depth limit come from the first section only. getWorkpiece()
+  // is program-wide (it keeps returning the first setup's stock), so compare this section's
+  // own stock parameters and model origin instead (checked on the TWOSETUP capture).
+  var own = sectionStock();
+  if (!sameXYZ(own.lower, {x: stock.lx, y: stock.ly, z: stock.lz}) ||
+      !sameXYZ(own.upper, {x: stock.ux, y: stock.uy, z: stock.uz}) ||
+      !sameXYZ(currentSection.workOrigin, firstOrigin) ||
+      !sameXYZ(currentSection.getModelOrigin(), firstModelOrigin)) {
     error("One setup per NC program: operation " + opName + " belongs to a different setup/stock.");
   }
   sectionTool = tool.number;
