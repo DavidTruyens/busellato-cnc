@@ -36,6 +36,12 @@ class MachineFileTest(unittest.TestCase):
         m = tg.load_machine(os.path.join(REPO, 'fusion', 'busellato-table.json'))
         self.assertEqual(tg.check_machine(m), [])
 
+    def test_measure_sheet_covers_machine_keys(self):
+        with open(os.path.join(REPO, 'fusion', 'MEASURE.md')) as fh:
+            sheet = fh.read()
+        for key in tg.REQUIRED_KEYS:
+            self.assertIn(f'`{key}`', sheet, key)
+
     def test_machine_file_missing_key(self):
         m = dict(MACHINE)
         del m['pod_height']
