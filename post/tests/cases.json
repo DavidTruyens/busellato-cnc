@@ -37,5 +37,5 @@
     "checker", "has ^G88.*F1000X", "has ^G1G90F3000X"]},
   "RECT.g55": {"case": "RECT", "ok": true, "props": {"origin": "G55"}, "assert": ["checker", "has ^G88G90G55P5", "none G54"]},
   "RECT.warn": {"case": "RECT", "ok": true, "props": {"lineWarning": 3}, "assert": ["checker"]},
-  "POCKET.nomerge": {"case": "POCKET", "ok": true, "props": {"mergeTolerance": 0}, "assert": ["checker"]}
+  "CIRCPOCK.nomerge": {"case": "CIRCPOCK", "ok": true, "props": {"mergeTolerance": 0}, "assert": ["checker"]}
 }

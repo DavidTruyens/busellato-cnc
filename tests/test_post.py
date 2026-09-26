@@ -171,21 +171,23 @@ class PostCaseTest(unittest.TestCase):
 
     def test_merge_keeps_reversal(self):
         # A merge across a reversal would drop the turn-around point and shrink the path's extents.
-        ok1, merged, _ = run_case('POCKET', CASES['POCKET'])
-        ok2, raw, _ = run_case('POCKET.nomerge', CASES['POCKET.nomerge'])
+        ok1, merged, _ = run_case('CIRCPOCK', CASES['CIRCPOCK'])
+        ok2, raw, _ = run_case('CIRCPOCK.nomerge', CASES['CIRCPOCK.nomerge'])
         self.assertTrue(ok1 and ok2)
+        self.assertLess(len(lines_of(merged)), len(lines_of(raw)), 'no merge happened')
 
         def extents(text):
             pts = [tuple(map(float, re.search(r'X(-?[\d.]+)Y(-?[\d.]+)', l).groups())) for l in lines_of(text)[2:-1]]
             xs, ys = [p[0] for p in pts], [p[1] for p in pts]
             return min(xs), max(xs), min(ys), max(ys)
         self.assertEqual(extents(merged), extents(raw))
-        self.assertLessEqual(len(lines_of(merged)), len(lines_of(raw)))
 
     def test_merge_keeps_feed_change(self):
         # Every feed change present without merging must still be written after merging.
-        ok1, merged, _ = run_case('POCKET', CASES['POCKET'])
-        ok2, raw, _ = run_case('POCKET.nomerge', CASES['POCKET.nomerge'])
+        ok1, merged, _ = run_case('CIRCPOCK', CASES['CIRCPOCK'])
+        ok2, raw, _ = run_case('CIRCPOCK.nomerge', CASES['CIRCPOCK.nomerge'])
+        self.assertTrue(ok1 and ok2)
+        self.assertLess(len(lines_of(merged)), len(lines_of(raw)), 'no merge happened')
 
         def feeds(text):
             return [re.search(r'F([\d.]+)', l).group(1) for l in lines_of(text) if re.match(r'G(88|1G90F)', l)]
@@ -203,6 +205,7 @@ class PostCaseTest(unittest.TestCase):
                     + ((float(re.search(r'Z(-?[\d.]+)$', l).group(1)),) if 'Z' in l else (None,))
                     for l in lines_of(text)[2:-1]]
         raw, merged = pts({'mergeTolerance': 0}), pts({})
+        self.assertLess(len(merged), len(raw), 'no merge happened')
         # Arc lines carry no Z: take the Z of the preceding point.
         for seq in (raw, merged):
             for i, p in enumerate(seq):
