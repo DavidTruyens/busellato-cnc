@@ -45,6 +45,7 @@ properties = {
 var TOP = 0.0005;          // mm; at or above this Z counts as "not in the material"
 var moves = [];            // output lines between G150 and M2, as objects
 var stock = null;          // {lx, ly, lz, ux, uy, uz} in WCS mm
+var firstOrigin = null;    // work origin of the first section (one setup per program)
 var inContour = false;
 var progName = "";
 var progComment = "";
@@ -111,10 +112,20 @@ function onRadiusCompensation() {
   }
 }
 
+function sameXYZ(a, b) {
+  return Math.abs(a.x - b.x) <= 0.01 && Math.abs(a.y - b.y) <= 0.01 && Math.abs(a.z - b.z) <= 0.01;
+}
+
 function onSection() {
   inContour = false;
+  var opName = getParameter("operation-comment", "");
+  // Only the top face (P5) with the tool along the setup's +Z: no side faces, horizontal
+  // holes, tilted planes or multi-axis toolpaths.
+  if (currentSection.isMultiAxis() || !isSameDirection(currentSection.workPlane.forward, new Vector(0, 0, 1))) {
+    error("Only top-face operations (tool along +Z, face P5) are supported; operation " + opName + " uses another tool orientation.");
+  }
+  var box = getWorkpiece();
   if (!stock) {
-    var box = getWorkpiece();
     if (!box || !(box.upper.x > box.lower.x)) {
       error("No stock defined in the setup.");
     }
@@ -122,6 +133,12 @@ function onSection() {
       error("The setup origin must be on the TOP surface of the stock (stock top is at Z=" + fmt(box.upper.z) + ").");
     }
     stock = {lx: box.lower.x, ly: box.lower.y, lz: box.lower.z, ux: box.upper.x, uy: box.upper.y, uz: box.upper.z};
+    firstOrigin = currentSection.workOrigin;
+  } else if (!box || !sameXYZ(box.lower, {x: stock.lx, y: stock.ly, z: stock.lz}) ||
+      !sameXYZ(box.upper, {x: stock.ux, y: stock.uy, z: stock.uz}) ||
+      !sameXYZ(currentSection.workOrigin, firstOrigin)) {
+    // header dimensions and the depth limit come from the first section only
+    error("One setup per NC program: operation " + opName + " belongs to a different setup/stock.");
   }
   sectionTool = tool.number;
   sectionRpm = tool.spindleRPM;
@@ -237,6 +254,10 @@ function onCircular(clockwise, cx, cy, cz, x, y, z, feed) {
   if (!helical && getCircularPlane() != PLANE_XY) {
     error("Only arcs in the XY plane are supported (operation " + getParameter("operation-comment", "") + ").");
   }
+  // For a helical arc the plane is undefined, so check its axis instead: it must be Z.
+  if (helical && !isSameDirection(getCircularNormal().getAbsolute(), new Vector(0, 0, 1))) {
+    error("Only arcs around the Z axis are supported (operation " + getParameter("operation-comment", "") + ").");
+  }
   if (helical && getParameter("operation:rampType", "") != "profile") {
     error("Helical move (helix) in operation " + getParameter("operation-comment", "") +
       ". Set the entry to plunge or ramp (Fusion's pocket default is a helix).");
@@ -284,6 +305,10 @@ function onCycle() {
 }
 
 function onCyclePoint(x, y, z) {
+  if (cycle.bottom >= -TOP) {
+    error("Hole bottom at Z=" + fmt(cycle.bottom) + " is at or above the stock top (Z=0) in operation " +
+      getParameter("operation-comment", "") + "; the hole would not be drilled.");
+  }
   checkDepth(cycle.bottom);
   moves.push({kind: "G81", x: x, y: y, depth: -cycle.bottom, tool: sectionTool});
 }
