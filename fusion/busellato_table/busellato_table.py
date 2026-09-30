@@ -72,9 +72,19 @@ def _same_frame(a, b):
     return (a[0].distanceTo(b[0]) < 0.001 and all(a[i].isParallelTo(b[i]) and a[i].dotProduct(b[i]) > 0 for i in (1, 2, 3)))
 
 
-def _is_table_body(body):
-    comp = body.parentComponent
-    return comp.name == COMPONENT and comp.attributes.itemByName(ATTR_GROUP, ATTR_NAME) is not None
+def _is_table_component(comp):
+    """Recognise our component by its attribute only (it may have been renamed or moved)."""
+    return comp.attributes.itemByName(ATTR_GROUP, ATTR_NAME) is not None
+
+
+def _is_table_body(fixture):
+    body = adsk.fusion.BRepBody.cast(fixture)
+    return body is not None and _is_table_component(body.parentComponent)
+
+
+def _table_occurrences(root):
+    """Every occurrence of a table component, at any depth."""
+    return [o for o in root.allOccurrences if _is_table_component(o.component)]
 
 
 def _user_fixtures(setup):
@@ -92,12 +102,6 @@ def _set_fixtures(setup, bodies):
     for b in bodies:
         col.add(b)
     setup.fixtures = col
-
-
-def _remove_previous(root):
-    for occ in [root.occurrences.item(i) for i in range(root.occurrences.count)]:
-        if occ.component.name == COMPONENT and occ.component.attributes.itemByName(ATTR_GROUP, ATTR_NAME):
-            occ.deleteMe()
 
 
 def _box_body(comp, box, frame):
@@ -153,13 +157,13 @@ def apply(app, machine_path=MACHINE_FILE):
     report['warnings'] += result.warnings + tg.reference_warnings(reference.name, [s.name for s in cam.setups], differing)
 
     root = des.rootComponent
-    # Detach our old bodies from every setup BEFORE deleting them: deleting bodies
-    # that setups still reference as fixtures crashed Fusion (2026-09-30).
-    kept = {}
-    for s in cam.setups:
-        kept[s.name] = _user_fixtures(s)
-        _set_fixtures(s, kept[s.name])
-    _remove_previous(root)
+    # Order matters (see the 2026-09-30 crash and final review):
+    # 1. read everything first; 2. build the new table; 3. swap fixtures to the
+    # new bodies; 4. only then delete the old table, whose bodies are no longer
+    # referenced by any setup. A failure in 2 leaves the old table and fixtures
+    # untouched; the partial new component is removed by the next run.
+    kept = {s.name: _user_fixtures(s) for s in cam.setups}
+    old = _table_occurrences(root)
     occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     comp = occ.component
     comp.name = COMPONENT
@@ -167,11 +171,14 @@ def apply(app, machine_path=MACHINE_FILE):
     bodies = [_box_body(comp, box, frame) for box in result.boxes]
     report['bodies'] = [b.name for b in bodies]
 
-    proxies = [occ.bRepBodies.itemByName(b.name) or b for b in bodies]
+    proxies = [b.createForAssemblyContext(occ) for b in bodies]
     for s in cam.setups:
         _set_fixtures(s, kept[s.name] + proxies)
         s.fixtureEnabled = True
         report['setups'].append(s.name)
+    for o in old:
+        o.deleteMe()
+    comp.name = COMPONENT            # Fusion adds " (1)" while the old one still exists
     report['ok'] = True
     return report
 
