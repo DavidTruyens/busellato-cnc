@@ -1,6 +1,6 @@
 # Busellato S.EASY — buy list
 
-Status as of 2026-10-02. Prices are indicative (checked online on 2026-10-02
+Status as of 2026-10-02. Shared copy for the machine owner: [Google Sheet](https://docs.google.com/spreadsheets/d/1mgyK7yOsuJX0RepOMAWNcIIysELuvGcH3JSw95iiXVA/edit) (in the project's Google Drive folder). Prices are indicative (checked online on 2026-10-02
 where a link is given, otherwise estimated) and exclude shipping.
 
 ## A. Keep the old control running and back it up
@@ -24,7 +24,7 @@ where a link is given, otherwise estimated) and exclude shipping.
 | 10 | Shielded twisted-pair cable, e.g. LiYCY 4×2×0.25 mm², ~20 m | ±10 V commands and encoders | €40–60 | electrical wholesaler |
 | 11 | Small parts | 35 mm DIN rail, ferrules, cable ties, DIN terminals | €20–30 | electrical wholesaler |
 
-Totals: A (without item 4) ≈ €35–45. B ≈ €650–880.
+Totals: A (without item 4) ≈ €35–45. B ≈ €645–875.
 
 ## C. Wait for the drive data
 
