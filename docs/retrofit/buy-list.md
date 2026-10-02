@@ -21,10 +21,11 @@ where a link is given, otherwise estimated) and exclude shipping.
 | 7 | 5 V DIN-rail power supply, ≥ 2 A — Mean Well HDR-15-5 | Logic power for the 7I97T | €15 | [TinyTronics (NL)](https://www.tinytronics.nl/en/power/power-supplies/5v/mean-well-hdr-15-5-din-rail-power-supply-5v-2.4a) |
 | 8 | Monitor + USB keyboard/mouse | Replaces the CRT | €100–150 | any shop |
 | 9 | Short Cat5e/6 Ethernet cable | PC ↔ 7I97T | €5 | any shop |
-| 10 | Shielded twisted-pair cable, e.g. LiYCY 4×2×0.25 mm², ~20 m | ±10 V commands and encoders | €40–60 | electrical wholesaler |
+| 10a | Shielded twisted-pair cable LAPP UNITRONIC LiYCY (TP) 3×2×0.25 mm², ~10 m | Encoders (A, B, zero mark, +5 V, GND), ~3 m per axis | €10–30 | [Conrad art. 602021](https://www.conrad.nl/nl/p/lapp-35801-1-datakabel-unitronic-liycy-tp-3-x-2-x-0-25-mm-grijs-per-meter-602021.html) (same number on conrad.be) |
+| 10b | Shielded twisted-pair cable LAPP UNITRONIC LiYCY (TP) 2×2×0.25 mm², ~10 m | ±10 V command + drive enable, ~3 m per axis | €10–30 | [Conrad art. 601980](https://www.conrad.nl/nl/p/lapp-0035800-datakabel-unitronic-liycy-tp-2-x-2-x-025-mm-grijs-per-meter-601980.html) (same number on conrad.be) |
 | 11 | Small parts | 35 mm DIN rail, ferrules, cable ties, DIN terminals | €20–30 | electrical wholesaler |
 
-Totals: A (without item 4) ≈ €35–45. B ≈ €645–875.
+Totals: A (without item 4) ≈ €35–45. B ≈ €625–875.
 
 ## C. Wait for the drive data
 
