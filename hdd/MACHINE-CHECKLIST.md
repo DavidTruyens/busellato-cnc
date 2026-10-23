@@ -28,7 +28,7 @@ Tick each box when done.
 | 2 | H04 | 81 | irreplaceable | [x] | [x] | imaged 2026-10-23, 81/81 match LISTING.TXT (name, size); extra 0-byte file `H04` in root, unexplained |
 | 3 | H05 | 793 | irreplaceable | [x] | [x] | imaged 2026-10-23, 793/793 match LISTING.TXT (path, name, size); DOS and the Mac list say "830 files" because that count includes 36 directory entries, the real file count is 794 with COPY.BAT |
 | 4 | H06 | 1302 | irreplaceable | [x] | [x] | imaged 2026-10-23, 1302/1302 match LISTING.TXT (path, name, size) |
-| 5 | H07 | 1147 | irreplaceable | [ ] | [ ] | diskette prepared 2026-10-23 (reused H05 after imaging); `COPY.BAT` on it; running |
+| 5 | H07 | 1147 | irreplaceable | [x] | [x] | imaged 2026-10-23, 1147/1147 match LISTING.TXT (path, name, size); copy took 43 min (about 2.2 s per file) |
 | 6 | H08 | 1132 | irreplaceable | [ ] | [ ] |  |
 | 7 | H09 | 1014 | irreplaceable | [ ] | [ ] |  |
 | 8 | H10 | 786 | irreplaceable | [ ] | [ ] |  |
