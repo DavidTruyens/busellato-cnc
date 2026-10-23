@@ -1,0 +1,95 @@
+*************************** FILE : MESSOSCI.ITA ******************************
+*                                                                           *
+* PROGETTO : Sistema PTP1000                                                *
+*                                                                           *
+* SCOPO : Messaggi utilizzati nell' oscilloscopio.                          *
+*                                                                           *
+* DATA : 29-Gen-1992                                 VERSIONE : 4.3         *
+*                                                                           *
+*****************************************************************************
+
+
+  "@!1000@"
+  "ANALIZZATORE"                                                         1000
+  "su stato bitporto"                                                    1001
+  "su stato asse"                                                        1002
+  "su direzione asse"                                                    1003
+  "su velocit… asse"                                                     1004
+  "su valore contatore"                                                  1005
+  "su quota reale asse"                                                  1006
+  "su quota teorica asse"                                                1007
+  "Parametri di campionamento"                                           1008
+  "Numero di campionamenti"                                              1009
+29"Intervallo campionamento [ms]"                                        1010
+  "Trigger"                                                              1011
+  "bitporto"                                                             1012
+  "stato asse"                                                           1013
+  "direzione asse"                                                       1014
+  "velocit… asse"                                                        1015
+  "errore d'anello asse"                                                 1016
+  "feed forward asse"                                                    1017
+  "contatore"                                                            1018
+  "quota reale asse"                                                     1019
+  "quota teorica asse"                                                   1020
+  "Dati da campionare"                                                   1021
+  "Parametri base"                                                       1022
+  "Conferma"                                                             1023
+  "Condizione tra i trigger"                                             1024
+30"Tipi di trigger"                                                      1025
+  "Sostituzione"                                                         1026
+  "Bit+porto"                                                            1027
+  "Direzione"                                                            1028
+  "Condizione"                                                           1029
+  "Numero contatore"                                                     1030
+  "Valore"                                                               1031
+  "Quota"                                                                1032
+  "Tipi di dati campionabili"                                            1033
+  "Dato da campionare n. @%d@"                                           1034
+  "Campionamento in corso"                                               1035
+ 2"Bp"                                                                   1036
+10"Direzione"                                                            1037
+10"Velocit…"                                                             1038
+10"E. anello"                                                            1039
+10"F. forward"                                                           1040
+ 9"Contatore"                                                            1041
+10"Q. reale"                                                             1042
+10"Q. teorica"                                                           1043
+  "definizione simbolica input non trovata"                              1044
+  "Trigger 1"                                                            1045
+  "Trigger 2"                                                            1046
+  ""                                                                     1047
+  ""                                                                     1048
+  ""                                                                     1049
+60"@Release = 3@OSC.EXE : RELEASE DEL FILE DI LINGUA ERRATA : "          1050
+60"Il file di dati non Š accessibile !!"                                 1051
+60"Il file di dati non Š registrato correttamente !!"                    1052
+60"MEMORIA INSUFFICIENTE !!"                                             1053
+60"Numero dei segnali non corretto !!"                                   1054
+60"Numero degli intervalli non corretto !!"                              1055
+60"Caricamento dei campionamenti in corso"                               1056
+60"Calcolo limiti dei segnali in corso"                                  1057
+60"Calcolo quote dei campionamenti in corso"                             1058
+60"@intestazione 15,12,messaggi 11,9,help 14,0,MaxNumSegnali=12@"        1059
+60"Errore nella definizione dei colori: messaggio n.11 !!"               1060
+60"@Fondo8,0bar15seg10,11,12,14,13,10,11,12,14,13,10,11,12,14,13@"       1061
+60"Errore nella definizione dei colori: messaggio n.13 !!"               1062
+60"            HELP"                                                     1063
+60"@<ESC>       @Per uscire"                                             1064
+60"@<\x1A \x1B>       @Sposta la barra di 1 passo"                       1065
+60"@<CTRL \x1A \x1B>  @Sposta la barra di 100 passi"                     1066
+60"@<ALT \x1A \x1B>   @Sposta la barra di 1 pagina"                      1067
+60"@<HOME>      @Va sul primo campionamento"                             1068
+60"@<END>       @Va sull'ultimo campionamento"                           1069
+60"@<\x18 \x19>       @Sposta il segnale evidenziato"                    1070
+60"@<PgUp PgDn> @Sposta il segnale evidenziato"                          1071
+60"@<CTRL \x18 \x19>  @Scrolling verticale dei segnali"                  1072
+60"@<CTRL HOME> @Evidenzia il primo segnale"                             1073
+60"@<CTRL END>  @Evidenzia l'ultimo segnale"                             1074
+60"@<TAB>       @Cambia il segnale evidenziato"                          1075
+60"@<SHIFT TAB> @Cambia il segnale evidenziato"                          1076
+60"@<F-1>       @Zoom del segnale evidenziato"                           1077
+60"@<F-2>       @Interpola i segnali binari"                             1078
+60"@<F-3>       @Interpola i segnali analogici"                          1079
+60"@<F-4>       @Riordina i segnali cambiati"                            1080
+
+Fine dei messaggi

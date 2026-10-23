@@ -1,0 +1,5 @@
+         prog
+         setq      x         0
+         setq      y         0
+         setq      z         0
+         end

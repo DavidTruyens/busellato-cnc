@@ -1,0 +1,720 @@
+;>>>>>>>>>>>>> FUNZIONI DI ENTRATA - USCITA FRESA
+
+FUN      121,EfresaF1                  ;Funz. di entrata fresa in faccia 1
+
+         SKZ       0+ATTUALE           ;
+         RES       EVFSR               ;
+         SKZ       1+ATTUALE           ;
+         RES       EVFST               ;
+         SKZ       2+ATTUALE           ;
+         RES       EVFSA               ;
+         SKZ       3+ATTUALE           ;
+         RES       EVFSS               ;
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC,SALTAUT    ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     79                  ;Reset porti utensile fittizi
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     82                  ;Funzione set utensili frese
+         FCALL     78                  ;Funzione di rotazione frese
+         FCALL     75                  ;Funzione di attivazione mot. frese
+SALTAUT: SNZ       PNEUMAT,NOASSEZ     ;
+         SNZ       STUTPREC            ;
+         CALL      QZARIA              ;
+NOASSEZ: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F121) PER LA FACCIA 1 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VYLAVORO:VEL       Y,&VELY
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+
+; ***** NOTE: FUNZIONE (F121) FUNZIONE DI ENTRATA FRESA IN FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VY LAVORO
+;20  --> QY LAVORO
+
+
+
+FUN      122,EfresaF2                  ;Funz. di entrata fresa in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYARIA              ;
+         WEND      XY,Q                ;
+         SNZ       STUTPREC,SALTAUT1   ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     79                  ;Reset porti utensile fittizi
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     82                  ;Funzione set utensili frese
+         FCALL     78                  ;Funzione di rotazione frese
+         FCALL     75                  ;Funzione di attivazione mot. frese
+SALTAUT1:SNZ       PNEUMAT,NOASSEZ     ;
+         SNZ       STUTPREC            ;
+;         CALL      QZARIA             ;
+NOASSEZ: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F122) PER LA FACCIA 2 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VYLAVORO:VEL       Y,&VELY
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+
+; ***** NOTE: FUNZIONE (F122) FUNZIONE DI ENTRATA FRESA IN FACCIA 2 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VY LAVORO
+;20  --> QY LAVORO
+
+
+
+FUN      123,EfresaF3                  ;Funz. di entrata fresa in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC,SALTAUT2   ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     79                  ;Reset porti utensile fittizi
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     82                  ;Funzione set utensili frese
+         FCALL     78                  ;Funzione di rotazione frese
+         FCALL     75                  ;Funzione di attivazione mot. frese
+SALTAUT2:SNZ       PNEUMAT,NOASSEZ     ;
+         SNZ       STUTPREC            ;
+         CALL      QZARIA              ;
+NOASSEZ: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F123) PER LA FACCIA 3 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VXLAVORO:VEL       X,&VELX
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+
+; ***** NOTE: FUNZIONE (F123) FUNZIONE DI ENTRATA FRESA IN FACCIA 3 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VX LAVORO
+;20  --> QX LAVORO
+
+
+FUN      124,EfresaF4                  ;Funz. di entrata fresa in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC,SALTAUT3   ;Se=1 Batt. prec. con stessi Ut.  *
+         FCALL     79                  ;Reset porti utensile fittizi
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     82                  ;Funzione set utensili frese
+         FCALL     78                  ;Funzione di rotazione frese
+         FCALL     75                  ;Funzione di attivazione mot. frese
+SALTAUT3:SNZ       PNEUMAT,NOASSEZ     ;
+         SNZ       STUTPREC            ;
+         CALL      QZARIA              ;
+NOASSEZ: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F124) PER LA FACCIA 4 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VXLAVORO:VEL       X,&VELX
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+
+; ***** NOTE: FUNZIONE (F124) FUNZIONE DI ENTRATA FRESA IN FACCIA 4 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VX LAVORO
+;20  --> QX LAVORO
+
+
+FUN      125,EfresaF5                  ;Funz. di entrata fresa in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,NOASSEZ    ;
+SEG:     FCALL     79                  ;Reset porti utensile fittizi
+         CALL      SETTOOL             ;Utensili diversi
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYARIA              ;
+         WEND      XY,Q                ;
+         SNZ       STUTPREC,SALTAUT4   ;Se=1 Batt. prec. con stessi Ut.
+         FCALL     82                  ;Funzione set utensili frese
+         FCALL     75                  ;Funzione di attivazione mot. frese
+SALTAUT4:SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+         WEND      Z,Q                 ;
+         CALL      VZLAVORO            ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+NOASSEZ: FRET                          ;
+
+;*****************  SUBROUTINE (F125) PER LA FACCIA 5 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+VZLAVORO:VEL       Z,&VELZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+ALTFRE:  MOV       X,&QX
+         MOV       Y,&QY
+         MOV       Z,&QZ
+         RET
+
+; ***** NOTE: FUNZIONE (F125) FUNZIONE DI ENTRATA FRESA IN FACCIA 5 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> VZ LAVORO
+;19  --> QZ LAVORO
+;20  --> QX ARIA 2
+;21  --> QY ARIA 2
+;22  --> QZ ARIA 2
+
+
+;>>>>>>>>>>>>>>>>>>>> FUNZIONE DI  USCITA FRESA
+
+FUN      126,UfresaF1                  ;Funz di Uscita fresa in faccia 1
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+;        GAIN      X,1.5               ;
+;        GAIN      Y,1.5               ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;Funz. di reset utensili
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT             ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F126) PER LA FACCIA 1 ********************
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F26) FUNZIONE DI USCITA FRESA IN FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> QY ARIA
+;05  --> QZ ARIA SCAMBIO
+;06  --> BYTE UTENSILE DOPO 10 LAVORAZIONI
+
+
+
+FUN      127,UfresaF2                  ;Funz. di Uscita fresa in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+;        GAIN      X,1.5               ;
+;        GAIN      Y,1.5               ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;Funz. di reset utensili
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT             ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F127) PER LA FACCIA 2 ********************
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+
+; ***** NOTE: FUNZIONE (F127) FUNZIONE DI USCITA FRESA IN FACCIA 2 *******
+
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> LINEAR ARIA
+;05  --> QZ ARIA SCAMBIO
+;06  --> BYTE UTENSILE DOPO 10 LAVORAZIONI
+
+
+
+FUN      128,UfresaF3                  ;Funz. di Uscita fresa in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+;        GAIN      X,1.5               ;
+;        GAIN      Y,1.5               ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT             ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F128) PER LA FACCIA 3 ********************
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F128) FUNZIONE DI USCITA FRESA IN FACCIA 3 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> QX ARIA
+;05  --> QZ ARIA SCAMBIO
+;06  --> BYTE UTENSILE DOPO 10 LAVORAZIONI
+
+
+FUN      129,UfresaF4                  ;Funz. di Uscita fresa in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+;        GAIN      X,1.5               ;
+;        GAIN      Y,1.5               ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;Funz. di reset utensili
+         FCALL     77                  ;
+USC:     SNZ       PNEUMAT             ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F129) PER LA FACCIA 4 ********************
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F129) FUNZIONE DI USCITA FRESA IN FACCIA 4 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> QX ARIA
+;05  --> QZ ARIA SCAMBIO
+;06  --> BYTE UTENSILE DOPO 10 LAVORAZIONI
+
+
+
+FUN      130,UfresaF5                  ;Funz. di Uscita fresa in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;
+         WEND      XYZ,Q               ;
+;        GAIN      X,1.5               ;
+;        GAIN      Y,1.5               ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT,USC         ;
+         FCALL     169                 ;Funz. di reset utensili
+         FCALL     77                  ;Funz. spegnimento motori fresa
+USC:     SNZ       PNEUMAT             ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F130) PER LA FACCIA 5 ********************
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F130) FUNZIONE DI USCITA FRESA IN FACCIA 5 *******
+
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> QZ ARIA SCAMBIO
+;05  --> BYTE UTENSILE DOPO 10 LAVORAZIONI

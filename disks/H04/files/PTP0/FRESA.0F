@@ -1,0 +1,486 @@
+;>>>>>>>>>>>>>>>>> FUNZIONI DI FRESATA - LINEARE
+
+FUN      131,FLinAF1                   ;Fresata lineare in faccia 1
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFLIN              ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F131) PER LA FACCIA 1 ********************
+
+XYFLIN:  LINEAR    &LINEA
+         RET
+
+
+; ***** NOTE: FUNZIONE (F131) FUNZIONE DI FRESATA LINEARE FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> LINEAR XYFLIN
+;04  --> MASCHERA ASSI
+;05  --> DIREZIONE ASSE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> QUOTA ASSE 1
+;09  --> QUOTA ASSE 2
+;10  --> QUOTA ASSE 3
+;11  --> DIAGONALE
+
+
+FUN      132,FLinAF2                   ;Fresata lineare in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFLIN              ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F132) PER LA FACCIA 2 ********************
+
+XYFLIN:  LINEAR    &LINEA
+         RET
+
+
+
+
+
+; ***** NOTE: FUNZIONE (F132) FUNZIONE DI FRESATA LINEARE FACCIA 2 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> LINEAR XYFLIN
+;04  --> MASCHERA ASSI
+;05  --> DIREZIONE ASSE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> QUOTA ASSE 1
+;09  --> QUOTA ASSE 2
+;10  --> QUOTA ASSE 3
+;11  --> DIAGONALE
+
+
+FUN      133,FLinAF3                  ;Fresata lineare in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFLIN              ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F133) PER LA FACCIA 3 ********************
+
+XYFLIN:  LINEAR    &LINEA
+         RET
+
+
+
+; ***** NOTE: FUNZIONE (F133) FUNZIONE DI FRESATA LINEARE FACCIA 3 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> LINEAR XYFLIN
+;04  --> MASCHERA ASSI
+;05  --> DIREZIONE ASSE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> QUOTA ASSE 1
+;09  --> QUOTA ASSE 2
+;10  --> QUOTA ASSE 3
+;11  --> DIAGONALE
+
+
+
+
+
+FUN      134,FLinAF4                   ;Fresata lineare in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFLIN              ;
+ESCI:    FRET                          ;
+
+
+
+;*****************  SUBROUTINE (F134) PER LA FACCIA 4 ********************
+
+XYFLIN:  LINEAR    &LINEA
+         RET
+
+
+; ***** NOTE: FUNZIONE (F134) FUNZIONE DI FRESATA LINEARE FACCIA 4 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> LINEAR XYFLIN
+;04  --> MASCHERA ASSI
+;05  --> DIREZIONE ASSE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> QUOTA ASSE 1
+;09  --> QUOTA ASSE 2
+;10  --> QUOTA ASSE 3
+;11  --> DIAGONALE
+
+
+FUN      135,FLinAF5                   ;Fresata lineare in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFLIN              ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F135) PER LA FACCIA 5 ********************
+
+XYFLIN:  LINEAR    &LINEA
+         RET
+
+
+; ***** NOTE: FUNZIONE (F135) FUNZIONE DI FRESATA LINEARE FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> LINEAR XYFLIN
+;04  --> MASCHERA ASSI
+;05  --> DIREZIONE ASSE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> QUOTA ASSE 1
+;09  --> QUOTA ASSE 2
+;10  --> QUOTA ASSE 3
+;11  --> DIAGONALE
+
+
+;>>>>>>>> FUNZIONI DI FRESATA -  ELICOIDALE
+
+FUN      136,FElicF1                   ;Fresata Elicoidale in faccia 1
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFELIC             ;
+ESCI:    FRET                          ;
+
+;*****************  SUBROUTINE (F136) PER LA FACCIA 1 ********************
+
+XYFELIC: HELIC     &ELICA
+         RET
+
+
+; **** NOTE: FUNZIONE (F136 FUNZIONE DI FRESATA ELICOIDALE IN FACCIA 1) ***
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> ELICOIDALE XYFELIC
+;04  --> MASCHERA ASSI CIRCOLARI
+;05 -->  MASCHERA ASSE LINEARE
+;06 -->  SENSO DI ROTAZIONE
+;07  --> RATEIC
+;08  --> PASSO RESOL
+;09  --> QUOTA ASSE 3
+;10  --> ARCO
+;11  --> DIAGONALE
+;12  --> QUOTA CENTRO ASSE 1
+;13  --> QUOTA CENTRO ASSE 2
+;14  --> QUOTA FINALE ASSE 1
+;15  --> QUOTA FINALE ASSE 2
+;16  --> RAGGIO
+;17  --> NUMERO GIRI
+
+
+FUN      137,FElicF2                   ;Fresata Elicoidale in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFELIC             ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F137) PER LA FACCIA 2 ********************
+
+XYFELIC: HELIC     &ELICA
+         RET
+
+
+; **** NOTE: FUNZIONE (F137 FUNZIONE DI FRESATA ELICOIDALE IN FACCIA 5) ***
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> ELICOIDALE XYFELIC
+;04  --> MASCHERA ASSI CIRCOLARI
+;05 -->  MASCHERA ASSE LINEARE
+;06 -->  SENSO DI ROTAZIONE
+;07  --> RATEIC
+;08  --> PASSO RESOL
+;09  --> QUOTA ASSE 3
+;10  --> ARCO
+;11  --> DIAGONALE
+;12  --> QUOTA CENTRO ASSE 1
+;13  --> QUOTA CENTRO ASSE 2
+;14  --> QUOTA FINALE ASSE 1
+;15  --> QUOTA FINALE ASSE 2
+;16  --> RAGGIO
+;17  --> NUMERO GIRI
+
+
+FUN      138,FElicF3                   ;Fresata Elicoidale in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFELIC             ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F138) PER LA FACCIA 3 ********************
+
+XYFELIC: HELIC     &ELICA
+         RET
+
+
+
+;**** NOTE: FUNZIONE (F138 FUNZIONE DI FRESATA ELICOIDALE IN FACCIA 3) ****
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> ELICOIDALE XYFELIC
+;04  --> MASCHERA ASSI CIRCOLARI
+;05 -->  MASCHERA ASSE LINEARE
+;06 -->  SENSO DI ROTAZIONE
+;07  --> RATEIC
+;08  --> PASSO RESOL
+;09  --> QUOTA ASSE 3
+;01  --> ARCO
+;11  --> DIAGONALE
+;12  --> QUOTA CENTRO ASSE 1
+;13  --> QUOTA CENTRO ASSE 2
+;14  --> QUOTA FINALE ASSE 1
+;15  --> QUOTA FINALE ASSE 2
+;16  --> RAGGIO
+;17  --> NUMERO GIRI
+
+
+
+FUN      139,FElicF4                   ;Fresata Elicoidale in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFELIC             ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F139) PER LA FACCIA 4 ********************
+
+XYFELIC: HELIC     &ELICA
+         RET
+
+
+
+;**** NOTE: FUNZIONE (F139 FUNZIONE DI FRESATA ELICOIDALE IN FACCIA 5) ****
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> ELICOIDALE XYFELIC
+;04  --> MASCHERA ASSI CIRCOLARI
+;05 -->  MASCHERA ASSE LINEARE
+;06 -->  SENSO DI ROTAZIONE
+;07  --> RATEIC
+;08  --> PASSO RESOL
+;09  --> QUOTA ASSE 3
+;10  --> ARCO
+;11  --> DIAGONALE
+;12  --> QUOTA CENTRO ASSE 1
+;13  --> QUOTA CENTRO ASSE 2
+;14  --> QUOTA FINALE ASSE 1
+;15  --> QUOTA FINALE ASSE 2
+;16  --> RAGGIO
+;17  --> NUMERO GIRI
+
+
+FUN      140,FElicF5                   ;Fresata Elicoidale in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYFELIC             ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F140) PER LA FACCIA 5 ********************
+
+XYFELIC: HELIC     &ELICA
+         RET
+
+
+;**** NOTE: FUNZIONE (F140 FUNZIONE DI FRESATA ELICOIDALE IN FACCIA 5) ****
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> ELICOIDALE XYFELIC
+;04  --> MASCHERA ASSI CIRCOLARI
+;05 -->  MASCHERA ASSE LINEARE
+;06 -->  SENSO DI ROTAZIONE
+;07  --> RATEIC
+;08  --> PASSO RESOL
+;09  --> QUOTA ASSE 3
+;10  --> ARCO
+;11  --> DIAGONALE
+;12  --> QUOTA CENTRO ASSE 1
+;13  --> QUOTA CENTRO ASSE 2
+;14  --> QUOTA FINALE ASSE 1
+;15  --> QUOTA FINALE ASSE 2
+;16  --> RAGGIO
+;17  --> NUMERO GIRI
+
+
+
+;>>>>>>>>>>>>>>> FUNZIONI DI FRESATA -  CIRCOLARE
+
+FUN      145,FCircF5                   ;Fresata Circolare in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     SKZ       FINCONT             ;Se=0 NO Contornatura
+         ECNT                          ;
+         SKZ       FCONTOR             ;Se=1 Contornatura
+         ICNT      1                   ;
+         CALL      XYCIRCLE            ;
+ESCI:    FRET                          ;
+
+
+;*****************  SUBROUTINE (F145) PER LA FACCIA 5 ********************
+
+XYCIRCLE:CIRCLE    &CIRCO
+         RET
+
+
+; **** NOTE: FUNZIONE (F145 FUNZIONE DI FRESATA CIRCOLARE IN FACCIA 5) ****
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;Parametri passati alla  --> CIRCOLARE XYCIRCLE
+;04  --> MASCHERA ASSI
+;05  --> SENSO ROTAZIONE
+;06  --> RATEIC
+;07  --> PASSO RESOL
+;08  --> ARCO
+;09  --> QUOTA CENTRO ASSE 1
+;10  --> QUOTA CENTRO ASSE 2
+;11  --> QUOTA FINALE ASSE 1
+;12  --> QUOTA FINALE ASSE 2
+;13  --> RAGGIO
+;14  --> NUMERO GIRI

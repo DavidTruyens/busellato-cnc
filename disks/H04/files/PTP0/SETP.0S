@@ -1,0 +1,33 @@
+;***************** SET POINT BUSELLATO ************************************
+
+ PROG
+         LIMITOFF  XYZ                 ;Disattiva limiti assi
+         RES       FLGSBLO
+         RES       STOPPRG             ;Flag di stop programmato
+         FCALL     163                 ;Reset porti uscita
+         FCALL     169                 ;Disattiva utensili
+         FCALL     84                  ;Funz. gestione su emerg.
+         FCALL     57                  ;Funz. setpoint asse Z
+         APROG     1Y
+         APROG     2X
+         SKZ       ABILV
+         FCALL     62                  ;Funz. setpoint asse V
+         WPROG     1Y
+         WPROG     2X
+         LIMITON   XYZ
+         MESSAGE   6,2                 ;Setpoint totale ok.
+         END
+
+;SOTTOPROGRAMMA PER ESECUZIONE CONTEMPORANEA SETP XYW
+
+PROG     1Y
+         FCALL     58                  ;Funz. setpoint asse Y
+         EPROG
+
+PROG     2X
+         FCALL     59                  ;Funz. setpoint asse X
+         EPROG
+
+PROG     3W
+         FCALL     60                  ;Funz. setpoint asse W
+         EPROG

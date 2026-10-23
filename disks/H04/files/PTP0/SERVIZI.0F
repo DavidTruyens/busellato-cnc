@@ -1,0 +1,360 @@
+;******************* FUNZIONE SERVIZIO PER SET POINT 4 ASSI
+
+FUN      57,MovassZ                    ;Funzione setpoint asse Z su micro
+                                       ;di SetPoint
+         NORMAL    Z
+         SETQ      Z,0
+         SNZ       FCSPZ,DOPO
+         VEL       Z,4
+         MOV       Z,-1000
+         WIZ       FCSPZ
+         STOP      Z
+         DELAY     0.05
+         SETQ      Z,0
+DOPO:    VEL       Z,0.2
+         MOV       Z,100
+         WNZ       FCSPZ
+         SETQ      Z,0
+         DELAY     0.1
+         MESSAGE   37,2                ;Setpoint asse Z OK
+         FRET
+
+FUN      58,MovassY                    ;Funzione setpoint asse Y su micro
+                                       ;di SetPoint
+         NORMAL    Y
+         SETQ      Y,0
+         SNZ       FCSPY,DOPOY
+         VEL       Y,10
+         MOV       Y,-2000
+         WIZ       FCSPY
+         STOP      Y
+         DELAY     0.3
+         SETQ      Y,0
+DOPOY:   VEL       Y,0.2
+         MOV       Y,50
+         WNZ       FCSPY
+         SETQ      Y,0
+         DELAY     0.1
+         MESSAGE   38,2                ;Setpoint asse Y OK
+         FRET
+
+FUN      59,MovassX                    ;Funzione setpoint asse X su micro
+                                       ;di SetPoint
+         NORMAL    X
+         SETQ      X,0
+         SNZ       FCSPX,DOPOX
+         VEL       X,10
+         MOV       X,-5000
+         WIZ       FCSPX
+         STOP      X
+         DELAY     0.3
+         SETQ      X,0
+DOPOX:   VEL       X,0.2
+         MOV       X,50
+         WNZ       FCSPX
+         SETQ      X,0
+         DELAY     0.1
+         MESSAGE   39,2                ;Setpoint asse X OK
+         FRET
+
+
+;FUN      60,MovassW                   ;Funzione setpoint asse W
+
+;         NORMAL    W
+;         SETQ      W,0
+;         SNZ       FCRALLW,DOPOW
+;         VEL       W,10
+;         MOV       W,-1000
+;         WIZ       FCRALLW
+;         STOP      W
+;         DELAY     0.05
+;         SETQ      W,0
+;DOPOW:   VEL       W,0.2
+;         MOV       W,-50
+;         WIZ       FCSPW
+;         SETQ      W,0
+;         MOV       W,50
+;         WNZ       FCSPW
+;         SETQ      W,0
+;         DELAY     0.1
+;         MESSAGE   40,2               ;Setpoint asse W OK
+;         FRET
+
+;FUN      62,MovassV                    ;Funz setpoint asse V
+
+;         SET       ABLAMR              ;Abilitazione asse lama rot.
+;         NORMAL    V
+;         SETQ      V,0
+;         SNZ       FCSPV,DISIMP
+;         VEL       V,0.7
+;         MOV       V,1000   ;-1000
+;         WIZ       FCSPV
+;         STOP      V
+;         WEND      V,Q
+;         SETQ      V,0
+;DISIMP:  VEL       V,0.2
+;         MOV       V,-360    ;360
+;         WNZ       FCSPV
+;         SETQ      V,0
+;         MOV       V,7.30,Q          ;Correzione offset lama -7.30
+;         SETQ      V,90
+;         MESSAGE   63,1              ;Setpoint asse V o.k
+;         RES       ABLAMR            ;Res. abilitazione asse lama rot.
+;         FRET
+
+FUN      163,Resetusc                  ;Funz. di reset gen.in SETPOINT
+
+         SETOFS    X,0,0
+         USEOFS    X,0
+         SETOFS    Y,0,0
+         USEOFS    Y,0
+         OUT       000016
+         OUT       000017
+         OUT       000018
+         OUT       000019
+         OUT       000020,127          ;No reset power
+         OUT       000021
+         OUT       000022
+         OUT       000023
+         OUT       000024
+         OUT       000025
+         OUT       000026
+         OUT       000027
+         OUT       000028
+         FRET
+
+FUN      168
+         NOP
+         FRET
+
+FUN      169,DisUtFor                  ;Disattiva utensili di foratura
+
+         RES       ABILINV
+         OUT       000+016             ;Reset mandrini da 1/8
+         OUT       000+017             ;Reset mandrini da 9/16
+         OUT       000+020,3           ;Reset oriz53 / later56
+         OUT       000+021,240         ;Reset lama1 / frese 1/2/3
+         OUT       000+022             ;Reset mandrini da 17/24
+         OUT       000+023,240         ;Reset oriz54 / later57 /frese 4/5
+         OUT       000+024             ;Reset mandrini da 25/32
+         OUT       000+025             ;Reset mandrini da 33/40
+         OUT       000+026,15          ;Reset lama2 / oriz55 / frese X/Y
+         OUT       000+027             ;Reset mandrini da 41/48
+         OUT       000+028,11          ;Reset mandr 49/50 evut52
+         DELAY     0.5
+         FRET
+
+FUN      165,DisUtLam                  ;Disattiva lama rotante
+
+         OUT       000+016             ;Reset mandrini da 1/8
+         OUT       000+017             ;Reset mandrini da 9/16
+         OUT       000+020,3           ;Reset oriz53 / later56
+         OUT       000+021,240         ;Reset lama1 / frese 1/2/3
+         OUT       000+022             ;Reset mandrini da 17/24
+         OUT       000+023,240         ;Reset oriz54 / later57 /frese 4/5
+         OUT       000+024             ;Reset mandrini da 25/32
+         OUT       000+025             ;Reset mandrini da 33/40
+         OUT       000+026,15          ;Reset lama2 / oriz55 / frese X/Y
+         OUT       000+027             ;Reset mandrini da 41/48
+         OUT       000+028,11          ;Reset mandr 49/50 evut52
+         DELAY     1.5
+         RES       ABILINV
+         FRET
+
+FUN      197,FEnd                      ;Funzione di End
+
+         OUT       000+PLCUT1          ;Reset porti ut 10 lav.
+         OUT       000+PLCUT2          ;  "     "       "   "
+         OUT       000+PLCUT3          ;  "     "       "   "
+         OUT       000+PLCUT4          ;  "     "       "   "
+         OUT       000+PLCUT5          ;  "     "       "   "
+         OUT       000+PLCUT6          ;  "     "       "   "
+         OUT       000+PLCUT7          ;  "     "       "   "
+         OUT       000+PLCUT8          ;  "     "       "   "
+         OUT       000+PLCUT9          ;  "     "       "   "
+         OUT       000+PLCUT10         ;  "     "       "   "
+         OUT       000+016             ;Reset mandrini verticali.
+         OUT       000+017             ;Reset mandrini verticali
+         OUT       000+018             ;Reset lamp /rif. mecc.
+         OUT       000019,15           ;Reset fermi a scomparsa
+         OUT       000020,48           ;Reset mt. rotaz lama X/Y
+         OUT       000021,16           ;Reset lama 1/ mt frese 1/2/3 lama 1
+         OUT       000022              ;Reset mandrini verticali
+         OUT       000024              ;Reset mandrini verticali
+         OUT       000025              ;Reset mandrini verticali
+         OUT       000026,129          ;Reset mt lama2 frese 6/7
+         OUT       000027              ;Reset mandrini verticali
+         OUT       000028,187          ;Reset mand. 49/50 mt rot. fresa X/Y
+         OUT       000+PLCATT          ;Reset flag PLC pannello attuale
+         OUT       000+PLCSUC          ;Reset flag PLC pannello succ.
+         OUT       000+PLCSUC1         ;Reset flag PLC pannello succ. + 1
+         OUT       000+PLCSUC2         ;Reset flag PLC pannello succ. + 2
+         OUT       000+PLCBLC          ;Reset porto pannelli prenotati
+         OUT       000+PLCBLCE         ;Reset porto pannelli eseguiti
+         OUT       000+PORTRM1         ;Reset porto rif. mecc. pan 1/2
+         OUT       000+PORTRM2         ;Reset porto rif. mecc. pan 3/4
+         RES       STOPPRG             ;Flag di stop programmato
+         RES       CODICL              ;
+         SCOUNT    1,0                 ;Reset counter di PLC pan. 1
+         SCOUNT    2,0                 ;  "      "        "       2
+         SCOUNT    3,0                 ;  "      "        "       3
+         SCOUNT    4,0                 ;  "      "        "       4
+         SET       FLGSBLO             ;Set flag bloccaggio pannelli
+SOTTO1:  FCALL     80                  ;Spegne motori frese lame mandrini
+         RES       FLAGA1              ;Reset flag aree 1/2 di lavorazione
+         RES       FLAGA2
+         RES       FLAG1
+         SETOFS    X,0,0               ;Settaggio ofset a 0
+         USEOFS    X,0
+         SETOFS    Y,0,0
+         USEOFS    Y,0
+         RES       ABLAMR              ;Res. abilitazione asse lama rot.
+         RES       NOSBLOPA            ;Res. flag di no sbloc. pan.
+         FRET
+
+FUN      198,Emerg                     ;Funzione di emergenza
+
+         OUT       000+PLCUT1          ;Reset porti ut 10 lav.
+         OUT       000+PLCUT2          ;  "     "     "    "
+         OUT       000+PLCUT3          ;  "     "     "    "
+         OUT       000+PLCUT4          ;  "     "     "    "
+         OUT       000+PLCUT5          ;  "     "     "    "
+         OUT       000+PLCUT6          ;  "     "     "    "
+         OUT       000+PLCUT7          ;  "     "     "    "
+         OUT       000+PLCUT8          ;  "     "     "    "
+         OUT       000+PLCUT9          ;  "     "     "    "
+         OUT       000+PLCUT10         ;  "     "     "    "
+         SETOFS    X,0,0
+         USEOFS    X,0
+         SETOFS    Y,0,0
+         USEOFS    Y,0
+         OUT       000+016             ;Reset mandrini verticali.
+         OUT       000+017             ;Reset mandrini verticali
+         OUT       000+018             ;Reset lamp /rif. mecc.
+         OUT       000019,15           ;Reset fermi a scomparsa
+         OUT       000020,48           ;Reset mt. rotaz lama X/Y
+         OUT       000021,16           ;Reset lama 1/ mt frese 1/2/3 lama 1
+         OUT       000022              ;Reset mandrini verticali
+         OUT       000024              ;Reset mandrini verticali
+         OUT       000025              ;Reset mandrini verticali
+         OUT       000026,129          ;Reset mt.lama2 frese 6/7
+         OUT       000027              ;Reset mandrini verticali
+         OUT       000028,187          ;Reset mand. 49/50 mt rot. fresa X/Y
+         OUT       000+PLCATT          ;Reset flag PLC
+         OUT       000+PLCSUC
+         OUT       000+PLCSUC1
+         OUT       000+PLCSUC2
+         OUT       000+PLCBLC
+         OUT       000+PLCBLCE
+         OUT       000+PORTRM1
+         OUT       000+PORTRM2
+         RES       STOPPRG             ;Flag di stop programmato
+         RES       CODICL
+         SCOUNT    1,0                 ;Reset counter utilizzati in PLC
+         SCOUNT    2,0
+         SCOUNT    3,0
+         SCOUNT    4,0
+         SET       FLGSBLO
+         FCALL     80                  ;Spegni motori frese lame mandrini
+         RES       FLAGA1              ;Reset flag aree 1/2 di lavorazione
+         RES       FLAGA2
+         RES       FLAG1
+         RES       ABLAMR              ;Res. abilitazione asse lama rot.
+         RES       NOSBLOPA            ;Res. flag di no sbloc. pan.
+         FRET
+
+FUN      196,ErrSist                   ;Errore di sistema
+         NOP
+         FRET
+
+FUN      84,FunSupSp                   ;Funz. setpoint gest. emerg.
+
+GEN:     SKZ       EMERGEN,TSTEMX
+         MESSAGE   1,2                 ;Emergenza generale
+         BRA       GEN
+TSTEMX:  SKZ       EMERGX,TSTEMY
+         MESSAGE   2,2                 ;Emergenza asse X
+         BRA       TSTEMX
+TSTEMY:  SKZ       EMERGY,TSTEMZ
+         MESSAGE   3,2                 ;Emergenza asse Y
+         BRA       TSTEMY
+TSTEMZ:  SKZ       EMERGZ,TSTEMAR
+         MESSAGE   4,2                 ;Emergenza asse Z
+         BRA       TSTEMZ
+TSTEMAR: SNZ       EMERGPA,TSTINV
+         MESSAGE   5,2                 ;Emergenza pressione aria
+         BRA       TSTEMAR
+TSTINV:  SNZ       EMERINV,NOEM
+         MESSAGE   53,2                ;Emergengeza inverter
+         BRA       TSTINV
+NOEM:    SET       RESCAR              ;Set flag per reset gen. in PLC
+         DELAY     2
+         FRET
+
+
+FUN      161,FunDelay                  ;Funzione di ritardo
+
+         OUT       &BYTE+FITTIZ1
+         OUT       &BYTE+FITTIZ2
+         OUT       &BYTE+FITTIZ3
+         DELAY     &NUMBAT
+         FRET
+
+FUN      162,FRicFun                   ;Richiama Funz. utente in Rapido
+
+         TCOUNT    NUMFUN,<,70,ERROR   ;Test su num. funz. utente
+         TCOUNT    NUMFUN,>,90,T98
+         BRA       OK
+T98:     TCOUNT    NUMFUN,<>,98,ERROR
+
+OK:      TCOUNT    NUMFUN,<>,70        ;Richiamo funzione utente
+         FCALL     70
+         TCOUNT    NUMFUN,<>,71
+         FCALL     71
+         TCOUNT    NUMFUN,<>,72
+         FCALL     72
+         TCOUNT    NUMFUN,<>,73
+         FCALL     73
+         TCOUNT    NUMFUN,<>,74
+         FCALL     74
+         TCOUNT    NUMFUN,<>,75
+         FCALL     75
+         TCOUNT    NUMFUN,<>,76
+         FCALL     76
+         TCOUNT    NUMFUN,<>,77
+         FCALL     77
+         TCOUNT    NUMFUN,<>,78
+         FCALL     78
+         TCOUNT    NUMFUN,<>,79
+         FCALL     79
+         TCOUNT    NUMFUN,<>,80
+         FCALL     80
+         TCOUNT    NUMFUN,<>,81
+         FCALL     81
+         TCOUNT    NUMFUN,<>,82
+         FCALL     82
+         TCOUNT    NUMFUN,<>,83
+         FCALL     83
+         TCOUNT    NUMFUN,<>,84
+         FCALL     84
+         TCOUNT    NUMFUN,<>,85
+         FCALL     85
+         TCOUNT    NUMFUN,<>,86
+         FCALL     86
+         TCOUNT    NUMFUN,<>,87
+         FCALL     87
+         TCOUNT    NUMFUN,<>,88
+         FCALL     88
+         TCOUNT    NUMFUN,<>,89
+         FCALL     89
+         TCOUNT    NUMFUN,<>,90
+         FCALL     90
+         TCOUNT    NUMFUN,<>,98
+         FCALL     98
+         BRA       FINE
+ERROR:   MESSAGE   51,2                ;Numero funzione errata
+         DELAY     0.2
+         MESSAGE   68,2
+         DELAY     0.2
+         BRA       ERROR
+FINE:    FRET

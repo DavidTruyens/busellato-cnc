@@ -1,0 +1,639 @@
+*************************** FILE : MESSPTP.FRA ******************************
+*                                                                           *
+* PROGETTO : Sistema PTP1000                                                *
+*                                                                           *
+* SCOPO : Messaggi utilizzati in tutti i programmi.                         *
+*                                                                           *
+* DATA : 18/05/1992                                  VERSIONE : 4.3         *
+*                                                                           *
+*****************************************************************************
+
+
+Questi sono i messaggi generali
+  "@!1@"
+  "fichier non trouv‚"                                                      1
+  "faux mode d'accŠs au fichier"                                            2
+  "accŠs refus‚"                                                            3
+  "fichier d‚j… existant"                                                   4
+  "num‚ro record erron‚"                                                    5
+  "disque satur‚"                                                           6
+  "mauvais appel de function"                                               7
+  "erreur sur p‚riph‚rique"                                                 8
+  ""                                                                        9
+  "imprimante non disponible"                                              10
+  "protection du disque contre l'‚criture"                                 11
+  "disque pas prˆt"                                                        12
+  "erreur sur disque"                                                      13
+  "erreur int‚rieure"                                                      14
+  "m‚moire PC insuffisante"                                                15
+  ""                                                                       16
+  ""                                                                       17
+  "protection du fichier @%s@ contre l'‚criture"                           18
+  "donn‚e non valable"                                                     19
+  "TOUCHES FONCTION"                                                       20
+26"<ÄÙ  s‚lection"                                                         21
+  "Nom tableau"                                                            22
+  "num‚ro station non valable"                                             23
+  "configuration station non d‚finie"                                      24
+  "programme pas en r‚pertoire"                                            25
+26"BARRE  s‚lect./d‚s‚lect."                                               26
+ 1"O"            // OUI                                                    27
+ 1"N"            // NON                                                    28
+ 1"G"            // GAUCHE                                                 29
+ 1"D"            // DROITE                                                 30
+  "Impression"                                                             31
+15"Copie"                                                                  32
+  "Nø @%d@ fichier"                                                        33
+  "@%ld@ octets disponibles"                                               34
+26"ESC  abandon"                                                           35
+15"Abandon"                                                                36
+15"Effacement"                                                             37
+  "(Oui/Non)"                                                              38
+ 8"Nom"                                                                    39
+ 2"St"                                                                     40
+12"Comment"                                                                41
+ 8"  Date  "                                                               42
+ 1"C"            // COMPILE                                                43
+ 5"Octet"                                                                  44
+20"Disponibles"                                                            45
+ 1"T"            // TYPE FICHIER                                           46
+26"BARRE  changement valeur"                                               47
+ 1"P"           // FICHIER PROTEGE                                         48
+26"<ÄÙ  pour continuer"                                                    49
+26"ALT-H  aide"                                                            50
+  "Mot de passe"                                                           51
+  "Ins‚rez mot de passe"                                                   52
+  "SELECTION MODULE"                                                       53
+  "SELECTION STATION"                                                      54
+  "mot de passe erron‚"                                                    55
+26"TAB secteur successif"                                                  56
+26"BARRE  active/inactive"                                                 57
+ 8"Vitesse"                                                                58
+15"Acc‚l‚ration"                                                           59
+14"Description"                                                            60
+  "Programmes"                                                             61
+  "Tableaux"                                                               62
+  "Changement module/station"                                              63
+  "Menu principal"                                                         64
+  "pas de fichier en r‚pertoire"                                           65
+  "station @%s@ non pr‚sente"                                              66
+  "nom incorrect"                                                          67
+ 3"Mod"                                                                    68
+15"Pas"                                                                    69
+ 5"tours"                                                                  70
+  "R‚pertoire"                                                             71
+ 9"Programme"                                                              72
+  "Mise … z‚ro"                                                            73
+  "Function"                                                               74
+  "D‚finitions E/S"                                                        75
+  "Tableaux cotes"                                                         76
+  "Erreurs de cycle"                                                       77
+  "Rapport"                                                                78
+  "Texte"                                                                  79
+  "Etat"                                                                   80
+  "axe pas pr‚sent en configuration"                                       81
+ 5"Exist"                                                                  82
+  "tous les modules sont en ‚tat OFF ou sans stations"                     83
+  "texte trop long"                                                        84
+  "DIMENSIONS"                                                             85
+  "OFFSET"                                                                 86
+  "tableau"                                                                87
+ 9"Num‚ro"                                                                 88
+  "OPTIONS"                                                                89
+  "Avec validation"                                                        90
+  "axes non configur‚s"                                                    91
+  "Changement de module"                                                   92
+26"PGUP  page pr‚c‚dente"                                                  93
+26"PGDN  page successive"                                                  94
+26"TAB  droite"                                                            95
+26"SHIFT-TAB  gauche"                                                      96
+  "Axe"                                                                    97
+  "Automatique"                                                            98
+  "Taper EXIT pour revenir au PTP1000"                                     99
+ 7"Erreur"                                                                100
+  "ENTREES/SORTIES"                                                       101
+  "MANUEL ET DIAGNOSTIC"                                                  102
+ 4"Num"                                                                   103
+  "Situation compteurs"                                                   104
+  "tableau non autoris‚ sur cette station"                                105
+  "Changement de langue"                                                  106
+  "S‚lection langue"                                                      107
+  "langue non disponible"                                                 108
+  "connexion s‚rielle interrompue"                                        109
+ 8"Fichier"                                                               110
+ 3"Out"                                                                   111
+  "systŠme"                                                               112
+  "cycle"                                                                 113
+  "Station  @%d@"                                                         114
+  "Module @%d@"                                                           115
+ 4"Task"                                                                  116
+15"Modifie"                                                               117
+  "Analisateur"                                                           118
+12"Entr‚e"                                                                119
+12"Sortie"                                                                120
+
+Qui iniziano i messaggi di VIED.C
+  "@!151@"
+  "EDITE: @%s - %s@"                                                      151
+  "Allocation des touches fonction"                                       152
+  "Pr‚c‚dente"                                                            153
+  "!  active tabulation"                                                  154
+  "Ignorer majuscules/minuscules"                                         155
+  "Importer"                                                              156
+  "D‚placer"                                                              157
+  "Function station @%d@"                                                 158
+  "Marquer"                                                               159
+  "Texte non trouv‚"                                                      160
+  "Texte … chercher"                                                      161
+  "Ligne initiale"                                                        162
+  "Ligne finale"                                                          163
+  "Validez-vous la modification?"                                         164
+  ""                                                                      165
+  "Changer en"                                                            166
+  "Trouver"                                                               167
+  "Remplacer"                                                             168
+  "Le texte"                                                              169
+  "Nombre de fois"                                                        170
+  "Syntaxe"                                                               171
+  "Lecture seulement"                                                     172
+  "Tabulation"                                                            173
+  "-  inactive tabulation"                                                174
+  "Sauvegarder"                                                           175
+  "Sortir"                                                                176
+55"@%s@ a ‚t‚ modifi‚. Voulez-vous le sauvegarder?"                       177
+
+Qui iniziano i messaggi di SETUP.C
+  "@!201@"
+35"SystŠme PTP1000 sur disque\r‚pert."                                    201
+  "REPERTOIRES DE TRAVAIL"                                                202
+ 7"SystŠme"                                                               203
+  "disque non de SYSTEME"                                                 204
+  "R‚pertoire"                                                            205
+  "DONNEES DE CONFIGURATION"                                              206
+  "D‚marrage … partir de AUTOEXEC.BAT"                                    207
+  "Langue"                                                                208
+  "Type de vid‚o"                                                         209
+  "Voulez-vous ex‚cuter l'installation ?"                                 210
+74"Configuration termin‚e, appuyer sur une touche quelconque"             211
+ 4"in"                                                                    212
+  "INSTALLATION ET CONFIGUR."                                             213
+  "Selection langue utilizateur"                                          214
+ 7"(BW/CO)"                                                               215
+  "Mise … jour des donn‚es de configuration en cours"                     216
+  "disque cible non valable"                                              217
+  "Ins‚rez disque SYSTEME BASE sur A et appuyez sur une touche"           218
+74"Installation termin‚e, appuyez sur une touche quelconque"              219
+  "erreur pendant la copie"                                               220
+  "cr‚ation de r‚pertoire impossible"                                     221
+  "chemin non trouv‚"                                                     222
+
+Qui iniziano i messaggi di TABQ.C
+  "@!251@"
+  "TABLEAUX COTES"                                                        251
+  "zone de m‚moire insuffisante"                                          252
+  "Tableau: @%s - %s@"                                                    253
+  "erreur de lecture fichier tableau"                                     254
+  "Nø cotes disponibles: "                                                255
+  "Offset"                                                                256
+  "Options"                                                               257
+  "S‚lection tableaux"                                                    258
+  "Insertion offset"                                                      259
+  "Dimensions"                                                            260
+  "configuration station @%s@ non d‚finie"                                261
+25"Pas [mm]"                                                              262
+25"Cote base [mm]"                                                        263
+25"Expansion cotes axe"                                                   264
+25"De la cote num‚ro"                                                     265
+25"A la cote num‚ro"                                                      266
+  "Cotes Tableau: @%d@"                                                   267
+  "valeur maximum programmable 8000"                                      268
+  "paramŠtres erron‚s"                                                    269
+  "Nø octets par cote: "                                                  270
+22"Expansion cotes"                                                       271
+  "tableau @%c@"                                                          272
+  "tableaux non dimensionn‚s"                                             273
+  "Sauvegarder et sortir"                                                 274
+  ""                                                                      275
+  "Port"                                                                  276
+  "Masque"                                                                277
+  "ParamŠtres SORTIES"                                                    278
+  ""                                                                      279
+28"bit/masque+port ou symbole"                                            280
+ 3"Tab"                                                                   281
+25"Expansion SORTIES"                                                     282
+25"De la SORTIE num‚ro"                                                   283
+25"A la SORTIE num‚ro"                                                    284
+25"Valeur base"                                                           285
+
+Qui iniziano i messaggi di CONFMAIN.C
+  "@!351@"
+  "CONFIGURATION SYSTEME"                                                 351
+  "CONFIGURATION GENERALE MODULE"                                         352
+  "CONFIGURATION STATION"                                                 353
+  "MODULE"                                                                354
+  "Modules"                                                               355
+  "Configur‚s"                                                            356
+  "Configuration g‚n‚rale module"                                         357
+  "Configuration modules"                                                 358
+  "bit+port ou symbole"                                                   359
+  "feed forward interpolation axe @%c@ erron‚"                            360
+  "Configuration station"                                                 361
+  "Options de systŠme"                                                    362
+  "Ligne s‚rielle du PC utilis‚e"                                         363
+  "Baud rate"                                                             364
+  "Statistiques"                                                          365
+  "Nombre colonnes d'impression"                                          366
+  "Configuration stations"                                                367
+  "impression en cours"                                                   368
+ 4"Type"                                                                  369
+  "ParamŠtres g‚n‚rales"                                                  370
+  "Batterie"                                                              371
+  "Fonctionnement avec PC"                                                372
+  "Nombre maximum de stations"                                            373
+  "Timeout sur erreurs [sec]"                                             374
+  "Options de module"                                                     375
+  "S‚lection programmes en initialisation"                                376
+  "S‚lection tableaux en initialisation"                                  377
+  "Noms programmes commmuns pour toutes les stations"                     378
+  "Noms tablaux communs pour toutes les stations"                         379
+  "acc‚l‚ration interpolation axe @%c@ erron‚e"                           380
+  "Function avec paramŠtres"                                              381
+  "Function avec tableaux de paramŠtres"                                  382
+  "Usage de l'op‚ration de Mise … z‚ro"                                   383
+  "Usage de l'op‚ration de Edition en automatique"                        384
+  "Usage compteurs"                                                       385
+  "Frequences de travail"                                                 386
+  "Frequence temps r‚el"                                                  387
+  "Frequence de contr“le axes d'interpolation"                            388
+  "Frequence d'interpolation"                                             389
+  "Options pour diagnostique"                                             390
+  "M‚morisation erreurs cycle/systŠme"                                    391
+  "M‚morisation messages"                                                 392
+  "Description compteurs"                                                 393
+  "M‚morisation compteurs"                                                394
+  "ParamŠtres axes"                                                       395
+  "multiplicateur de vitesse d'interpolation axe @%c@ erron‚"             396
+17"R‚solution"                                                            397
+17"Vitesse maximum"                                                       398
+  "acc‚l‚ration axe @%c@ erron‚e"                                         399
+17"Fenˆtre"                                                               400
+15"Gain"                                                                  401
+17"Limite positive"                                                       402
+17"Limite negative"                                                       403
+17"Feed forward p."                                                       404
+17"Feed forward i."                                                       405
+  "Interpolation"                                                         406
+  "Carte d'interpolation"                                                 407
+  "multiplicateur de vitesse axe @%c@ erron‚"                             408
+  "Nombre de stations modifi‚. Confirme ?"                                409
+  "zones de m‚moire utilis‚es sur la carte"                               410
+  "(nø octets)"                                                           411
+  "Type de carte modifi‚. Confirme ?"                                     412
+ 8"Nø compt"                                                              413
+  "ParamŠtres function"                                                   414
+  "Autres"                                                                415
+  "Function gestions sp‚ciales"                                           416
+  "(1ö255 ou nom symbolique)"                                             417
+  "Erreurs de systŠme"                                                    418
+  "Fin cycle"                                                             419
+  "Urgence"                                                               420
+  "Plc"                                                                   421
+  "Expansions ENTREE/SORTIE"                                              422
+  "Type de cartes"                                                        423
+  "CONFIGURATION"                                                         424
+  "Tableau des ‚tats d'urgence"                                           425
+ 5"ENTR."                                                                 426
+  "type stations non d‚fini en configuration g‚n‚rale module"             427
+  "Configuration station active"                                          428
+  "Inizialization automatique"                                            429
+  "Changement mot de passe"                                               430
+  "Nouveau mot de passe"                                                  431
+  "Nø stations"                                                           432
+  "Configuration systŠme"                                                 433
+  "erreur grave sur LASTST en CONFSTAZSTORE"                              434
+  "num‚ro station manquant"                                               435
+  "description du compteur manquante"                                     436
+  "Configuration module actif"                                            437
+  "trop d'octets utilis‚s"                                                438
+  "type de station non sp‚cifi‚"                                          439
+  "allocation de trop d'ENTREES"                                          440
+  "allocation de trop de SORTIES"                                         441
+  "allocation de trop d'analogues"                                        442
+  "tableau function non trouv‚"                                           443
+  "function non en tableau"                                               444
+  "continuit‚ cartes pas respect‚e"                                       445
+  "d‚finition symbolique ENTREE non trouv‚e"                              446
+  "fichier d‚finitions symboliques non trouv‚"                            447
+  "‚tat ENTREE non sp‚cifi‚"                                              448
+  "Impression configurations"                                             449
+  "IMPRESSION CONFIGURATIONS"                                             450
+  "Configuration complŠte"                                                451
+  "allocation de trop de remotes E/S"                                     452
+  "Port ou symbole"                                                       453
+  "EFFACEMENT CONFIGURATIONS"                                             454
+  "Effacement configurations"                                             455
+  "Feed rate override"                                                    456
+30"Arriv‚e en positif"                                                    457
+30"Arriv‚e en n‚gatif"                                                    458
+30"Sortie en avant"                                                       459
+30"Sortie en arriŠre"                                                     460
+30"Sortie haute/faible vitesse"                                           461
+  "ParamŠtres gestion clavier"                                            462
+  "Premier port"                                                          463
+30"(001ö255 ou symbole)"                                                  464
+  "Visualisation cotes r‚elles"                                           465
+30"(nombre ou symbole)"                                                   466
+
+Qui iniziano i messaggi di COMPIL.C
+  "@!501@"
+  "Nombre d'erreurs d‚tect‚es: @%d@"                                      501
+  "instruction FinFUNCTION manquante dans la function nø"                 502
+ 5"ligne"                                                                 503
+  "zone vide ou non num‚rique"                                            504
+  "zone non autoris‚e"                                                    505
+  "nom instruction manquant ou erron‚"                                    506
+  "nom symbolique E/S ou ‚tiquette manquant"                              507
+  "‚tiquette d‚finie plus qu'une fois"                                    508
+  "‚tiquette non trouv‚e"                                                 509
+  "longueur code E/S erron‚e"                                             510
+  "paramŠtres instruction erron‚s"                                        511
+  "nombre de tours erron‚"                                                512
+  "tableau GPL1000 manquant"                                              513
+  "COMPILATEUR GPL1000"                                                   514
+  "Compilation"                                                           515
+  "valeur hors limites autoris‚e"                                         516
+  "List‚ sur"                                                             517
+  "r‚solution axes qui interpolent diff‚rente"                            518
+  "rayon en interpolation = 0"                                            519
+  "valeur plus grande que 10"                                             520
+  "programme d‚j… d‚fini"                                                 521
+  "Lister compilations erron‚es"                                          522
+  "interpolation sur le mˆme axe"                                         523
+  "d‚finition en double"                                                  524
+  "‚tiquette non autoris‚e"                                               525
+  "allocation num‚ro function d‚j… effectu‚e"                             526
+  "instruction non autoris‚e"                                             527
+  "trop de paramŠtres"                                                    528
+  "nø octets function plus grand que 4095"                                529
+  "paramŠtre inexistant"                                                  530
+  "instruction non autoris‚e avant FUN"                                   531
+  "instruction FinFUNCTION manquante"                                     532
+  "cote finale erron‚e"                                                   533
+  "cercle sans solution"                                                  534
+  "rayon plus grand que le rayon maximum"                                 535
+  "instruction non autoris‚e sur carte PLC200"                            536
+  "nom function erron‚"                                                   537
+  "nom function d‚j… existant"                                            538
+  "ADRESSE   OBJET          LIGNE   LIGNE SOURCE"                         539
+  "Compilation arrˆt‚e."                                                  540
+  "Nombre d'octets utilis‚s: @%u@"                                        541
+  "Erreurs d‚tect‚es: @%d@"                                               542
+  "programme vide"                                                        543
+  "PROG.: @%s.%d@    T.P.A.: COMPILATEUR GPL1000    @%s@     page @%d@"   544
+  "trop de d‚finitions"                                                   545
+  "( /Imprimante/Disque)"                                                 546
+  "D‚finition erron‚e"                                                    547
+  "function parallŠle avec paramŠtres"                                    548
+  "function appel‚e plus qu'une fois"                                     549
+  "impression du list‚ en cours"                                          550
+  "m‚morisation du list‚ en cours"                                        551
+  "DEFINITIONS STATION @%d@"                                              552
+  "PROGRAMME"                                                             553
+  "FUNCTION"                                                              554
+  "paramŠtres manquants"                                                  555
+  "function non trouv‚e"                                                  556
+  "carte d'interpolation rapide non pr‚sente"                             557
+
+Qui iniziano i messaggi di MENU.C
+  "@!601@"
+  "GESTION PROGRAMMES"                                                    601
+  "REPERTOIRE"                                                            602
+  "CHANGEMENT DE NOM"                                                     603
+  "COPIE"                                                                 604
+  "EFFACEMENT"                                                            605
+  "IMPRESSION"                                                            606
+  "DATE ET HEURE"                                                         607
+  "VISUALISATION"                                                         608
+  "VISUALISER: @%s - %s@"                                                 609
+  "Visualisation"                                                         610
+  "COTES TABLEAU: @%d@"                                                   611
+  "Editeur"                                                               612
+  "Voulez-vous Valider ?"                                                 613
+  "Changement de nom"                                                     614
+  "PARAMETRES SORTIES"                                                    615
+  "Date"                                                                  616
+  "Heure"                                                                 617
+  "Etes-vous s–r ?"                                                       618
+  "Fin travail"                                                           619
+  "R‚pertoire cible"                                                      620
+  "Effacer"                                                               621
+26"CTRL-HOME  d‚but fichier"                                              622
+26"CTRL-END   fin fichier"                                                623
+  "Compilation programmes"                                                624
+  "Liste des fichiers"                                                    625
+  "Configuration"                                                         626
+  "Tableau erreurs de cycle"                                              627
+  "R‚pertoire source"                                                     628
+  "MENU PRINCIPAL"                                                        629
+  "Gestion machine"                                                       630
+  "Gestion programme"                                                     631
+  "Date et heure"                                                         632
+  "Copie de @%s@ en cours"                                                633
+  "Protection fichier"                                                    634
+  "PROTECTION FICHIER"                                                    635
+  "LISTE DES FUNCTIONS"                                                   636
+  "Liste des functions"                                                   637
+  "%s est prot‚g‚"                                                        638
+  "Remplacer ?"                                                           639
+
+Qui iniziano i messaggi di PLANCIA.C
+  "@!701@"
+11"AUTOMATIQUE"                                                           701
+  ""                                                                      702
+  ""                                                                      703
+  " Cotes axes "                                                          704
+ 9"Tableau"                                                               705
+  "nombre stations diff‚rent par rapport … celui configur‚"               706
+  "MISE A ZERO"                                                           707
+  ""                                                                      708
+  "Changement ‚tat modules"                                               709
+  "Transmission tableau @%s@"                                             710
+  "nombre cotes plus grand que la m‚moire disponible"                     711
+  "cote @%d@ tableau @%d@ axe @%c@ hors limites"                          712
+  "station @%d@ du module @%d@ non configur‚e"                            713
+  ""                                                                      714
+  "Editer"                                                                715
+  "Retransmissions"                                                       716
+  "Manuel et diagnostic"                                                  717
+  "Auto-apprentissage"                                                    718
+  "Inizialisation systŠme"                                                719
+  "INIZIALISATION SYSTEME"                                                720
+  "Inizialisation"                                                        721
+  "Changement de programme … transmettre"                                 722
+  "Changement tableau … transmettre"                                      723
+  "Retransmission totale"                                                 724
+  "Une station"                                                           725
+  "Toutes les stations"                                                   726
+  "programme pas encore in ex‚cution, appuyer sur Start"                  727
+  "inizialisation ‚chou‚e"                                                728
+  "Fichier paramŠtres compil‚s non trouv‚"                                729
+  "programme @%s.%d@ trop long"                                           730
+  "programme @%s.%d@ non compil‚"                                         731
+  "function @%d@ station @%d@ dupliqu‚e"                                  732
+  "Transmission function @%03d@"                                          733
+  "Transmission paramŠtres"                                               734
+  "Transmission programme @%s@"                                           735
+  ""                                                                      736
+  "fichier de function @%s.%d@ non compil‚"                               737
+  "programme non s‚lectionn‚"                                             738
+  "Programmes s‚lectionn‚s"                                               739
+  "R‚pertoire station @%d@"                                               740
+  "Visualisation compteurs"                                               741
+  "programme inexistant"                                                  742
+  ""                                                                      743
+  "Tableaux s‚lectionn‚s"                                                 744
+  ""                                                                      745
+  ""                                                                      746
+  "Mouvement axes"                                                        747
+  ""                                                                      748
+ 8"Cote"                                                                  749
+  ""                                                                      750
+  "Tension sur sortie analogique"                                         751
+  "Nombre de sortie analogique"                                           752
+  "Tension en volt"                                                       753
+  "Ex‚cution function"                                                    754
+  "Op‚ration arrˆt‚e par l'utilisateur"                                   755
+  "vitesse hors limites"                                                  756
+26"X Y Z W V U  s‚lection axe"                                            757
+26"HOME  d‚but"                                                           758
+26"END  fin"                                                              759
+26"BARRE  on/off"                                                         760
+26"BARRE  arrˆte"                                                         761
+26"X Y Z W V  s‚lection axe"                                              762
+26"+ -  mouvement axe"                                                    763
+  "Axe en mouvement"                                                      764
+  "Axe en ‚tat libre"                                                     765
+
+Qui iniziano i messaggi di MONITOR.C
+  "@!801@"
+  "Menu comandi trace"                                                    801
+  "Attivazione trace programmi"                                           802
+  "Attivazione trace asse"                                                803
+  "Disattivazione trace"                                                  804
+  "Display stato task"                                                    805
+  "Menu comandi memoria"                                                  806
+  "Esamina celle di memoria"                                              807
+  "Display memoria"                                                       808
+  "Display continuo memoria"                                              809
+  "Scrittura dato in memoria"                                             810
+  "Movimento dati in memoria"                                             811
+  "Test memoria"                                                          812
+  "Calcolo checksum memoria"                                              813
+  "Menu comandi asse"                                                     814
+  "Abilitazione gestione asse"                                            815
+  "Disabilitazione gestione asse"                                         816
+  "Onda quadra sul DAC"                                                   817
+  "Scrittura dato sul DAC"                                                818
+  "Menu comandi ingressi/uscite"                                          819
+  "Display ingresso"                                                      820
+  "Display continuo ingressi"                                             821
+  "Modifica uscita"                                                       822
+  "Indirizzo"                                                             823
+  "Dato"                                                                  824
+  "Indirizzo iniziale"                                                    825
+  "Indirizzo finale"                                                      826
+  "Conferma"                                                              827
+  "Indirizzo destinazione"                                                828
+  "Dato 1"                                                                829
+  "Dato 2"                                                                830
+  "Ingresso 1"                                                            831
+  "Ingresso 2"                                                            832
+  "Numero"                                                                833
+26"BARRA  sospende display"                                               834
+25"MONITOR @%s%s@"                                                        835
+
+Qui iniziano i messaggi di AUTOAP.C
+  "@!851@"
+  "PROGRAMMATION: @%s@"                                                   851
+40"Ex‚cution de la ligne modifi‚e?"                                       852
+  "Ligne"                                                                 853
+  "Chercher"                                                              854
+  "Programme parallŠle"                                                   855
+  "Effacer la ligne @%d@"                                                 856
+  "Menu de programmation"                                                 857
+  "Menu GPL"                                                              858
+26"CTRL-P  d‚place ligne"                                                 859
+  "S‚lectionner axe"                                                      860
+  "Dispositifs machine"                                                   861
+  "Functions parallŠles"                                                  862
+15"Nø tours"                                                              863
+15"Vitesse"                                                               864
+  "B  d‚but protection"                                                   865
+15"Ex‚cution"                                                             866
+15"Ins‚rtion"                                                             867
+  "1-Automatique"                                                         868
+  "Programme @%s@ d‚ja existant. Confirme ?"                              869
+  "pas erron‚ ou manquant"                                                870
+15"Arrˆt"                                                                 871
+15"Cote absolue"                                                          872
+  "D‚tail"                                                                873
+12"Actif"                                                                 874
+12"Inactif"                                                               875
+15"Attendre actif"                                                        876
+17"Attendre inactif"                                                      877
+18"Sauter si actif"                                                       878
+18"Sauter si inactif"                                                     879
+  "Entr‚es"                                                               880
+  "Sorties"                                                               881
+26"CTRL-S  changement station"                                            882
+26"BARRE  exŠcute"                                                        883
+26"TAB  d‚place"                                                          884
+  "1-Menu principal"                                                      885
+15"Ajout"                                                                 886
+13"en ex‚cution"                                                          887
+26"ALT  menu"                                                             888
+26"CTRL-T  toggle box"                                                    889
+26"CTRL-<ÄÙ  exŠcute"                                                     890
+26"CTRL-DEL  efface ligne"                                                891
+  "Efface lignes de @%d@ … @%d@"                                          892
+  "Attendre function parallŠle"                                           893
+  "nom programme parallŠle trop long"                                     894
+12"Activer"                                                               895
+12"Inactiver"                                                             896
+26"CTRL-P  fin d‚placement"                                               897
+  "5-D‚shabilitation"                                                     898
+  "6-Localisation"                                                        899
+15"Habiliter"                                                             900
+  "Ligne d‚shabilit‚e"                                                    901
+20"et au timeout sauter"                                                  902
+11"… erreur"                                                              903
+11"… ‚tiquette"                                                           904
+10"ACCELER."                                                              905
+10"A REGIME"                                                              906
+10"DECELER."                                                              907
+10"THEORIQUE"                                                             908
+10"EN COTE"                                                               909
+26"E  fin de protection"                                                  910
+  "Nombre de r‚p‚titions"                                                 911
+  "Sauter …"                                                              912
+  "‚tiquette encore en usage"                                             913
+  "1-Gestion axes"                                                        914
+  "2-Dispositifs"                                                         915
+  "4-Saute"                                                               916
+  "5-R‚p‚tition"                                                          917
+  "7-Instruction GPL"                                                     918
+  "3-Message"                                                             919
+  "8-Gestion programme"                                                   920
+  "9-Change de station"                                                   921
+  "6-Attente function parallŠle"                                          922
+  "U-Usinages"                                                            923
+  "2-Sauvegarder"                                                         924
+  "3-Impression"                                                          925
+  "4-Comment"                                                             926
+  "Message"                                                               927
+  "Saute"                                                                 928
+  "R‚p‚tition"                                                            929
+  "Gestion programme"                                                     930
+  "Usinages"                                                              931
+
+Fine dei messaggi

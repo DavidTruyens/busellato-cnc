@@ -1,0 +1,1445 @@
+; *********** FUNZIONI DI FORATURA (SUPERJUNIOR - BUSELLATO) **************
+
+FUN      101,ForoF1                    ;Funz. per la foratura in faccia 1
+         SKZ       0+ATTUALE           ;
+         RES       EVFSR               ;
+         SKZ       1+ATTUALE           ;
+         RES       EVFST               ;
+         SKZ       2+ATTUALE           ;
+         RES       EVFSA               ;
+         SKZ       3+ATTUALE           ;
+         RES       EVFSS               ;
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC,NOARIA     ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+NOARIA:  WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYRALLE             ;
+         CALL      QYRALLE             ;
+         WEND      Y,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYRALLU             ;
+         WEND      Y,Q                 ;
+         CALL      VYRALLU             ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+         VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET
+
+;*****************  SUBROUTINE (F101) PER LA FACCIA 1 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VYRALLE: VEL       Y,&VELY
+         RET
+
+QYRALLE: MOV       Y,&QY
+         RET
+
+VYLAVORO:VEL       Y,&VELY
+         RET
+
+QYRALLU: MOV       Y,&QY
+         RET
+
+VYRALLU: VEL       Y,&VELY
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F101) FUNZIONE DI FORATURA IN FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX LAVORO
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VELY R.E
+;20  --> QY R.E
+;21  --> VELY LAVORO
+;22  --> QY R.U
+;23  --> VELY R.U
+;24  --> QY LAVORO
+;25  --> QZ ARIA SCAMBIO
+;26  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+FUN      102,ForoF2                    ;Funz. per la foratura in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC,NOARIA     ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+NOARIA:  WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYRALLE             ;
+         CALL      QYRALLE             ;
+         WEND      Y,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYRALLU             ;
+         WEND      Y,Q                 ;
+         CALL      VYRALLU             ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+         VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET
+
+;*****************  SUBROUTINE (F102) PER LA FACCIA 2 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QYARIA:  MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VYRALLE: VEL       Y,&VELY
+         RET
+
+QYRALLE: MOV       Y,&QY
+         RET
+
+VYLAVORO:VEL       Y,&VELY
+         RET
+
+QYRALLU: MOV       Y,&QY
+         RET
+
+VYRALLU: VEL       X,&VELY
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F102) FUNZIONE DI FORATURA IN FACCIA 2 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX LAVORO
+;06  --> QY ARIA
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VELY R.E
+;20  --> QY R.E
+;21  --> VELY LAVORO
+;22  --> QY R.U
+;23  --> VELY R.U
+;24  --> QY LAVORO
+;25  --> QZ ARIA SCAMBIO
+;26  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+FUN      103,ForoF3                    ;Funz. per la foratura in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYLAVORO            ;
+         SNZ       STUTPREC,NOARIA     ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+NOARIA:  WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+NOASSEZ: CALL      VXRALLE             ;
+         CALL      QXRALLE             ;
+         WEND      X,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXRALLU             ;
+         WEND      X,Q                 ;
+         CALL      VXRALLU             ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+         VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET
+
+
+;*****************  SUBROUTINE (F103) PER LA FACCIA 3 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VXRALLE: VEL       X,&VELX
+         RET
+
+QXRALLE: MOV       X,&QX
+         RET
+
+VXLAVORO:VEL       X,&VELX
+         RET
+
+QXRALLU: MOV       X,&QX
+         RET
+
+VXRALLU: VEL       X,&VELX
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F103) FUNZIONE DI FORATURA IN FACCIA 3 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY LAVORO
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VELX R.E
+;20  --> QX R.E
+;21  --> VELX LAVORO
+;22  --> QX R.U
+;23  --> VELX R.U
+;24  --> QX LAVORO
+;25  --> QZ ARIA SCAMBIO
+;26  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+FUN      104,ForoF4                    ;Funz. per la foratura in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYLAVORO            ;
+         SNZ       STUTPREC,NOARIA     ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+NOARIA:  WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VXRALLE             ;
+         CALL      QXRALLE             ;
+         WEND      X,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXRALLU             ;
+         WEND      X,Q                 ;
+         CALL      VXRALLU             ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+         VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET
+
+
+;*****************  SUBROUTINE (F104) PER LA FACCIA 4 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXARIA:  MOV       X,&QX
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0
+         OUT       &BYTE+PORTINS1
+         OUT       &BYTE+PORTINS2
+         OUT       &BYTE+PORTINS3
+         OUT       &BYTE+PORTINS4
+         OUT       &BYTE+PORTINS5
+         OUT       &BYTE+PORTINS6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+VXRALLE: VEL       X,&VELX
+         RET
+
+QXRALLE: MOV       X,&QX
+         RET
+
+VXLAVORO:VEL       X,&VELX
+         RET
+
+QXRALLU: MOV       X,&QX
+         RET
+
+VXRALLU: VEL       X,&VELX
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+; ***** NOTE: FUNZIONE (F104) FUNZIONE DI FORATURA IN FACCIA 4 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX ARIA
+;06  --> QY LAVORO
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> QZ LAVORO
+;19  --> VELX R.E
+;20  --> QX R.E
+;21  --> VELX LAVORO
+;22  --> QX R.U
+;23  --> VELX R.U
+;24  --> QX LAVORO
+;25  --> QZ ARIA SCAMBIO
+;26  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+FUN      105,ForoF5                    ;Funz. per la foratura in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,NOASSEZ1   ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYLAVORO            ;
+NOASSEZ: SNZ       STUTPREC,NOUTENS    ;Se=1 Battuta prec. stessi uensili
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+NOUTENS: SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+         WEND      XYZ,Q               ;
+         SNZ       PNEUMAT,NOASSEZ1    ;
+         CALL      VZRALLE             ;
+         CALL      QZRALLE             ;
+         WEND      Z,Q                 ;
+         CALL      VZLAVORO            ;
+         CALL      QZRALLU             ;
+         WEND      Z,Q                 ;
+         CALL      VZRALLU             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         VEL       Z                   ;
+NOASSEZ1:SNZ       STESSUT             ;Se=1 Prossima battuta stessi utens.
+         FCALL     169                 ;
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET
+
+
+;*****************  SUBROUTINE (F105) PER LA FACCIA 5 ********************
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTOUT0
+         OUT       &BYTE+PORTOUT1
+         OUT       &BYTE+PORTOUT2
+         OUT       &BYTE+PORTOUT3
+         OUT       &BYTE+PORTOUT4
+         OUT       &BYTE+PORTOUT5
+         OUT       &BYTE+PORTOUT6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+VZRALLE: VEL       Z,&VELZ
+         RET
+
+QZRALLE: MOV       Z,&QZ
+         RET
+
+VZLAVORO:VEL       Z,&VELZ
+         RET
+
+QZRALLU: MOV       Z,&QZ
+         RET
+
+VZRALLU: VEL       Z,&VELZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+
+; NOTE: FUNZIONE (F105) FUNZIONE DI FORATURA IN FACCIA 5
+
+;Lunghezza totale testo da trasmettere = 56 byte di parametri + 3 byte di
+;richiamo FCALL
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> VOUT MANDRINO
+;05  --> QX LAVORO
+;06  --> QY LAVORO
+;07  --> MASK UT0
+;08  --> MASK UT1
+;09  --> MASK UT2
+;10  --> MASK UT3
+;11  --> MASK UT4
+;12  --> MASK UT5
+;13  --> MASK UT6
+;14  --> MASK UT7
+;15  --> MASK UT8
+;16  --> MASK UT9
+;17  --> QZ ARIA
+;18  --> VZ RALLE
+;19  --> QZ RALLE
+;20  --> VZ LAVORO
+;21  --> QZ RALLU
+;22  --> VZ RALLU
+;23  --> QZ LAVORO
+;24  --> ARIA o SCAMBIO (ALTO - BASSO)
+;25  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+
+;>>>>>>>>>>> FUNZIONI DI FITTING RIPETI SULLE 5 FACCE
+
+FUN      106,FittF1                    ;Funz.  Fitting in faccia 1
+
+         SKZ       0+ATTUALE           ;Reset fermi a scomp su sel fermi su
+         RES       EVFSR               ;
+         SKZ       1+ATTUALE           ;
+         RES       EVFST               ;
+         SKZ       2+ATTUALE           ;
+         RES       EVFSA               ;
+         SKZ       3+ATTUALE           ;
+         RES       EVFSS               ;
+         OUT       &BYTE+FITTIZ1       ;1
+         OUT       &BYTE+FITTIZ2       ;2
+         OUT       &BYTE+FITTIZ3       ;3
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         CALL      SETCONT             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC            ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Set motore mandrino 1 o 2
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+INICICL: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYRALLE             ;
+         CALL      QYRALLE             ;
+         WEND      Y,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+         TCOUNT    0,=,1,FUNEND        ;
+         VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         DCOUNT    0                   ;
+         INC       X                   ;
+         TCOUNT    0,=,1,ULTBAT        ;
+         CALL      QXINCLAV            ;
+         BRA       INICICL             ;
+ULTBAT:  CALL      QXULTLAV            ;
+         BRA       INICICL             ;
+FUNEND:  VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         DCOUNT    0                   ;
+         ABS       X                   ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+;*****************  SUBROUTINE (F106) PER LA FACCIA 1 ********************
+
+SETCONT: SCOUNT    0,&NUMBAT           ;4
+         RET
+
+VMANDR:  VOUT      6,&VMAND            ;5
+         RET
+
+QXLAVORO:MOV       X,&QX               ;6
+         RET
+
+QYARIA:  MOV       Y,&QY               ;7
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0      ;8
+         OUT       &BYTE+PORTINS1      ;9
+         OUT       &BYTE+PORTINS2      ;10
+         OUT       &BYTE+PORTINS3      ;11
+         OUT       &BYTE+PORTINS4      ;12
+         OUT       &BYTE+PORTINS5      ;13
+         OUT       &BYTE+PORTINS6      ;14
+         OUT       &BYTE+PORTINS7      ;15
+         OUT       &BYTE+PORTINS8      ;16
+         OUT       &BYTE+PORTINS9      ;17
+         RET
+
+QZARIA:  MOV       Z,&QZ               ;18
+         RET
+
+VYRALLE: VEL       Y,&VELY             ;19
+         RET
+
+QYRALLE: MOV       Y,&QY               ;20
+         RET
+
+VYLAVORO:VEL       Y,&VELY             ;21
+         RET
+
+QYLAVORO:MOV       Y,&QY               ;22
+         RET
+
+QXINCLAV:MOV       X,&QX               ;23
+         RET
+
+QYINCLAV:MOV       Y,&QY     ;Non utilizzato  24
+         RET
+
+QXULTLAV:MOV       X,&QX               ;25
+         RET
+
+QYULTLAV:MOV       Y,&QY     ;Non utilizzato  26
+         RET
+
+QZLAVORO:MOV       Z,&QZ               ;27
+         RET
+
+QZARISCA:MOV       Z,&QZ               ;28
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10         ;29
+         RET
+
+
+
+
+; ***** NOTE: FUNZIONE (F106) FUNZIONE DI FITTING IN FACCIA 1 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> NUMBAT
+;05  --> VOUT MANDRINO
+;06  --> QX LAVORO
+;07  --> QY ARIA
+;08  --> MASK UT0
+;09  --> MASK UT1
+;10  --> MASK UT2
+;11  --> MASK UT3
+;12  --> MASK UT4
+;13  --> MASK UT5
+;14  --> MASK UT6
+;15  --> MASK UT7
+;16  --> MASK UT8
+;17  --> MASK UT9
+;18  --> QZ ARIA
+;19  --> VELY R.E
+;20  --> QY R.E
+;21  --> VELY LAVORO
+;22  --> QY LAVORO
+;23  --> QX INCLAVORO
+;24  --> QY INCLAVORO
+;25  --> QX ULTLAVORO
+;26  --> QY ULTLAVORO
+;27  --> QZ LAVORO
+;28  --> QZ ARIA SCAMBIO
+;29  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+
+FUN      107,FittF2                    ;Funz. Fitting in faccia 2
+
+         OUT       &BYTE+FITTIZ1       ;1
+         OUT       &BYTE+FITTIZ2       ;2
+         OUT       &BYTE+FITTIZ3       ;3
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         CALL      SETCONT             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYARIA              ;
+         SNZ       STUTPREC            ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Set motore mandrino 1 o 2
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+INICICL: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VYRALLE             ;
+         CALL      QYRALLE             ;
+         WEND      Y,Q                 ;
+         CALL      VYLAVORO            ;
+         CALL      QYLAVORO            ;
+         WEND      Y,Q                 ;
+         TCOUNT    0,=,1,FUNEND
+         VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         DCOUNT    0                   ;
+         INC       X                   ;
+         TCOUNT    0,=,1,ULTBAT        ;
+         CALL      QXINCLAV            ;
+         BRA       INICICL             ;
+ULTBAT:  CALL      QXULTLAV            ;
+         BRA       INICICL             ;
+FUNEND:  VEL       Y                   ;
+         CALL      QYARIA              ;
+         WEND      Y,Q                 ;
+         DCOUNT    0                   ;
+         ABS       X                   ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+;*****************  SUBROUTINE (F107) PER LA FACCIA 2 ********************
+
+SETCONT: SCOUNT    0,&NUMBAT           ;4
+         RET
+
+VMANDR:  VOUT      6,&VMAND            ;5
+         RET
+
+QXLAVORO:MOV       X,&QX               ;6
+         RET
+
+QYARIA:  MOV       Y,&QY               ;7
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0      ;8
+         OUT       &BYTE+PORTINS1      ;9
+         OUT       &BYTE+PORTINS2      ;10
+         OUT       &BYTE+PORTINS3      ;11
+         OUT       &BYTE+PORTINS4      ;12
+         OUT       &BYTE+PORTINS5      ;13
+         OUT       &BYTE+PORTINS6      ;14
+         OUT       &BYTE+PORTINS7      ;15
+         OUT       &BYTE+PORTINS8      ;16
+         OUT       &BYTE+PORTINS9      ;17
+         RET
+
+QZARIA:  MOV       Z,&QZ               ;18
+         RET
+
+VYRALLE: VEL       Y,&VELY             ;19
+         RET
+
+QYRALLE: MOV       Y,&QY               ;20
+         RET
+
+VYLAVORO:VEL       Y,&VELY             ;21
+         RET
+
+QYLAVORO:MOV       Y,&QY               ;22
+         RET
+
+QXINCLAV:MOV       X,&QX               ;23
+         RET
+
+QYINCLAV:MOV       Y,&QY     ;Non utilizzato  24
+         RET
+
+QXULTLAV:MOV       X,&QX               ;25
+         RET
+
+QYULTLAV:MOV       Y,&QY     ;Non utilizzato  26
+         RET
+
+QZLAVORO:MOV       Z,&QZ               ;27
+         RET
+
+QZARISCA:MOV       Z,&QZ               ;28
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10         ;29
+         RET
+
+
+
+; ***** NOTE: FUNZIONE (F107) FUNZIONE DI FITTING IN FACCIA 2 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> NUMBAT
+;05  --> VOUT MANDRINO
+;06  --> QX LAVORO
+;07  --> QY ARIA
+;08  --> MASK UT0
+;09  --> MASK UT1
+;10  --> MASK UT2
+;11  --> MASK UT3
+;12  --> MASK UT4
+;13  --> MASK UT5
+;14  --> MASK UT6
+;15  --> MASK UT7
+;16  --> MASK UT8
+;17  --> MASK UT9
+;18  --> QZ ARIA
+;19  --> VELY R.E
+;20  --> QY R.E
+;21  --> VELY LAVORO
+;22  --> QY LAVORO
+;23  --> QX INCLAVORO
+;24  --> QY INCLAVORO
+;25  --> QX ULTLAVORO
+;26  --> QY ULTLAVORO
+;27  --> QZ LAVORO
+;28  --> QZ ARIA SCAMBIO
+;29  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+
+FUN      108,FittF3                    ;Funz. per Fitting in faccia 3
+
+         OUT       &BYTE+FITTIZ1       ;1
+         OUT       &BYTE+FITTIZ2       ;2
+         OUT       &BYTE+FITTIZ3       ;3
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         CALL      SETCONT             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYLAVORO            ;
+         SNZ       STUTPREC            ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Set motore mandrino 1 o 2
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+INICICL: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VXRALLE             ;
+         CALL      QXRALLE             ;
+         WEND      X,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+         TCOUNT    0,=,1,FUNEND        ;
+         VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         DCOUNT    0                   ;
+         INC       Y                   ;
+         TCOUNT    0,=,1,ULTBAT        ;
+         CALL      QYINCLAV            ;
+         BRA       INICICL             ;
+ULTBAT:  CALL      QYULTLAV            ;
+         BRA       INICICL             ;
+FUNEND:  VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         DCOUNT    0                   ;
+         ABS       Y                   ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+;*****************  SUBROUTINE (F108) PER LA FACCIA 3 ********************
+
+SETCONT: SCOUNT    0,&NUMBAT           ;4
+         RET
+
+VMANDR:  VOUT      6,&VMAND            ;5
+         RET
+
+QXARIA  :MOV       X,&QX               ;6
+         RET
+
+QYLAVORO:MOV       Y,&QY               ;7
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0      ;8
+         OUT       &BYTE+PORTINS1      ;9
+         OUT       &BYTE+PORTINS2      ;10
+         OUT       &BYTE+PORTINS3      ;11
+         OUT       &BYTE+PORTINS4      ;12
+         OUT       &BYTE+PORTINS5      ;13
+         OUT       &BYTE+PORTINS6      ;14
+         OUT       &BYTE+PORTINS7      ;15
+         OUT       &BYTE+PORTINS8      ;16
+         OUT       &BYTE+PORTINS9      ;17
+         RET
+
+QZARIA:  MOV       Z,&QZ               ;18
+         RET
+
+VXRALLE: VEL       X,&VELX             ;19
+         RET
+
+QXRALLE: MOV       X,&QX               ;20
+         RET
+
+VXLAVORO:VEL       X,&VELX             ;21
+         RET
+
+QXLAVORO:MOV       X,&QX               ;22
+         RET
+
+QXINCLAL:MOV       X,&QX     ;Non utilizzato  23
+         RET
+
+QYINCLAV:MOV       Y,&QY               ;24
+         RET
+
+QXULTLAV:MOV       X,&QX     ;Non utilizzato  25
+         RET
+
+QYULTLAV:MOV       Y,&QY               ;26
+         RET
+
+QZLAVORO:MOV       Z,&QZ               ;27
+         RET
+
+QZARISCA:MOV       Z,&QZ               ;28
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10         ;29
+         RET
+
+; ***** NOTE: FUNZIONE (F108) FUNZIONE DI FITTING IN FACCIA 3 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> NUMBAT
+;05  --> VOUT MANDRINO
+;06  --> QX ARIA
+;07  --> QY LAVORO
+;08  --> MASK UT0
+;09  --> MASK UT1
+;10  --> MASK UT2
+;11  --> MASK UT3
+;12  --> MASK UT4
+;13  --> MASK UT5
+;14  --> MASK UT6
+;15  --> MASK UT7
+;16  --> MASK UT8
+;17  --> MASK UT9
+;18  --> QZ ARIA
+;19  --> VELX R.E
+;20  --> QX R.E
+;21  --> VELX LAVORO
+;22  --> QX LAVORO
+;23  --> QX INCLAVORO
+;24  --> QY INCLAVORO
+;25  --> QX ULTLAVORO
+;26  --> QY ULTLAVORO
+;27  --> QZ LAVORO
+;28  --> QZ ARIA SCAMBIO
+;29  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+FUN      109,FittF4                    ;Funz. Fitting in faccia 4
+
+         OUT       &BYTE+FITTIZ1       ;1
+         OUT       &BYTE+FITTIZ2       ;2
+         OUT       &BYTE+FITTIZ3       ;3
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         CALL      SETCONT             ;
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXARIA              ;
+         CALL      QYLAVORO            ;
+         SNZ       STUTPREC            ;Se=1 Batt. prec. con stessi Ut.
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Set motore mandrino 1 o 2
+         FCALL     81                  ;Funz. set utensili orizzontali
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+INICICL: WEND      XYZ,Q               ;
+         SNZ       PNEUMAT             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+         CALL      VXRALLE             ;
+         CALL      QXRALLE             ;
+         WEND      X,Q                 ;
+         CALL      VXLAVORO            ;
+         CALL      QXLAVORO            ;
+         WEND      X,Q                 ;
+         TCOUNT    0,=,1,FUNEND
+         VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         DCOUNT    0                   ;
+         INC       Y                   ;
+         TCOUNT    0,=,1,ULTBAT        ;
+         CALL      QYINCLAV            ;
+         BRA       INICICL             ;
+ULTBAT:  CALL      QYULTLAV            ;
+         BRA       INICICL             ;
+FUNEND:  VEL       X                   ;
+         CALL      QXARIA              ;
+         WEND      X,Q                 ;
+         DCOUNT    0                   ;
+         ABS       Y                   ;
+         SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+ESCI:    SNZ       STESSUT             ;Se=1 Prossima batt. stesso Ut.
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+;*****************  SUBROUTINE (F109) PER LA FACCIA 4 ********************
+
+SETCONT: SCOUNT    0,&NUMBAT           ;4
+         RET
+
+VMANDR:  VOUT      6,&VMAND            ;5
+         RET
+
+QXARIA  :MOV       X,&QX               ;6
+         RET
+
+QYLAVORO:MOV       Y,&QY               ;7
+         RET
+
+SETTOOL: OUT       &BYTE+PORTINS0      ;8
+         OUT       &BYTE+PORTINS1      ;9
+         OUT       &BYTE+PORTINS2      ;10
+         OUT       &BYTE+PORTINS3      ;11
+         OUT       &BYTE+PORTINS4      ;12
+         OUT       &BYTE+PORTINS5      ;13
+         OUT       &BYTE+PORTINS6      ;14
+         OUT       &BYTE+PORTINS7      ;15
+         OUT       &BYTE+PORTINS8      ;16
+         OUT       &BYTE+PORTINS9      ;17
+         RET
+
+QZARIA:  MOV       Z,&QZ               ;18
+         RET
+
+VXRALLE: VEL       X,&VELX             ;19
+         RET
+
+QXRALLE: MOV       X,&QX               ;20
+         RET
+
+VXLAVORO:VEL       X,&VELX             ;21
+         RET
+
+QXLAVORO:MOV       X,&QX               ;22
+         RET
+
+QXINCLAV:MOV       X,&QX     ;Non utilizzato  23
+         RET
+
+QYINCLAV:MOV       Y,&QY
+         RET                           ;24
+
+QXULTLAV:MOV       X,&QX     ;Non utilizzato  25
+         FRET
+
+QYULTLAV:MOV       Y,&QY               ;26
+         RET
+
+QZLAVORO:MOV       Z,&QZ               ;27
+         RET
+
+QZARISCA:MOV       Z,&QZ               ;28
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10         ;29
+         RET
+
+; ***** NOTE: FUNZIONE (F109) FUNZIONE DI FITTING IN FACCIA 4 *******
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> NUMBAT
+;05  --> VOUT MANDRINO
+;06  --> QX ARIA
+;07  --> QY LAVORO
+;08  --> MASK UT0
+;09  --> MASK UT1
+;10  --> MASK UT2
+;11  --> MASK UT3
+;12  --> MASK UT4
+;13  --> MASK UT5
+;14  --> MASK UT6
+;15  --> MASK UT7
+;16  --> MASK UT8
+;17  --> MASK UT9
+;18  --> QZ ARIA
+;19  --> VELX R.E
+;20  --> QX R.E
+;21  --> VELX LAVORO
+;22  --> QX LAVORO
+;23  --> QX INCLAVORO
+;24  --> QY INCLAVORO
+;25  --> QX ULTLAVORO
+;26  --> QY ULTLAVORO
+;27  --> QZ LAVORO
+;28  --> QZ ARIA SCAMBIO
+;29  --> BYTE UTENSILE DOPO 10 LAV.
+
+
+
+
+FUN      110,FittF5                    ;Funz. di Fitting in faccia 5
+
+         OUT       &BYTE+FITTIZ1       ;
+         OUT       &BYTE+FITTIZ2       ;
+         OUT       &BYTE+FITTIZ3       ;
+         SNZ       CAMBUT,SEG          ;Con cambio ut. no esclus.
+         FCALL     71                  ;Funz. di test su esclusioni
+         SNZ       FLGESCLU,ESCI       ;
+SEG:     CALL      SCPUT10             ;Scrive byte su ut. dopo 10 lav.
+         CALL      SETCONT             ;Setta il count valore 'NN'battute
+         VEL       X                   ;
+         VEL       Y                   ;
+         VEL       Z                   ;
+         CALL      VMANDR              ;
+         CALL      QXLAVORO            ;
+         CALL      QYLAVORO            ;
+         SNZ       STUTPREC,NOUT       ;Se=1 Battuta prec. stessi uensili
+         CALL      SETTOOL             ;Utensili diversi
+         FCALL     83                  ;Funz. set motori mandrini
+NOUT:    SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+INICICL: WEND      XYZ,Q               ;
+         CALL      VZRALLE             ;
+         SNZ       PNEUMAT,NOASSEZ1    ;
+         CALL      QZRALLE             ;
+         WEND      Z,Q                 ;
+         CALL      VZLAVORO            ;
+         CALL      QZRALLU             ;
+         WEND      Z,Q                 ;
+         CALL      VZRALLU             ;
+         CALL      QZLAVORO            ;
+         WEND      Z,Q                 ;
+NOASSEZ1:TCOUNT    0,=,1,FUNEND        ;
+         VEL       Z
+         SNZ       PNEUMAT             ;
+         CALL      QZARIA              ;
+         VEL       Z                   ;
+         WEND      Z,Q                 ;
+         DCOUNT    0                   ;
+         INC       XY                  ;
+         TCOUNT    0,=,1,ULTBAT        ;
+         CALL      QXINCLAV            ;
+         CALL      QYINCLAV            ;
+         BRA       INICICL             ;
+ULTBAT:  CALL      QXULTLAV            ;
+         CALL      QYULTLAV            ;
+         BRA       INICICL             ;
+FUNEND:  SNZ       PNEUMAT             ;
+         VEL       Z                   ;
+         DCOUNT    0                   ;
+         ABS       XY                  ;
+ESCI:    SNZ       STESSUT             ;
+         FCALL     169                 ;Funzione di reset utensili
+         CALL      QZARISCA            ;
+         WEND      Z,Q                 ;
+         FRET                          ;
+
+;*****************  SUBROUTINE (F110) PER LA FACCIA 5 ********************
+
+SETCONT: SCOUNT    0,&NUMBAT
+         RET
+
+VMANDR:  VOUT      6,&VMAND
+         RET
+
+QXLAVORO:MOV       X,&QX
+         RET
+
+QYLAVORO:MOV       Y,&QY
+         RET
+
+SETTOOL: OUT       &BYTE+PORTOUT0
+         OUT       &BYTE+PORTOUT1
+         OUT       &BYTE+PORTOUT2
+         OUT       &BYTE+PORTOUT3
+         OUT       &BYTE+PORTOUT4
+         OUT       &BYTE+PORTOUT5
+         OUT       &BYTE+PORTOUT6
+         OUT       &BYTE+PORTINS7
+         OUT       &BYTE+PORTINS8
+         OUT       &BYTE+PORTINS9
+         RET
+
+QZARIA:  MOV       Z,&QZ
+         RET
+
+VZRALLE: VEL       Z,&VELZ
+         RET
+
+QZRALLE: MOV       Z,&QZ
+         RET
+
+VZLAVORO:VEL       Z,&VELZ
+         RET
+
+QZLAVORO:MOV       Z,&QZ
+         RET
+
+QXINCLAV:MOV       X,&QX
+         RET
+
+QYINCLAV:MOV       Y,&QY
+         RET
+
+QXULTLAV:MOV       X,&QY
+         RET
+
+QYULTLAV:MOV       Y,&QY
+         RET
+
+QZARISCA:MOV       Z,&QZ
+         RET
+
+VZRALLU: VEL       Z,&VELZ
+         RET
+
+QZRALLU: MOV       Z,&QZ
+         RET
+
+SCPUT10: OUT       &BYTE+PUT10
+         RET
+
+
+; NOTE: FUNZIONE (F110) FUNZIONE DI FITTING IN FACCIA 5
+
+;ELENCO PARAMETRI:
+
+;01  --> BYTE FITTIZIO1
+;02  -->   "     "    2
+;03  -->   "     "    3 ESCLUSIONI
+;04  --> NUMBATT
+;05  --> VOUT MANDRINO
+;06  --> QX LAVORO
+;07  --> QY LAVORO
+;09  --> MASK UT0
+;10  --> MASK UT1
+;11  --> MASK UT2
+;12  --> MASK UT3
+;13  --> MASK UT4
+;14  --> MASK UT5
+;15  --> MASK UT6
+;16  --> MASK UT7
+;17  --> MASK UT8
+;18  --> MASK UT9
+;19  --> QZ ARIA
+;20  --> VZ RALLE
+;21  --> QZ RALLE
+;22  --> VZ LAVORO
+;23  --> QZ LAVORO
+;24  --> QX INCLAVORO
+;25  --> QY INCLAVORO
+;26  --> QX ULTLAVORO
+;27  --> QY ULTLAVORO
+;28  --> ARIA o SCAMBIO (ALTO - BASSO)
+;29  --> VZ RALLU
+;30  --> QZ RALLU
+;31  --> BYTE UTENSILE DOPO 10 LAV.

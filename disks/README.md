@@ -45,5 +45,8 @@ sector. The `.img` still holds exactly what is on the diskette.
 | H01 | H01 listing (diskette was D15, reformatted) | 2026-09-25 | `6cd27d1d295a89173012515481341faa990f6e0bb9829c2d6280b04de43ddfde` | 0 | 5 / 5 (+3 macOS `.fseventsd`) | OK | `CHKDSK C:`, `DIR C:\ /S`, `ATTRIB C:\*.* /S`, `CONFIG.SYS`, `AUTOEXEC.BAT` (copied to `hdd/`). Machine clock reads 2008-10-17 |
 | H02 | SORG samples Z+W with COMP (diskette H01 reused) | 2026-09-25 | `cf38c33e62a913bdeded2e2565bf06b8658c7c591218de3e0d5fb120c6c92dd0` | 0 | 382 / 382 checked against LISTING.TXT | OK | Program sources `SORG\SRG\Z`,`W`, tables `SORG\TAB\Z`,`W`, compiled `COMP\NOC\Z`,`W`, `COMP\SPC\Z`; H01 files still present |
 | H03 | batch 1: MOD1\USER (+ INDICE.PRG) | 2026-09-25 | `c70751779148b643c1de31a093259044471bf2593193b6bde9a241d2758b9611` | 0 | 93 / 93 checked against LISTING.TXT, + `INDICE.PRG` | OK | Current `C:\CNC90\MOD1\USER\` (tool/technology tables), program index `SORG\INDICE.PRG` |
+| H04 | batch 2: PTP0, PTPSYS, PTP1000 | 2026-10-23 | `3c01afd9b6a25227df736bcbf4a373cb07a78c886f69a562b363ccae711ae3ee` | 0 | 81 / 81 checked against LISTING.TXT (name, size), + `COPY.BAT` and a 0-byte `H04` file (unexplained) | OK | Current `C:\PTP0\` (37), `C:\PTP1000\` (40), `C:\PTPSYS\` (4) |
+
+The physical D17 diskette was erased and reused as H05 on 2026-10-23 (its capture is byte-identical, committed in 917513e). The physical D15 became H01/H02 earlier.
 
 Photo of the green set: `2026-09-25_diskettes-set-of-7.jpg`. Photos of all disks and labels: Proton Drive, folder `busellato-cnc-images`.
