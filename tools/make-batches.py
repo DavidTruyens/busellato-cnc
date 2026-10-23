@@ -35,6 +35,8 @@ def count_files(xcopy):
     names = files_in.get(directory if directory != 'C:' else 'C:\\', [])
     if pattern == '*.*':
         return len(names)
+    if '*' not in pattern:
+        return names.count(pattern)
     assert pattern.endswith('*.*'), pattern
     stem = pattern[:-3]
     return sum(1 for n in names if n.split('.')[0].startswith(stem))
@@ -43,6 +45,24 @@ def count_files(xcopy):
 plan = (repo / 'hdd' / 'COPY-PLAN.md').read_text(encoding='utf-8')
 out = repo / 'hdd' / 'batches'
 out.mkdir(exist_ok=True)
+
+def write_bat(label, title, files, cmds):
+    lines = [
+        '@ECHO OFF',
+        f'REM {title} -> {label}: {files} files plus this COPY.BAT',
+        'ECHO.',
+        f'ECHO {title}: this diskette must be labelled {label}.',
+        'VOL A:',
+        'ECHO Ctrl+C to stop, any other key to copy.',
+        'PAUSE > NUL',
+        *cmds,
+        'ECHO.',
+        f'ECHO Done. Expected {files} files (+ COPY.BAT). Check the count below.',
+        'DIR A: /S',
+    ]
+    text = '\r\n'.join(lines).upper() + '\r\n'
+    (out / f'{label}.BAT').write_bytes(text.encode('ascii'))
+
 
 for block in re.split(r'^## Batch ', plan, flags=re.M)[1:]:
     head = re.match(r'(\d+) → (H\d+)\s+\((\d+) files', block)
@@ -60,20 +80,20 @@ for block in re.split(r'^## Batch ', plan, flags=re.M)[1:]:
             stale.unlink()
         print(f'{label}  batch {batch}  skipped (regenerated output)', file=sys.stderr)
         continue
-    lines = [
-        '@ECHO OFF',
-        f'REM Batch {batch} -> {label}: {files} files plus this COPY.BAT',
-        'ECHO.',
-        f'ECHO Batch {batch}: this diskette must be labelled {label}.',
-        'VOL A:',
-        'ECHO Ctrl+C to stop, any other key to copy.',
-        'PAUSE > NUL',
-        *cmds,
-        'ECHO.',
-        f'ECHO Done. Expected {files} files (+ COPY.BAT). Check the count below.',
-        'DIR A: /S',
-    ]
-    text = '\r\n'.join(lines).upper() + '\r\n'
-    text.encode('ascii')
-    (out / f'{label}.BAT').write_bytes(text.encode('ascii'))
+    write_bat(label, f'Batch {batch}', files, cmds)
     print(f'{label}.BAT  batch {batch}  {len(cmds)} XCOPY lines', file=sys.stderr)
+
+# Extra diskette (not in the plan): files that exist on no captured diskette, found on 2026-10-23
+# by comparing the rest of C: with every image in disks/ (name, size and date).
+EXTRA = [
+    ('H11', 'Extra', [c.replace('/', '\\') for c in (
+        'XCOPY C:/CNC90/MOD1/TEMPOR/*.* A:/CNC90/MOD1/TEMPOR/',
+        'XCOPY C:/CNC90/DRAWCNF.CNF A:/CNC90/',
+        'XCOPY C:/AUTOEXEC.BAK A:/ROOT/',
+        'XCOPY C:/CONFIG.BAK A:/ROOT/',
+    )]),
+]
+for label, title, cmds in EXTRA:
+    n = sum(count_files(c) for c in cmds)
+    write_bat(label, title, n, cmds)
+    print(f'{label}.BAT  {title}  {len(cmds)} XCOPY lines, {n} files', file=sys.stderr)

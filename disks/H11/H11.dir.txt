@@ -1,0 +1,45 @@
+ Volume in drive : is H11        
+ Volume Serial Number is 0559-18F6
+Directory for ::/
+
+COPY     BAT       417 2026-10-23  17:13 
+CNC90        <DIR>     2008-10-21  16:43 
+ROOT         <DIR>     2008-10-21  16:43 
+        3 files                 417 bytes
+
+Directory for ::/CNC90
+
+.            <DIR>     2008-10-21  16:43 
+..           <DIR>     2008-10-21  16:43 
+MOD1         <DIR>     2008-10-21  16:43 
+DRAWCNF  CNF        12 2008-10-21  12:08 
+        4 files                  12 bytes
+
+Directory for ::/CNC90/MOD1
+
+.            <DIR>     2008-10-21  16:43 
+..           <DIR>     2008-10-21  16:43 
+TEMPOR       <DIR>     2008-10-21  16:43 
+        3 files                   0 bytes
+
+Directory for ::/CNC90/MOD1/TEMPOR
+
+.            <DIR>     2008-10-21  16:43 
+..           <DIR>     2008-10-21  16:43 
+FUNZIONI DAT      1264 2008-10-21  12:08 
+PLANCIA  LST        59 2008-10-21  10:30 
+TESTINA  TMP         3 2008-03-02   8:21 
+        5 files               1 326 bytes
+
+Directory for ::/ROOT
+
+.            <DIR>     2008-10-21  16:43 
+..           <DIR>     2008-10-21  16:43 
+AUTOEXEC BAK       168 1992-09-09  11:50 
+CONFIG   BAK       151 1992-09-09  11:50 
+        4 files                 319 bytes
+
+Total files listed:
+       19 files               2 074 bytes
+                          1 451 008 bytes free
+
