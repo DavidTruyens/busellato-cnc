@@ -1,0 +1,24 @@
+//  **************** FILE : ESTERNO.DAN (lingua : danese) *************
+00"@!1000@"
+60"EKSTERNT PROGRAM"
+60"@release=5ESTERNO.EXE:@ LANGUAGE FILE RELEASE IS NOT CORRECT!!" ***	1 ***
+60"@Back8,Graphic mode18,xPixels640,yPixels480,Row25,column80@"	   ***	2 ***
+60"@ESTERNO.EXE: @WRONG OPTIONS DEFINITION. MESS.2 !!"             ***  3 ***
+60"@ESTERNO.EXE: @ADGANG TIL SPOOL FIL IKKE TILLADT !!"		   ***	4 ***
+60"@ESTERNO.EXE: @DER ER IKKE NOGET EKSTERNT PROGRAM !!"	   ***	5 ***
+60"@ESTERNO.EXE: @DER ER FOR MANGE EKSTERNE PROGRAMMER !!"	   ***	6 ***
+60"@ESTERNO.EXE: @INDSTILLING AF GRAFISK TILSTAND MISLYKKET !!"	   ***	7 ***
+60"@ESTERNO.EXE: @FONT FILE IS NOT VALID !!"                       ***  8 ***
+60"@ESTERNO.EXE: %s@ IS NOT ACCESSIBLE !!"                         ***  9 ***
+60"@ESTERNO.EXE: @UNABLE TO RETURN TO CALLING PROGRAM !!"          *** 10 ***
+32"Eksternt program"						   *** 11 ***
+59"Tryk paa en tast for at vende tilbage til det ekst . . ."	   *** 12 ***
+60"@<ESC> @afslutter@ - <ENTER> @vaelger"			   *** 13 ***
+60"@<ESC> @afslutter@ - <ENTER> @vaelger@ - <\x18 \x19> @flytter"  *** 14 ***
+60"@%#&VENTOSE.EXE%#&@Suckers activation"
+60"@%#&IMP.BAT%#&@Program's Importation"
+60"@%#$FORMAT A: /V%#$@Format Diskette 1.44 Mbyte"
+60"@%#$FORMAT A: /N:9 /T:80 /V%#$@Format Diskette 720 Kbyte"
+60"@%#$SALVAINA.BAT%#$@Write CUSTOM diskette in A"
+60"@%#$SALVAINC.BAT%#$@Write from CUSTOM diskette to C"
+60"@%#$PRINTDIR.EXE%#$@Print Programs Directory"

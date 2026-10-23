@@ -1,0 +1,24 @@
+//  **************** FILE : ESTERNO.FRA (lingua : francese) *************
+00"@!1000@"
+60"PROGRAMME EXTERNEL"						   ***	0 ***
+60"@release=5ESTERNO.EXE:@ MESSAGES NOT VALABLES !!"		   ***	1 ***
+60"@Sfondo8,Modo grafico18,xPixels640,yPixels480,Righe25,col80@"   ***	2 ***
+60"@ESTERNO.EXE: @ERREUR DANS LES DEFINITION SUR LE MESSAGE N¯ 2"  ***	3 ***
+60"@ESTERNO.EXE: @ISTRUCTION ERRONêE DANS LES MESSAGES @(%s)@"	   ***	4 ***
+60"@ESTERNO.EXE: @PAS DE PROGRAMMES EXTERNELS PRESENTE !!"	   ***	5 ***
+60"@ESTERNO.EXE: @TROP DE PROGRAMMES EXTERNELS PRESENTES !!"	   ***	6 ***
+60"@ESTERNO.EXE: @FAUT DANS LE PROGRAMMTION DU MODE GRAPHIQUE !!"  ***	7 ***
+60"@ESTERNO.EXE: @FONT NON VALABLE !!"				   ***	8 ***
+60"@ESTERNO.EXE: %s@ ACCES NIê !!"				   ***	9 ***
+60"@ESTERNO.EXE:@PAS POSSIBLE RETOURNER AU PROGRAMME APPELLANT !!" *** 10 ***
+32"Programme Externel"						   *** 11 ***
+60"Pousser une touche pour retourner au programme externel ..."    *** 12 ***
+60"<ESC> sortir - <ENTER> choisir"				   *** 13 ***
+60"<ESC> sortir - <ENTER> choisir - <\x18 \x19> deplace"	   *** 14 ***
+60"@%#&VENTOSE.EXE%#&@Editation sur Traverses et Ventouses"
+60"@%#&IMP.BAT%#&@Importation de programmes"
+60"@%#$FORMAT A: /V%#$@Format Disquette 1.44 Mbyte"
+60"@%#$FORMAT A: /N:9 /T:80 /V%#$@Format Disquette 720 Kbyte"
+60"@%#$SALVAINA.BAT%#$@Copie CUSTOM sur disquette in A"
+60"@%#$SALVAINC.BAT%#$@Copie disquette CUSTOM sur C"
+60"@%#$PRINTDIR.EXE%#$@Imprimante du Directoire"

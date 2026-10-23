@@ -1,0 +1,24 @@
+//  **************** FILE : ESTERNO.ITA (lingua : italiano) *************
+00"@!1000@"
+60"PROGRAMMA ESTERNO"                                              ***  0 ***
+60"@release=5ESTERNO.EXE:@ RELEASE DEL FILE DI LINGUA ERRATA !!"   ***	1 ***
+60"@Sfondo8,Modo grafico18,xPixels640,yPixels480,Righe25,col80@"   ***	2 ***
+60"@ESTERNO.EXE: @DEFINIZIONE DELLE OPZIONI ERRRATA. MESS.2 !!"    ***  3 ***
+60"@ESTERNO.EXE: @ISTRUZIONE ERRATA NEL FILE DI LINGUA. IST.@%s@"  ***  4 ***
+60"@ESTERNO.EXE: @NESSUN PROGRAMMA ESTERNO PRESENTE !!"            ***  5 ***
+60"@ESTERNO.EXE: @TROPPI PROGRAMMI ESTERNI PRESENTI !!"            ***  6 ***
+60"@ESTERNO.EXE: @SETTAGGIO DEL MODO GRAFICO FALLITO !!"           ***  7 ***
+60"@ESTERNO.EXE: @FILE DEI FONT NON VALIDO !!"                     ***  8 ***
+60"@ESTERNO.EXE: %s@ NON E' ACCESSIBILE !!"                        ***  9 ***
+60"@ESTERNO.EXE: @IMPOSSIBILE TORNARE AL PROGRAMMA CHIAMANTE !!"   *** 10 ***
+32"Programma Esterno"                                              *** 11 ***
+60"Premi un tasto per tornare al programma esterno . . ."          *** 12 ***
+60"@<ESC> @esce@ - <ENTER> @sceglie"                               *** 13 ***
+60"@<ESC> @esce@ - <ENTER> @sceglie@ - <\x18 \x19> @spostano"	   *** 14 ***
+60"@%#&VENTOSE.EXE%#&@Attivazione Traverse e Ventose"
+60"@%#&IMP.BAT%#&@Importazione programmi"
+60"@%#$FORMAT A: /V%#$@Format Dischetto 1.44 Mbyte"
+60"@%#$FORMAT A: /N:9 /T:80 /V%#$@Format Dischetto 720 Kbyte"
+60"@%#$SALVAINA.BAT%#$@Aggiorna disco CUSTOM in A"
+60"@%#$SALVAINC.BAT%#$@Copia disco CUSTOM in C"
+60"@%#$PRINTDIR.EXE%#$@Stampa del Direttorio dei programmi"

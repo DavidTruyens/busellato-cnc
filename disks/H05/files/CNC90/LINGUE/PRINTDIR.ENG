@@ -1,0 +1,22 @@
+00"@!1000@"             <---********** PRINTDIR.EXE  (Cristiano)
+25"Print programs directory"                                            // +0
+08"Module"                                                              // +1
+08"Modules"                                                             // +2
+10"Menu"                                                                // +3
+30"Change module"                                                       // +4
+30"Print total archives"                                                // +5
+30"Print beginning"                                                     // +6
+30"Print beginning - ending"                                            // +7
+20"Exit"                                                                // +8
+20"Start"                                                               // +9
+20"End"                                                                 //+10
+20"Print"                                                               //+11
+40"Confirm total print @%s@"                                            //+12
+50"Impossible open @%s@"                                                //+13
+50"File @%s@ empty"                                                     //+14
+40"No programs print"                                                   //+15
+40"Printer not enable"                                                  //+16
+03"0"   per debug memory                                                //+17
+55"Print beginning @%s@ ending @%s@"                                    //+18
+55"Print beginning @%s@"                                                //+19
+03"1"	1 = stampante grafica, 0 = stampante testo			//+20

@@ -1,0 +1,40 @@
+//  **************** FILE : PACKTIF.ITA (lingua : italiana) *************
+
+//MESSAGGI
+00"@!1@"                       <--- ******* PACKTIF.EXE (Polidori Cristiano)
+10"PACKTIF"                                                            //( 1)
+04"S/N"                                                                //( 2)
+25"Packed a file   ZIF"                                                //( 3)
+25"Linker di files ZIF"                                                //( 4)         
+20"Path sorgente"						       //( 5)
+25"Estensione sorgente"						       //( 6)
+25"Nome file/es"                                                       //( 7)
+25"Path destinazione"						       //( 8)
+30"Confermi dati ? (S/N)"                                              //( 9)
+30"Nome file di linker"                                                //(10)
+20"Numero di righe"						       //(11)
+20"Numero di colonne"						       //(12)
+20"Update ? (S/N)"						       //(13)
+30"Linker dei files in corso"					       //(14)
+30"Lingua"							       //(15)
+30"Packed dei files in corso"					       //(16)
+15"Nuovo Linker"						       //(17)
+
+//MESSAGGI DI HELP
+00"@!20@"
+28"<ENTER> Prosegue"						       //(20)
+28"< ESC > Uscita"						       //(21)
+
+//ERRORI che si possono verificare 
+00"@!30@"
+30"Path sorgente non valido"                                           //(30)
+40"Path di destinazione non valido"                                    //(31)
+30"Accesso a file negato"					       //(32)
+30"File/es inesistente/i"					       //(33)
+40"Valori di riga e colonna non validi" 			       //(34)
+35"Estensione file non valida"					       //(35)
+35"Nome file non valido"					       //(36)
+35"Dati insufficienti"						       //(37)
+30"Nome file di linker errato"					       //(38)
+35"Linkaggio dei files impossibile"				       //(39)
+35"Packed dei files impossibile"				       //(40)

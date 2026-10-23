@@ -1,0 +1,49 @@
+//  **************** FILE : EDILIST.ITA (lingua : italiano) *************
+00"@!1000@"
+80"EDITOR LISTE"
+33"Direttorio delle Liste"
+33"Direttorio dei Programmi"
+33"Nuova Lista"
+33"Cancellazione delle Liste"
+33"Copia della Lista"
+33"Carica Lista"
+33"Salvataggio Lista"
+33"Importazione lista di automatico"
+33"Stampa delle Liste"
+33"Rinomina Lista"
+33"Uscita da Editor Liste"
+01"-"
+01"-"
+01"-"
+01"-"
+01"-"
+64"|17|@F1@             Cambia finestra"
+64"@ESC@            Cancella i caratteri di una casella"
+64"@TAB@            Sposta la barra a destra di una casella"
+64"@SHIFT+TAB@      Sposta la barra a sinistra di una casella"
+64"@RETURN@         Passa al prossimo campo da editare"
+64"@CTRL+Y@         Cancellazione della riga"
+64"@CTRL+U@         Ripristina l'ultima riga cancellata"
+64"@CTRL+RETURN@    Inserimento di una riga"
+64"@CTRL+D@         Svuota la lista corrente"
+64"@CTRL+HOME@      Posizionamento rapido in testa alla lista"
+64"@CTRL+END@       Posizionamento rapido in coda alla lista"
+64"@CTRL+N@         Per inserimento numero ripetizioni"
+64"@CTRL+S@         Ricerca di una parola nella lista"
+64"@PGUP@           Passa alla pagina precedente"
+64"@PGDW@           Passa alla pagina successiva"
+64"@\x18@              Passa alla riga precedente"
+64"@\x19@              Passa alla riga successiva"
+80"Inserire il nome della lista destinataria"      <------------------IndMsg
+65"Lista @%s@ gi… presente, salvataggio abortito !"                       1
+65"Impossibile salvare lista @%s@, salvataggio fallito !"                  2
+80"Confermi uscita da EDITOR LISTE @(%s)@ ?"                               3
+80"Confermi l'operazione selezionata @(%s)@ ?"                             4
+80"Lista @%s@ gi… presente nel direttorio !"                              5
+80"Impossibile salvare due liste con lo stesso nome !"                     6
+80"Inserire il nome della nuova lista"                                     7
+80"Nome lista non valido, impossibile utilizzarlo !"                       8
+80"Impossibile leggere la lista @%s@"                                      9
+65"Inserire il nome della lista da salvare"                               10
+80"Rinominare il nome della lista"                                        11
+80"Impossibile rinominare la lista @%s@ in @%s@ !"                        12

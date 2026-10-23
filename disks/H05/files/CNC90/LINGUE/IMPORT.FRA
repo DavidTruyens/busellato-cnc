@@ -1,0 +1,40 @@
+//  **************** FILE : IMPORT.FRA (lingua : francese) *************
+00"@!1@"
+65"Es-tu s–r d'abandonner (O/N) "                                    //(1)      messaggio 1
+20"l'importation"                                                    //(2)      messaggio 2
+20"l'effacement"                                                     //(3)      messaggio 3
+20"l'import.+comp."                                                  //(4)      messaggio 4
+20"la commande"                                                      //(5)      messaggio 5
+3"O/N"                                                               //(6)      messaggio 6
+
+//ERRORI che si possono verificare sui primi sei record di IMPORT.CMD
+
+00"@!20@"
+45"(20) Impossible ouvrir IMPORT.CMD"                                //+0(20)   errore 1
+45"(21) ERREUR de sintax au record nø"                               //+1(21)   errore 2
+60"(22) ERREUR on doit specifier le drive dans le record nø"         //+2(22)   errore 3
+70"(23) ERREUR directoire de lecture des programmes non trouv‚"      //+3(23)   errore 4
+75"(24) ERREUR directoire de sauvage des erreurs non trouv‚"         //+4(24)   errore 5
+55"(25) ligne ou/et colonne non valable"                             //+5(25)   errore 6
+70"(26) ERREUR couleur non valable"                                  //+6(26)   errore 7
+65"(27) ERREUR valeur/s not valables au record nø "                  //+7(27)   errore 8
+60"(28) ERREUR : IMPORT.CMD n'est pas complŠt"                       //+8(28)   errore 9
+70"(29) IMPOSSIBLE changer le mode sur le video"                     //+9(29)   errore 10
+
+
+//ERRORI che si possono verificare dal 7ø record in poi
+
+00"@!50@"
+50" (50) ERREUR de SINTAX                   !!!      "               //+0(50)    errore 1
+50" (51) ERREUR les donn‚s doivent ˆtre num‚riques   "               //+1(51)    errore 2
+50" (52) ERREUR dans la longeur du record            "               //+2(52)    errore 3
+50" (53) ERREUR dans le champ de la commande         "               //+3(53)    errore 4
+50" (54) ERREUR on n'a pas execut‚                   "               //+4(54)    errore 5
+50" (55) NAVETTA.CMD non trouv‚ ou non modificable   "               //+5(55)    errore 6
+50" (56) ERREUR dans l'ouverture du programme de communication"      //+6(56)    errore 7
+50" (57) IMPORT.CMD non trouv‚ ou non modificable    "               //+7(57)    errore 8
+50" (58) ERREUR on doit specifier le nom du programme"               //+8(58)    errore 9
+50" (59) ERREUR le programme-mˆre n'est pas trouv‚   "               //+9(59)    errore 10
+50" (60) ERREUR dans le programme IMPORT.CMD         "               //+10(60)   errore 11
+50" (61) ERREUR les record ne sont pas en progression"               //+11(61)   errore 12
+50" (62) ERREUR nombre des record > 200              "               //+12(62)   errore 13

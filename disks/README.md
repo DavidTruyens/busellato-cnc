@@ -46,6 +46,7 @@ sector. The `.img` still holds exactly what is on the diskette.
 | H02 | SORG samples Z+W with COMP (diskette H01 reused) | 2026-09-25 | `cf38c33e62a913bdeded2e2565bf06b8658c7c591218de3e0d5fb120c6c92dd0` | 0 | 382 / 382 checked against LISTING.TXT | OK | Program sources `SORG\SRG\Z`,`W`, tables `SORG\TAB\Z`,`W`, compiled `COMP\NOC\Z`,`W`, `COMP\SPC\Z`; H01 files still present |
 | H03 | batch 1: MOD1\USER (+ INDICE.PRG) | 2026-09-25 | `c70751779148b643c1de31a093259044471bf2593193b6bde9a241d2758b9611` | 0 | 93 / 93 checked against LISTING.TXT, + `INDICE.PRG` | OK | Current `C:\CNC90\MOD1\USER\` (tool/technology tables), program index `SORG\INDICE.PRG` |
 | H04 | batch 2: PTP0, PTPSYS, PTP1000 | 2026-10-23 | `3c01afd9b6a25227df736bcbf4a373cb07a78c886f69a562b363ccae711ae3ee` | 0 | 81 / 81 checked against LISTING.TXT (name, size), + `COPY.BAT` and a 0-byte `H04` file (unexplained) | OK | Current `C:\PTP0\` (37), `C:\PTP1000\` (40), `C:\PTPSYS\` (4) |
+| H05 | batch 3: LINGUE, SORG root, SRG 00 to D | 2026-10-23 | `1f3c9c371a538e887bccd3295b65e10e9a26445f6757e2e0386c6040bf3bf3c6` | 0 | 793 / 793 checked against LISTING.TXT (path, name, size), + `COPY.BAT` | OK | `C:\CNC90\LINGUE\` (75), `SORG\INDICE.PRG`, program sources `SORG\SRG\00`,`7`,`9`,`A` to `D`. Physical diskette was D17, erased and reused |
 
 The physical D17 diskette was erased and reused as H05 on 2026-10-23 (its capture is byte-identical, committed in 917513e). The physical D15 became H01/H02 earlier.
 

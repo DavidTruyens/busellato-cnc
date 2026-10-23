@@ -1,0 +1,68 @@
+//  **************** FILE : COPIA.FRA (lingua : francese) *************
+00"@!1000@"
+80"GESTION ARCHIVES"										  // 1
+13"@*111@MENU"												  // 2
+18"@|9|@Copie Programmes"									  // 3
+18"Efface Programmes"										  // 4
+18"Copie Listes"											  // 5
+18"Efface Listes."											  // 6
+18"Copie Tot. Listes"										  // 7
+18"Effac. Tot. Listes"										  // 8
+18"Copie Parametres"										  // 9
+18"Driver Depart"											  // 10
+18"Driver Destination"										  // 11
+53" Depart" 												  // 12
+53" Destinataire "											  // 13
+80" Messages "												  // 14
+53"Selectionner MENU                    < Alt+H=Help>"		  // 15
+20" PARCOURS DISPONIBLES "									  // 16
+20"Selectionner Driver" 									  // 17
+53"Confirme Drive Depart :" 								  // 18
+53"ATTENTION : FICHIER D'INFORMATION DRIVE ABSENTE"			  // 19
+20"@*011@ DRIVER DISPONIBLES "								  // 20
+53"ABSENTE"													  // 21
+53"ATTENTION : Drive depart et Drive destination egals" 	  // 22
+53"Erreurs relevÇs pendant l'operation en cours"			  // 23
+21"@%ld@ byte libres"										  // 24
+21"@%ld@ byte occupees"										  // 25
+53"ATTENTION: Introduire la disquette et Pousser @<ENTER>@"   // 26
+53"Pousser une touche pour continuer"						  // 27
+80" Directoire Programmes " 								  // 28
+53"ATTENTION:Espace insuffisant sur le drive destination"	  // 29
+70"Prog. copiÇ: @%s@"										  // 30
+53"OPERATION DE COPIE AVORTEE"								  // 31
+20"@*011@PROGRAMMES EXISTENTS"								  // 32
+53"Selectionner les programmes Ö copier"						  // 33
+53"OPERATION DE COPIE TERMINEE CORRECTEMENT"				  // 34
+80"PROG. SOURCE ABSENTE"									  // 35
+53"OPERATION DE COPIE EN COURS      N.prg @%d@ "			  // 36
+53"ATTENTION: Index Programmes absente" 					  // 37
+53"OPERATION D'EFFACEMENT EN COURS  N.prg @%d@"				  // 38
+70"Prog. effacÇ: @%s@" 									  // 39
+53"OPERATION D'EFFACEMENT AVORTêE" 						  // 40
+53"OPERATION D'EFFACEMENT TERMINêE CORRECTEMENT"			  // 41
+53"Selectionner les listes Ö copier"						  // 41
+53"@*011@LISTES"											  // 43
+53"ATTENTION: fichier Liste absente. - Pousser une touche -"  // 44
+70"liste copiee: @%s@"										  // 45
+53"@011@LISTES EXISTENTS"									  // 46
+53"Selectionner les listes Ö effacer"						  // 47
+53"liste: @%s@ absente" 									  // 48
+70"liste effacee: @%s@" 									  // 49
+53"Sousdirectoire @%s@ absente" 							  // 50
+53"Sousdirectoire @%s@ vide"								  // 51
+53"OPERATION DE COPIE PARAMETRES EN COURS"					  // 52
+70"fichier param. copiÇ: @%s@" 							  // 53
+53"Espace insuffisant pour la copie - Pousser @ESC@ -"		  // 54
+53"OPERATION DE COPIE LISTES EN COURS   N.prg @%d@"			  // 55
+53"Environement operatif absent : creation @%s@ ?"	  // 56
+53"ATTENTION:Environement de depart absente"
+53"ATTENTION:No. drive > @10@"
+80"PROG. COMPILê ABSENTE  "
+80"ENVIRONEMENT DISC DUR ABSENTE"
+65"@|5|@ TOUCHES    DESCRIPTION :"
+65"@< ESC >@   SORTIE PROGRAMME"
+65"@<   >@   SELECTIONNE  MENU."
+65"@< RET >@   CONFIRME LES OPERATIONS EFFECTUEES"
+65"@< F1  >@   APPELLE VISUALISATION ERREURS"			  // 61
+

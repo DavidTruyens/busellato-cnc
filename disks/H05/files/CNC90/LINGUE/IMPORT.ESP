@@ -1,0 +1,42 @@
+//  **************** FILE IMPORT.LNG **********************
+
+//MESSAGGI
+00"@!1@"                       <--- ******* IMPORT.EXE (Polidori Cristiano)
+65"Queres verdaderamente abandonar elabotacion  (s/n) "             //(1)      mensaje 1
+20"l'importacion "                                                      //(2)      mensaje 2
+20"la cancelacion "                                                    //(3)      mensaje 3
+20"l'import.+comp."                                                     //(4)      mensaje 4
+20"el mando"                                                          //(5)      mensaje 5
+3"S/N"                                                                  //(6)      mensaje 6
+
+//ERRORI che si possono verificare sui primi sei record di IMPORT.CMD
+
+00"@!20@"
+45"(20) !! Imposible abrir  IMPORT.CMD"                               //+0(20)   error 1
+45"(21) !! ERROR de sintaxis en record nø"                             //+1(21)   error 2
+60"(22) !! ERROR no esta especificado el drive en record nø"               //+2(22)   error 3
+70"(23) !! ERROR directorio de fuente de programas no existente"       //+3(23)   error 4
+75"(24) !! ERROR directorio de destino file de errores no existente"  //+4(24)   error 5
+55"(25) !! linea o/y columna para visualizacion incorrecta"                 //+5(25)   error 6
+70"(26) !! color fondo o/y color texto: valor no significativo"     //+6(26)   error 7
+65"(27) !! ERROR valor/es no significativo/os en record nø "           //+7(27)   error 8
+60"(28) !! ERROR File IMPORT.CMD no completo"                         //+8(28)   error 9
+70"(29) !!IMPOSIBLE poner modo video diferente de inicial" //+9(29)   error 10
+
+
+//ERRORI che si possono verificare dal 7ø record in poi
+
+00"@!50@"
+50" (50)  ERROR de SINTAXIS                   !!!   "                  //+0(50)   error 1
+50" (51)  ERROR    datos numericos no numericos     "                  //+1(51)   error 2
+50" (52)  ERROR    en el largo del  record          "                  //+2(52)   error 3
+50" (53)  ERROR    en el campo de mando             "                  //+3(53)   error 4
+50" (54)  ERROR    no ha sido posible ejecutar      "                  //+4(54)   error 5
+50" (55) NAVETTA.CMD ausente o no modificable        "                  //+5(55)   error 6
+50" (56) ERROR en l'abrir el file de  comunicacion  "                  //+6(56)   error 7
+50" (57) IMPORT.CMD  ausente o no modificable  "                  //+7(57)   error 8
+50" (58)  ERROR nombre programa no especificado    "                  //+8(58)   error 9
+50" (59)  ERROR programa madre inexistente         "                  //+9(59)   error 10
+50" (60)  ERROR en la estructura del file IMPORT.CMD"                  //+10(60)  error 11
+50" (61)  ERROR numero de record no progresivo   "                  //+11(61)  error 12
+50" (62)  ERROR numero de record > 200             "                  //+12(62)  error 13

@@ -16,7 +16,7 @@ Drive letter is `A:`. Run from the plain DOS prompt (CNC90: "exit system"), not 
 2. Mac: copy the batch file onto it: `cp hdd/batches/H<nn>.BAT /Volumes/H<nn>/COPY.BAT`
    (regenerate with `python3 -I tools/make-batches.py` if `COPY-PLAN.md` changes).
 3. Machine: write-protect hole closed, plain DOS prompt, type `A:COPY`. It shows the label, waits for a key,
-   runs the XCOPY lines below, then `DIR A: /S`. Compare the file count (batch files + 1 for COPY.BAT).
+   runs the XCOPY lines below, then `DIR A: /S`. Compare the file count (batch files + 1 for COPY.BAT). DOS's "files" total in `DIR /S` also counts directory entries, so it reads higher (batch 3: 830 shown, 794 real files).
    If it does not run, type the XCOPY lines by hand.
 4. Mac: hole open, `tools/image-disk.sh H<nn> "batch <n>" <files + 1>`. It must report 0 bad sectors and a matching count.
 
@@ -26,7 +26,7 @@ Tick each box when done.
 |---|---|---|---|---|---|---|
 | 1 | H03 | 93 | done | [x] | [x] | captured 2026-09-25 |
 | 2 | H04 | 81 | irreplaceable | [x] | [x] | imaged 2026-10-23, 81/81 match LISTING.TXT (name, size); extra 0-byte file `H04` in root, unexplained |
-| 3 | H05 | 793 | irreplaceable | [ ] | [ ] | diskette prepared 2026-10-23 (physical D17 erased, image kept); `COPY.BAT` on it |
+| 3 | H05 | 793 | irreplaceable | [x] | [x] | imaged 2026-10-23, 793/793 match LISTING.TXT (path, name, size); DOS and the Mac list say "830 files" because that count includes 36 directory entries, the real file count is 794 with COPY.BAT |
 | 4 | H06 | 1302 | irreplaceable | [ ] | [ ] | diskette prepared 2026-10-23 (reused H04 after imaging); `COPY.BAT` on it |
 | 5 | H07 | 1147 | irreplaceable | [ ] | [ ] |  |
 | 6 | H08 | 1132 | irreplaceable | [ ] | [ ] |  |

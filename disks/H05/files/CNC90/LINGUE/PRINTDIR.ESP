@@ -1,0 +1,22 @@
+00"@!1000@"             <---********** PRINTDIR.EXE  (Cristiano)
+25"Impresion directorio"                                               // +0
+08"Modulo"                                                              // +1
+08"Modulos"                                                             // +2
+10"Menu"                                                                // +3
+30"Cambio modulo"                                                       // +4
+30"Impresion total archivo"                                             // +5
+30"Impresion para inicial"                                              // +6
+30"Impresion para inicial y final"                                      // +7
+20"Salida"                                                              // +8
+20"Inicial "                                                            // +9
+20"Final "                                                              //+10
+20"Impresion"                                                           //+11
+40"Confirmas impresion total @%s@"                                         //+12
+50"Imposible abrir @%s@"                                             //+13
+50"File @%s@ vacio"                                                     //+14
+40"Ningun programa imprimido"                                          //+15
+40"Impresora no disponible  "                                           //+16
+03"0"   por debug memory                                                //+17
+55"Imprime de inicial @%s@ a final @%s@"                               //+18
+55"Imprime de inicial @%s@"                                             //+19
+03"1"	1 = impresora grafica, 0 = impresora texto			//+20
