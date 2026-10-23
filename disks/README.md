@@ -49,6 +49,7 @@ sector. The `.img` still holds exactly what is on the diskette.
 | H05 | batch 3: LINGUE, SORG root, SRG 00 to D | 2026-10-23 | `1f3c9c371a538e887bccd3295b65e10e9a26445f6757e2e0386c6040bf3bf3c6` | 0 | 793 / 793 checked against LISTING.TXT (path, name, size), + `COPY.BAT` | OK | `C:\CNC90\LINGUE\` (75), `SORG\INDICE.PRG`, program sources `SORG\SRG\00`,`7`,`9`,`A` to `D`. Physical diskette was D17, erased and reused |
 | H06 | batch 4: SRG E to P | 2026-10-23 | `cdc0f7d77792a928aad50e00792910353a773e68abd8a25228e167bd334b9430` | 0 | 1302 / 1302 checked against LISTING.TXT (path, name, size), + `COPY.BAT` | OK | Program sources `C:\CNC90\MOD1\SORG\SRG\E` to `P`. Physical diskette was H04, reused |
 | H07 | batch 5: SRG R to Z, TAB 00 to B | 2026-10-23 | `9b2a43a215b2b7ed46746c0ecef5a8bdf242af263d1a1660ff60a47cf561798b` | 0 | 1147 / 1147 checked against LISTING.TXT (path, name, size), + `COPY.BAT` | OK | Program sources `SORG\SRG\R` to `Z`, tables `SORG\TAB\00`,`7`,`9`,`A`,`B`. Physical diskette was H05, reused |
+| H08 | batch 6: TAB C to K | 2026-10-23 | `8a7de4baa5cf97b0767460e45cb729327b347202e028fde418d458a6f66c8cd3` | 0 | 1132 / 1132 checked against LISTING.TXT (path, name, size), + `COPY.BAT` | OK | Tables `C:\CNC90\MOD1\SORG\TAB\C` to `K`. Physical diskette was H06, reused. First imaged under the wrong ID H09, renamed (the ddrescue command line in `H08.map` still names H09) |
 
 The physical D17 diskette was erased and reused as H05 on 2026-10-23 (its capture is byte-identical, committed in 917513e). The physical D15 became H01/H02 earlier.
 
