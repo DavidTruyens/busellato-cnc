@@ -1340,8 +1340,9 @@ Copy `busellato-cnc90.cps` to
 
 ## Getting a program onto the machine
 1. Post in Fusion; copy the file to the shuttle diskette (Mac: format first, see `hdd/COPY-PLAN.md`).
-2. At the DOS prompt: `COPY A:\<NAME> C:\CNC90\MOD1\SORG\SRG\<first letter>\<NAME>` —
-   **check first** that `<NAME>` does not exist (`DIR C:\CNC90\MOD1\SORG\SRG\<letter>\<NAME>`).
+2. At the DOS prompt: the first character of the name is the folder, the rest is the file name:
+   `COPY A:\<NAME> C:\CNC90\MOD1\SORG\SRG\<first letter>\<rest of name>`. (Corrected 2026-10-23; the original
+   text repeated the first letter in the file name.) **Check first** that it does not exist.
 3. Start CNC90 (`CNC90`), compile the program ("Programma Kompileren"), run it.
 
 ## Tests

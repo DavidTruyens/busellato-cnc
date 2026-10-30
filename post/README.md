@@ -40,8 +40,10 @@ to the machine and compiled there separately, then run one after the other.
 
 ## Getting a program onto the machine
 1. Post in Fusion; copy the file to the shuttle diskette (Mac: format first, see `hdd/COPY-PLAN.md`).
-2. At the DOS prompt: `COPY A:\<NAME> C:\CNC90\MOD1\SORG\SRG\<first letter>\<NAME>` —
-   **check first** that `<NAME>` does not exist (`DIR C:\CNC90\MOD1\SORG\SRG\<letter>\<NAME>`).
+2. At the DOS prompt: the first character of the name is the folder and the **rest** is the file name:
+   `COPY A:\<NAME> C:\CNC90\MOD1\SORG\SRG\<first letter>\<rest of name>` (program `PART` = `SRG\P\ART`).
+   **Check first** that it does not exist (`DIR C:\CNC90\MOD1\SORG\SRG\<letter>\<rest>`), or use the loader
+   batch file from `tools/make-loader.py`, which does the split and never overwrites.
 3. Start CNC90 (`CNC90`), compile the program ("Programma Kompileren"), run it.
 
 ## Machine tests

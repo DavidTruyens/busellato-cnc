@@ -17,7 +17,9 @@ Decoded from 118 real programs (`disks/H02/files/SRG/Z`, `SRG/W`, captured
 
 - Program sources are **plain text** in a TPA dialect of ISO G-code, one
   file per program, no extension, stored in
-  `C:\CNC90\MOD1\SORG\SRG\<first character of name>\<NAME>`.
+  `C:\CNC90\MOD1\SORG\SRG\<first character of name>\<rest of name>`: the first character is the
+  folder and is **not repeated** in the file name (index entry `AERTS1` = `SRG\A\ERTS1`, `ZEL1` = `SRG\Z\EL1`,
+  `9JACOBS05` = `SRG\9\JACOBS05`, `75` = `SRG\7\5`; checked against `INDICE.PRG` on 2026-10-23).
 - Each source has a binary companion in `SORG\TAB\` and compiled forms in
   `MOD1\COMP\NOC\` and `COMP\SPC\`. These are assumed to be produced on
   the machine by editing or compiling ("Programma Kompileren"). The post
@@ -101,8 +103,8 @@ One Fusion setup → one CNC90 source file.
    removed (`9.15`, `13`, `0.5`).
 8. **End:** `M2`, CRLF line endings, ASCII only.
 9. **File name:** the Fusion program name, upper case, 1–8 characters of
-   `A–Z 0–9 _ -`, no extension. The first character is the `SRG`
-   subfolder on the machine.
+   `A–Z 0–9 _ -`, no extension. On the machine the first character is the `SRG`
+   subfolder and the rest is the file name (`ZEL1` becomes `SRG\Z\EL1`); `tools/make-loader.py` does this split.
 
 ## Settings (post properties)
 
