@@ -161,8 +161,12 @@ The tool must show the numbers it will write before writing.
   height goes in the header. If the convention turns out wrong it is a change to that function and
   the setting, not to the emitter. The same reference serves drills, shape cut and template cut.
 - **Drills:** one program per distinct drill diameter. Equal diameters merge into one program.
-- **Program size:** only a warning above about 250 lines, no splitting. A panel of 4 shapes is
-  roughly 100 lines. Travel limits are unknown: warn, never refuse.
+- **Program size:** only a warning above about 250 lines, no splitting. With 9 mm passes the cut
+  program of a 4-shape panel is roughly 250 lines (17 per shape pass, 5 per template pass), so it sits at
+  the limit; the line count is shown and depth per pass is the lever. Travel limits are unknown:
+  warn, never refuse.
+- **Cut direction:** a setting, default counter-clockwise; climb or conventional depends on the
+  spindle direction, which is not recorded here, so check it at the machine.
 - **Emitter tests:** reference programs are the ZZT machine tests and the post-processor's
   regenerated output where they cover `G88` contours, arcs with `U`, and `G81` holes. Anything they
   do not cover gets a new reference file reviewed by the user before it is trusted.
