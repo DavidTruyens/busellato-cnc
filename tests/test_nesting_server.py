@@ -344,6 +344,60 @@ class ServerTests(unittest.TestCase):
         shapes = self.call('GET', '/api/project')[1]['shapes']
         self.assertEqual([(s['name'], s['length']) for s in shapes], [('part', 400)])
 
+    def test_put_quantity_over_limit_is_400_and_500_is_fine(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        name = proj['shapes'][0]['name']
+        proj['shapes'][0]['qty'] = 10 ** 30
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 400)
+        self.assertEqual(body['field'], f'shapes.{name}.qty')
+        self.assertIn('500', body['message'])
+        self.assertFalse((self.dir / 'project.json').exists())
+        proj['shapes'][0]['qty'] = 500
+        proj['shapes'][0]['enabled'] = False      # keep the plan cheap; the limit is what counts
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200)
+        self.assertEqual(body['shapes'][0]['qty'], 500)
+
+    def test_hand_edited_huge_quantity_is_a_problem_and_server_stays_responsive(self):
+        import time
+        self.seed(PLATES[:1])
+        (self.dir / 'project.json').write_text(json.dumps(
+            {'shapes': [{'name': PLATES[0].stem, 'qty': 10 ** 30, 'enabled': True}],
+             'settings': Settings().to_dict()}))
+        t0 = time.monotonic()
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertEqual(plan['panels'], [])
+        self.assertTrue(any('more than the 500 allowed' in p for p in plan['problems']), plan['problems'])
+        self.assertEqual(self.call('GET', '/api/project')[0], 200)
+        self.assertLess(time.monotonic() - t0, 2)
+
+    def test_slow_plan_does_not_block_project_requests(self):
+        import time
+        from unittest import mock
+        import nesting.server as srv
+        self.seed(PLATES[:1])
+        release = threading.Event()
+        real = srv.build_plan
+
+        def slow(*a, **kw):
+            release.wait(10)
+            return real(*a, **kw)
+
+        with mock.patch.object(srv, 'build_plan', side_effect=slow):
+            th = threading.Thread(target=self.call, args=('GET', '/api/plan'), daemon=True)
+            th.start()
+            time.sleep(0.2)                      # the plan request is now inside build_plan
+            t0 = time.monotonic()
+            status, proj = self.call('GET', '/api/project')
+            self.assertEqual(status, 200)
+            self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
+            self.assertLess(time.monotonic() - t0, 2)
+            release.set()
+            th.join(10)
+
     def test_binds_to_localhost_only(self):
         self.assertEqual(self.server.server_address[0], '127.0.0.1')
 

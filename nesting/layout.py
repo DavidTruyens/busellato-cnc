@@ -9,6 +9,7 @@ from .geometry import Pt
 from .settings import Settings
 
 EPS = 1e-9
+MAX_QTY = 500   # copies per shape: a safety bound for what the UI can ask for
 
 
 @dataclass
@@ -202,7 +203,20 @@ def _try_group(group: list[_Item], settings: Settings) -> PlacedTemplate:
     return t
 
 
+def _check_quantities(entries: list[ShapeEntry]) -> None:
+    """Raise ValueError before any copy is made if a quantity is negative or too large."""
+    for e in entries:
+        if not e.enabled:
+            continue
+        if e.qty < 0:
+            raise ValueError(f'{e.shape.name}: quantity {e.qty} is negative')
+        if e.qty > MAX_QTY:
+            raise ValueError(f'{e.shape.name}: quantity {e.qty} is more than the '
+                             f'{MAX_QTY} allowed')
+
+
 def build_plan(entries: list[ShapeEntry], settings: Settings) -> Plan:
+    _check_quantities(entries)
     plan = Plan()
     templates: list[PlacedTemplate] = []
     for group in _groups(_expand(entries, settings), settings):

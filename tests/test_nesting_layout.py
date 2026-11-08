@@ -3,7 +3,7 @@ from pathlib import Path
 
 from nesting.dxf import Hole, Shape, read_dxf
 from nesting.geometry import Line
-from nesting.layout import (PlacedTemplate, ShapeEntry, build_plan, footprint,
+from nesting.layout import (MAX_QTY, PlacedTemplate, ShapeEntry, build_plan, footprint,
                             to_panel)
 from nesting.settings import Settings
 
@@ -198,6 +198,33 @@ class Nesting(unittest.TestCase):
         plan = build_plan(entries(rect('wide', 2400, 230)), Settings())
         self.assertEqual(plan.panels, [])
         self.assertIn('wide', plan.problems[0])
+
+
+class QuantityLimitTests(unittest.TestCase):
+    def test_max_qty_is_500(self):
+        self.assertEqual(MAX_QTY, 500)
+
+    def test_quantity_over_limit_raises_before_expanding(self):
+        import time
+        for qty in (501, 10 ** 30):
+            with self.subTest(qty=qty):
+                t0 = time.monotonic()
+                with self.assertRaises(ValueError) as cm:
+                    build_plan([ShapeEntry(rect('big one', 500, 200), qty=qty)], Settings())
+                self.assertLess(time.monotonic() - t0, 0.5)
+                self.assertIn('big one', str(cm.exception))
+                self.assertIn(str(qty), str(cm.exception))
+                self.assertIn('500', str(cm.exception))
+
+    def test_negative_quantity_raises(self):
+        with self.assertRaises(ValueError) as cm:
+            build_plan([ShapeEntry(rect('neg', 500, 200), qty=-1)], Settings())
+        self.assertIn('neg', str(cm.exception))
+
+    def test_limit_itself_and_disabled_entries_are_fine(self):
+        build_plan([ShapeEntry(rect('off', 500, 200), qty=10 ** 30, enabled=False)], Settings())
+        plan = build_plan([ShapeEntry(rect('small', 100, 50, holes=False), qty=MAX_QTY)], Settings())
+        self.assertEqual(sum(len(t.shapes) for p in plan.panels for t in p.templates), MAX_QTY)
 
 
 if __name__ == '__main__':

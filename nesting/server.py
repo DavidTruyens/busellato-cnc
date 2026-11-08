@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlsplit
 from .backends import BACKENDS
 from .dxf import DxfError, Shape, read_dxf
 from .geometry import OffsetError
-from .layout import ShapeEntry, build_plan
+from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
 from .preview import preview_data
 from .program import plan_programs
@@ -72,13 +72,15 @@ def safe_filename(name) -> str:
 
 
 class Project:
-    """The project folder. All access goes through one lock."""
+    """The project folder. Files and the shape cache are only touched under `lock`;
+    plans are computed from a snapshot taken under the lock, after releasing it."""
 
     def __init__(self, folder: Path):
         self.dir = Path(folder)
         self.shapes_dir = self.dir / 'shapes'
         self.file = self.dir / 'project.json'
         self.lock = threading.Lock()
+        self.out_lock = threading.Lock()     # picks and writes one output folder at a time
         self._cache: dict[str, tuple[float, Shape]] = {}
 
     # --- stored state -------------------------------------------------------------------
@@ -128,12 +130,18 @@ class Project:
         rows += [(s, 1, True) for s in shapes if s.name not in seen]
         return rows, stored['settings'], errors
 
+    @staticmethod
+    def _listing(rows) -> list[dict]:
+        return [{'name': s.name, 'length': round(s.length, 3), 'width': round(s.width, 3),
+                 'qty': q, 'enabled': on} for s, q, on in rows]
+
     def project(self) -> dict:
+        with self.lock:
+            return self._project()
+
+    def _project(self) -> dict:
         rows, settings, _ = self._merged()
-        return {'shapes': [{'name': s.name, 'length': round(s.length, 3),
-                            'width': round(s.width, 3), 'qty': q, 'enabled': on}
-                           for s, q, on in rows],
-                'settings': settings}
+        return {'shapes': self._listing(rows), 'settings': settings}
 
     def save(self, body) -> dict:
         if not isinstance(body, dict):
@@ -149,25 +157,30 @@ class Project:
             if not isinstance(name, str):
                 raise ApiError(400, {'field': 'shapes', 'message': 'every shape needs a name'})
             qty, on = e.get('qty', 1), e.get('enabled', True)
-            if isinstance(qty, bool) or not isinstance(qty, int) or qty < 0:
+            if isinstance(qty, bool) or not isinstance(qty, int) or not 0 <= qty <= MAX_QTY:
                 raise ApiError(400, {'field': f'shapes.{name}.qty',
-                                     'message': 'must be a whole number, 0 or more'})
+                                     'message': f'must be a whole number from 0 to {MAX_QTY}'})
             if not isinstance(on, bool):
                 raise ApiError(400, {'field': f'shapes.{name}.enabled',
                                      'message': 'must be true or false'})
             shapes.append({'name': name, 'qty': qty, 'enabled': on})
-        self.dir.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            json.dump({'shapes': shapes, 'settings': settings.to_dict()}, f, indent=2)
-        os.replace(tmp, self.file)
-        return self.project()
+        with self.lock:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump({'shapes': shapes, 'settings': settings.to_dict()}, f, indent=2)
+            os.replace(tmp, self.file)
+            return self._project()
 
     # --- shapes ---------------------------------------------------------------------------
     def upload(self, body) -> dict:
         if not isinstance(body, dict) or not isinstance(body.get('text'), str):
             raise ApiError(400, {'error': 'expected {"filename": ..., "text": ...}'})
         name = safe_filename(body.get('filename'))
+        with self.lock:
+            return self._upload(name, body['text'])
+
+    def _upload(self, name: str, text: str) -> dict:
         self.shapes_dir.mkdir(parents=True, exist_ok=True)
         # a name that differs only by case is the same shape: replace that file
         same = [p for p in self._files() if p.name.lower() == name.lower()]
@@ -175,7 +188,7 @@ class Project:
             name = same[0].name
         with tempfile.TemporaryDirectory(dir=self.dir, prefix='.upload-') as tmp:
             path = Path(tmp) / name                 # same name, so messages name the file
-            path.write_text(body['text'], encoding='utf-8')
+            path.write_text(text, encoding='utf-8')
             try:
                 shape = read_dxf(path)
             except DxfError as e:
@@ -187,9 +200,15 @@ class Project:
                 'width': round(shape.width, 3), 'holes': len(shape.holes), 'replaced': replaced}
 
     # --- plan -----------------------------------------------------------------------------
-    def compute(self):
-        """(settings, plan, programs, problems); raises SettingsError, OffsetError, ValueError."""
-        rows, settings_dict, errors = self._merged()
+    def snapshot(self):
+        """(rows, settings dict, dxf errors) read under the lock; ValueError if project.json is bad."""
+        with self.lock:
+            return self._merged()
+
+    def compute(self, snap):
+        """(settings, plan, programs, problems) from a snapshot, without the lock.
+        Raises SettingsError, OffsetError, ValueError."""
+        rows, settings_dict, errors = snap
         settings = Settings.from_dict(settings_dict)
         validate(settings)
         entries = [ShapeEntry(s, q, on) for s, q, on in rows]
@@ -199,12 +218,12 @@ class Project:
 
     def plan(self) -> dict:
         try:
-            settings = Settings.from_dict(self._stored()['settings'])
+            snap = self.snapshot()
         except ValueError as e:        # unreadable project.json
-            settings = Settings()
-            return self._failed(settings, [f'project.json: {e}'], None)
+            return self._failed(Settings(), [f'project.json: {e}'], None)
+        settings = Settings.from_dict(snap[1])
         try:
-            settings, plan, programs, problems = self.compute()
+            settings, plan, programs, problems = self.compute(snap)
             data = preview_data(plan, programs, settings)
         except SettingsError as e:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
@@ -224,7 +243,7 @@ class Project:
 
     def program_text(self, name: str) -> str:
         try:
-            settings, _, programs, _ = self.compute()
+            settings, _, programs, _ = self.compute(self.snapshot())
         except (OffsetError, ValueError) as e:      # SettingsError is a ValueError
             raise ApiError(400, {'error': str(e)})
         for p in programs:
@@ -233,8 +252,9 @@ class Project:
         raise ApiError(404, {'error': f'no program {name!r} in the current plan'})
 
     def generate(self) -> dict:
+        snap = self.snapshot()
         try:
-            settings, plan, programs, problems = self.compute()
+            settings, plan, programs, problems = self.compute(snap)
         except SettingsError as e:
             raise ApiError(400, {'error': str(e), 'field': e.field})
         except (OffsetError, ValueError) as e:
@@ -244,7 +264,11 @@ class Project:
                                  'problems': problems})
         out = self.dir / 'out'
         stamp = time.strftime('%Y%m%d-%H%M%S')
-        project = {'name': self.dir.name, 'shapes': self.project()['shapes']}
+        project = {'name': self.dir.name, 'shapes': self._listing(snap[0])}
+        with self.out_lock:
+            return self._write(out, stamp, plan, programs, settings, project, problems)
+
+    def _write(self, out, stamp, plan, programs, settings, project, problems) -> dict:
         for k in range(1, 1000):
             folder = out / (stamp if k == 1 else f'{stamp}-{k}')
             if folder.exists():
@@ -311,22 +335,21 @@ class Handler(BaseHTTPRequestHandler):
             if not url.path.startswith('/api/'):
                 raise ApiError(404, {'error': 'not found'})
             body = self._body() if method in ('PUT', 'POST') else None
-            with self.project.lock:
-                if route == ('GET', '/api/project'):
-                    return self._json(200, self.project.project())
-                if route == ('PUT', '/api/project'):
-                    return self._json(200, self.project.save(body))
-                if route == ('POST', '/api/shapes'):
-                    return self._json(200, self.project.upload(body))
-                if route == ('GET', '/api/plan'):
-                    return self._json(200, self.project.plan())
-                if route == ('GET', '/api/program'):
-                    name = parse_qs(url.query).get('name', [''])[0]
-                    text = self.project.program_text(name)
-                    return self._send(200, text.encode('ascii', 'replace'),
-                                      'text/plain; charset=us-ascii')
-                if route == ('POST', '/api/generate'):
-                    return self._json(200, self.project.generate())
+            if route == ('GET', '/api/project'):
+                return self._json(200, self.project.project())
+            if route == ('PUT', '/api/project'):
+                return self._json(200, self.project.save(body))
+            if route == ('POST', '/api/shapes'):
+                return self._json(200, self.project.upload(body))
+            if route == ('GET', '/api/plan'):
+                return self._json(200, self.project.plan())
+            if route == ('GET', '/api/program'):
+                name = parse_qs(url.query).get('name', [''])[0]
+                text = self.project.program_text(name)
+                return self._send(200, text.encode('ascii', 'replace'),
+                                  'text/plain; charset=us-ascii')
+            if route == ('POST', '/api/generate'):
+                return self._json(200, self.project.generate())
             raise ApiError(404, {'error': 'not found'})
         except ApiError as e:
             self._json(e.status, e.body)
