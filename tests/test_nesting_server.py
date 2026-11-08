@@ -36,10 +36,11 @@ class ServerTests(unittest.TestCase):
         for p in plates:
             shutil.copy(p, self.dir / 'shapes' / p.name)
 
-    def call(self, method, path, body=None):
-        data = None if body is None else json.dumps(body).encode()
-        req = urllib.request.Request(self.base + path, data=data, method=method,
-                                     headers={'Content-Type': 'application/json'})
+    def call(self, method, path, body=None, headers=None, raw=None):
+        data = raw if raw is not None else None if body is None else json.dumps(body).encode()
+        h = {'Content-Type': 'application/json'}
+        h.update(headers or {})
+        req = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 raw, status, ctype = r.read(), r.status, r.headers.get('Content-Type', '')
@@ -244,6 +245,104 @@ class ServerTests(unittest.TestCase):
         self.assertIn('error', body)
         self.assertNoTrace(body)
         self.assertFalse((self.dir / 'out').exists())
+
+    def test_post_without_json_content_type_is_415(self):
+        text = dxf(rect(0, 0, 300, 100))
+        body = json.dumps({'filename': 'a.dxf', 'text': text}).encode()
+        for ctype in ('text/plain', 'application/x-www-form-urlencoded', 'multipart/form-data'):
+            with self.subTest(ctype=ctype):
+                status, _ = self.call('POST', '/api/shapes', raw=body, headers={'Content-Type': ctype})
+                self.assertEqual(status, 415)
+        status, _ = self.call('POST', '/api/shapes', raw=b'filename=a.dxf&text=x',
+                              headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertEqual(status, 415)
+        self.assertEqual(list((self.dir / 'shapes').iterdir()), [])
+        self.seed(PLATES[:1])
+        self.assertEqual(self.call('POST', '/api/generate', raw=b'', headers={'Content-Type': 'text/plain'})[0], 415)
+        self.assertFalse((self.dir / 'out').exists())
+        _, proj = self.call('GET', '/api/project')
+        proj['settings']['heights']['scrap'] = 30
+        status, _ = self.call('PUT', '/api/project', raw=json.dumps(proj).encode(),
+                              headers={'Content-Type': 'text/plain'})
+        self.assertEqual(status, 415)
+        self.assertFalse((self.dir / 'project.json').exists())
+        status, _ = self.call('POST', '/api/shapes', {'filename': 'a.dxf', 'text': text},
+                              headers={'Content-Type': 'application/json; charset=utf-8'})
+        self.assertEqual(status, 200)
+
+    def test_foreign_host_or_origin_is_403(self):
+        port = self.server.server_address[1]
+        text = dxf(rect(0, 0, 300, 100))
+        for path in ('/', '/api/project', '/api/plan'):
+            with self.subTest(path=path):
+                self.assertEqual(self.call('GET', path, headers={'Host': 'evil.example'})[0], 403)
+                self.assertEqual(self.call('GET', path, headers={'Host': f'evil.example:{port}'})[0], 403)
+                self.assertEqual(self.call('GET', path, headers={'Host': '127.0.0.1:1'})[0], 403)
+        status, _ = self.call('POST', '/api/shapes', {'filename': 'a.dxf', 'text': text},
+                              headers={'Host': 'evil.example'})
+        self.assertEqual(status, 403)
+        status, _ = self.call('POST', '/api/shapes', {'filename': 'a.dxf', 'text': text},
+                              headers={'Origin': 'http://evil.example'})
+        self.assertEqual(status, 403)
+        self.assertEqual(self.call('GET', '/api/project', headers={'Origin': f'http://evil.example:{port}'})[0], 403)
+        self.assertEqual(list((self.dir / 'shapes').iterdir()), [])
+        for host in (f'127.0.0.1:{port}', f'localhost:{port}'):
+            with self.subTest(host=host):
+                status, _ = self.call('POST', '/api/shapes', {'filename': 'a.dxf', 'text': text},
+                                      headers={'Host': host, 'Origin': f'http://{host}'})
+                self.assertEqual(status, 200)
+                self.assertEqual(self.call('GET', '/api/project', headers={'Host': host})[0], 200)
+
+    def test_put_non_finite_number_is_400(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        raw = json.dumps(proj).replace('"cut_feed": 3', '"cut_feed": 1e400').encode()
+        self.assertIn(b'1e400', raw)
+        status, body = self.call('PUT', '/api/project', raw=raw)
+        self.assertEqual(status, 400)
+        self.assertEqual(body['field'], 'router.cut_feed')
+        self.assertFalse((self.dir / 'project.json').exists())
+        raw = json.dumps(proj).replace('"qty": 1', '"qty": 1e400').encode()
+        status, body = self.call('PUT', '/api/project', raw=raw)
+        self.assertEqual(status, 400)
+        self.assertIn('qty', body['field'])
+        self.assertFalse((self.dir / 'project.json').exists())
+
+    def test_z_values_match_the_program_text(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        proj['settings']['heights']['into_template'] = 0.05
+        proj['settings']['heights']['shape_thickness'] = 18.2
+        proj['settings']['drill_screw']['depth'] = 8.2
+        self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
+        _, plan = self.call('GET', '/api/plan')
+        z = plan['panels'][0]['z']
+        for v in z.values():
+            self.assertEqual(v, round(v, 3))
+        self.assertEqual(z['shape_cut'], 18.25)
+        self.assertEqual(z['screw'], 26.4)          # 54.2 - (36 - 8.2)
+        _, cut = self.call('GET', '/api/program?name=N1C')
+        self.assertIn('Z18.25', cut)
+        _, screw = self.call('GET', '/api/program?name=N1S')
+        self.assertIn('Z26.4\r', screw)
+
+    def test_upper_case_extension_is_stored_as_lower_case(self):
+        text = dxf(rect(0, 0, 300, 100))
+        status, body = self.call('POST', '/api/shapes', {'filename': 'PART.DXF', 'text': text})
+        self.assertEqual((status, body['name']), (200, 'PART'))
+        self.assertEqual([p.name for p in (self.dir / 'shapes').iterdir()], ['PART.dxf'])
+        names = [s['name'] for s in self.call('GET', '/api/project')[1]['shapes']]
+        self.assertEqual(names, ['PART'])
+
+    def test_name_differing_only_by_case_replaces_that_shape(self):
+        self.call('POST', '/api/shapes', {'filename': 'part.dxf', 'text': dxf(rect(0, 0, 300, 100))})
+        status, body = self.call('POST', '/api/shapes', {'filename': 'Part.DXF',
+                                                         'text': dxf(rect(0, 0, 400, 100))})
+        self.assertEqual(status, 200)
+        self.assertEqual((body['name'], body['replaced']), ('part', True))
+        self.assertEqual([p.name for p in (self.dir / 'shapes').iterdir()], ['part.dxf'])
+        shapes = self.call('GET', '/api/project')[1]['shapes']
+        self.assertEqual([(s['name'], s['length']) for s in shapes], [('part', 400)])
 
     def test_binds_to_localhost_only(self):
         self.assertEqual(self.server.server_address[0], '127.0.0.1')

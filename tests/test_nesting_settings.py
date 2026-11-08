@@ -73,6 +73,18 @@ class SettingsTests(unittest.TestCase):
                     s.validate()
                 self.assertEqual(cm.exception.field, field)
 
+    def test_non_finite_numbers_rejected(self):
+        fields = ["router.cut_feed", "panel.length", "heights.into_template",
+                  "template.fixed_width", "drill_screw.depth", "router.clearance"]
+        for field in fields:
+            for value in (float("inf"), float("-inf"), float("nan")):
+                with self.subTest(field=field, value=value):
+                    s = Settings.default()
+                    _set(s, field, value)
+                    with self.assertRaises(SettingsError) as cm:
+                        s.validate()
+                    self.assertEqual(cm.exception.field, field)
+
 
 if __name__ == "__main__":
     unittest.main()

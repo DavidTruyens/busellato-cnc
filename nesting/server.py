@@ -68,7 +68,7 @@ def safe_filename(name) -> str:
             or base.startswith('.')):
         raise ApiError(400, {'error': f'file name {base or name!r} not allowed: use letters, '
                                       'digits, space, . _ - and the extension .dxf'})
-    return base
+    return base[:-4] + '.dxf'                   # stored with a lower-case extension
 
 
 class Project:
@@ -89,10 +89,16 @@ class Project:
         return {'shapes': list(data.get('shapes') or []),
                 'settings': Settings.from_dict(data.get('settings') or {}).to_dict()}
 
+    def _files(self) -> list[Path]:
+        if not self.shapes_dir.is_dir():
+            return []
+        return sorted(p for p in self.shapes_dir.iterdir()
+                      if p.suffix.lower() == '.dxf' and p.is_file())
+
     def _shapes(self) -> tuple[list[Shape], list[str]]:
         """Shapes read from shapes/*.dxf (cached by mtime), plus a message per unreadable file."""
         shapes, errors = [], []
-        files = sorted(self.shapes_dir.glob('*.dxf')) if self.shapes_dir.is_dir() else []
+        files = self._files()
         for path in files:
             mtime = path.stat().st_mtime
             hit = self._cache.get(path.name)
@@ -163,6 +169,10 @@ class Project:
             raise ApiError(400, {'error': 'expected {"filename": ..., "text": ...}'})
         name = safe_filename(body.get('filename'))
         self.shapes_dir.mkdir(parents=True, exist_ok=True)
+        # a name that differs only by case is the same shape: replace that file
+        same = [p for p in self._files() if p.name.lower() == name.lower()]
+        if same:
+            name = same[0].name
         with tempfile.TemporaryDirectory(dir=self.dir, prefix='.upload-') as tmp:
             path = Path(tmp) / name                 # same name, so messages name the file
             path.write_text(body['text'], encoding='utf-8')
@@ -171,7 +181,7 @@ class Project:
             except DxfError as e:
                 raise ApiError(400, {'error': str(e)})
             target = self.shapes_dir / name
-            replaced = target.exists()
+            replaced = bool(same)
             os.replace(path, target)
         return {'name': shape.name, 'length': round(shape.length, 3),
                 'width': round(shape.width, 3), 'holes': len(shape.holes), 'replaced': replaced}
@@ -200,6 +210,8 @@ class Project:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
         except (OffsetError, DxfError, ValueError) as e:
             return self._failed(settings, [str(e)], None)
+        for panel in data['panels']:      # the emitter writes 3 decimals; so does the page
+            panel['z'] = {k: round(v, 3) for k, v in panel['z'].items()}
         data['problems'] = problems
         data['settings_error'] = None
         return data
@@ -274,10 +286,26 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(413, {'error': f'request larger than {MAX_BODY // (1024 * 1024)} MB'})
         return _loads(self.rfile.read(length)) if length else None
 
+    def _check_request(self, method: str):
+        """Only this machine's own page may talk to the server (no cross-site, no DNS rebinding)."""
+        port = self.server.server_address[1]
+        hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
+        if (self.headers.get('Host') or '').strip().lower() not in hosts:
+            raise ApiError(403, {'error': 'wrong Host header'})
+        origin = self.headers.get('Origin')
+        if origin is not None and origin.strip().lower() not in {'http://' + h for h in hosts}:
+            raise ApiError(403, {'error': 'requests from other sites are not allowed'})
+        if method in ('PUT', 'POST'):
+            ctype = (self.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            if ctype != 'application/json':
+                self.close_connection = True
+                raise ApiError(415, {'error': 'Content-Type must be application/json'})
+
     def _route(self, method: str):
         url = urlsplit(self.path)
         route = (method, url.path)
         try:
+            self._check_request(method)
             if route == ('GET', '/'):
                 return self._send(200, PAGE.read_bytes(), 'text/html; charset=utf-8')
             if not url.path.startswith('/api/'):

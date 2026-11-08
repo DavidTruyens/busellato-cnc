@@ -200,7 +200,12 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 'use strict';
 const $ = id => document.getElementById(id);
 const esc = v => String(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-const fmt = v => (Math.round(v * 10) / 10).toString();
+// like the emitter: 3 decimals, trailing zeros and a trailing '.' removed
+function fmt(v){
+  const s = (Math.round(v * 1000) / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  return s === '-0' || s === '' ? '0' : s;
+}
+const fmtArea = v => (Math.round(v * 10) / 10).toString();
 function el(tag, props, ...kids){
   const e = document.createElement(tag);
   Object.assign(e, props || {});
@@ -480,7 +485,7 @@ function renderPanel(){
   $('legend').classList.toggle('cut', view === 'cut');
   if (p){
     const used = p.templates.reduce((a, t) => a + t.w * t.h, 0);
-    $('stats').textContent = `${fmt(used / 1e6)} m² of ${fmt(L * W / 1e6)} m² panel`;
+    $('stats').textContent = `${fmtArea(used / 1e6)} m² of ${fmtArea(L * W / 1e6)} m² panel`;
   } else $('stats').textContent = '';
 }
 
@@ -573,7 +578,7 @@ $('gen').addEventListener('click', async () => {
       showResult(false, `Settings not saved (${saveError.field} ${saveError.message}): fix that first.`);
       return;
     }
-    const r = await fetch('/api/generate', {method: 'POST'});
+    const r = await fetch('/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
     const b = await r.json();
     if (!r.ok){ showResult(false, b.error || 'generate failed', b.problems); return; }
     const progs = Object.fromEntries((plan ? plan.panels : []).flatMap(p => p.programs).map(g => [g.name, g]));

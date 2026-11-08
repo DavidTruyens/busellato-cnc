@@ -1,4 +1,5 @@
 """Nesting tool settings. Every guessed number lives here as a placeholder default."""
+import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
 
@@ -142,11 +143,13 @@ class Settings:
         ]
         for path in positive:
             value = self._get(path)
-            if not isinstance(value, (int, float)) or not value > 0:
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not math.isfinite(value) or not value > 0):
                 raise SettingsError(path, "must be a number greater than 0")
         for path in non_negative:
             value = self._get(path)
-            if not isinstance(value, (int, float)) or not value >= 0:
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not math.isfinite(value) or not value >= 0):
                 raise SettingsError(path, "must be a number, not negative")
         choices = {
             "origin": ("G54", "G55"),
