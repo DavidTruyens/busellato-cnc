@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .geometry import Arc, Line, Seg, offset_outline, set_direction, split_large_arcs, translate
+from .geometry import Arc, Line, OffsetError, Seg, offset_outline, set_direction, split_large_arcs, translate
 from .layout import PanelPlan, PlacedTemplate, Plan, to_panel
 from .settings import Settings
 
@@ -45,10 +45,15 @@ class Program:
     warnings: list[str] = field(default_factory=list)
 
 
+def _template_stock(settings: Settings) -> float:
+    """Without a template layer (mode 'none') the shapes sit straight on the scrap."""
+    return 0.0 if settings.template.mode == 'none' else settings.heights.template_stock
+
+
 def stack_top(settings: Settings, panel: PanelPlan) -> float:
     h = settings.heights
     thick = [s.thickness for t in panel.templates for s in t.shapes]
-    return h.scrap + h.template_stock + (max(thick) if thick else h.shape_thickness)
+    return h.scrap + _template_stock(settings) + (max(thick) if thick else h.shape_thickness)
 
 
 def pass_count(total: float, per_pass: float) -> int:
@@ -113,8 +118,10 @@ def _panel_programs(panel: PanelPlan, settings: Settings) -> list[Program]:
     n = _panel_number(panel)
 
     fix_depth = top - (h.scrap - h.fix_into_scrap)
-    screw_depth = top - (h.scrap + h.template_stock - screw.depth)
-    shape_depth = top - (h.scrap + h.template_stock - h.into_template)
+    ts = _template_stock(settings)
+    screw_depth = top - (h.scrap + ts - screw.depth)
+    # with a template the cut ends just into it; without, just into the scrap
+    shape_depth = top - ((h.scrap + ts - h.into_template) if ts else (h.scrap - h.into_scrap))
     outline_depth = top - (h.scrap - h.into_scrap)
 
     fix_ops: list[DrillOp] = []
@@ -130,9 +137,13 @@ def _panel_programs(panel: PanelPlan, settings: Settings) -> list[Program]:
             screw_ops.append(DrillOp(x, y, screw_depth, hole.diameter))
         for ps in t.shapes:
             moved = translate(ps.shape.outline, ps.x, ps.y)
-            segs = _contour([_map_seg(s, t) for s in moved], settings)
-            cuts.append(ContourOp(segs, shape_depth, f'{t.id} {ps.name} #{ps.copy}'))
-        if t.fix_holes or t.screw_holes or t.shapes:
+            label = f'{t.id} {ps.name} #{ps.copy}'
+            try:
+                segs = _contour([_map_seg(s, t) for s in moved], settings)
+            except OffsetError as e:
+                raise OffsetError(f'{label}: {e}') from e
+            cuts.append(ContourOp(segs, shape_depth, label))
+        if ts:    # no template layer, no template outline
             outlines.append(ContourOp(_contour(_rect_segs(t), settings),
                                       outline_depth, f'{t.id} outline'))
 

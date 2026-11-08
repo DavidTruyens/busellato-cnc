@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from nesting.dxf import Hole, Shape, read_dxf
-from nesting.geometry import Arc, Line, bbox
+from nesting.geometry import Arc, Line, OffsetError, bbox
 from nesting.layout import PanelPlan, PlacedShape, PlacedTemplate, Plan, ShapeEntry, build_plan, footprint, to_panel
 from nesting.program import ContourOp, DrillOp, pass_depths, plan_programs, stack_top
 from nesting.settings import Settings
@@ -110,22 +110,65 @@ class ProgramTests(unittest.TestCase):
                 self.assertLessEqual(y1, 50 + fh)
 
     def test_real_rotated_template_from_layout(self):
-        shapes = [rect('a', 2400, 1100, holes=False)] * 1
         s = Settings()
-        s.template.mode = 'none'
-        # a narrow panel forces a turn: the shape only fits rotated
         s.panel.length, s.panel.width = 1200, 2440
-        plan = build_plan([ShapeEntry(shapes[0])], s)
+        # 2400 long cannot lie along the 1200 panel edge: the template must turn
+        plan = build_plan([ShapeEntry(rect('a', 2300, 230, holes=False))], s)
         t = plan.panels[0].templates[0]
         self.assertTrue(t.rotated)
-        op = by_name(plan_programs(plan, s))['N1C'].ops[0]
-        x0, y0, x1, y1 = bbox(op.segs)
+        ops = by_name(plan_programs(plan, s))['N1C'].ops
         fw, fh = footprint(t)
-        r = s.router.diameter / 2     # no template margin: the cut runs one radius outside
-        self.assertGreaterEqual(x0, t.x - r - 1e-6)
-        self.assertLessEqual(x1, t.x + fw + r + 1e-6)
-        self.assertLessEqual(y1, t.y + fh + r + 1e-6)
-        self.assertAlmostEqual(x1 - x0, fw + 2 * r)
+        for op in ops:
+            x0, y0, x1, y1 = bbox(op.segs)
+            self.assertGreaterEqual(x0, t.x - 4 - 1e-6)
+            self.assertLessEqual(x1, t.x + fw + 4 + 1e-6)
+            self.assertGreaterEqual(y0, t.y - 4 - 1e-6)
+            self.assertLessEqual(y1, t.y + fh + 4 + 1e-6)
+
+    def test_none_mode_has_no_template_layer(self):
+        s = Settings()
+        s.template.mode = 'none'
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        self.assertEqual(stack_top(s, plan.panels[0]), 36)
+        progs = by_name(plan_programs(plan, s))
+        self.assertEqual(sorted(progs), ['N1C', 'N1S'])
+        self.assertEqual(progs['N1C'].stock, (2440, 1220, 36))
+        for op in progs['N1S'].ops:
+            self.assertAlmostEqual(op.depth, 36 - (18 - 8))
+        cuts = progs['N1C'].ops
+        self.assertEqual(len(cuts), 1)
+        self.assertFalse(cuts[0].label.endswith('outline'))
+        self.assertAlmostEqual(cuts[0].depth, 36 - (18 - 0.5))
+
+    def test_offset_error_names_the_shape(self):
+        pts = [(0, 0), (500, 0), (500, 100), (252, 100), (252, 60), (248, 60),
+               (248, 100), (0, 100)]
+        outline = [Line(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+        plan, s = plan_for(Shape('slot', outline, []))
+        with self.assertRaises(OffsetError) as cm:
+            plan_programs(plan, s)
+        self.assertTrue(str(cm.exception).startswith('T01 slot #1: '), str(cm.exception))
+
+    def test_all_depths_with_mixed_thickness(self):
+        plan, s = plan_for(rect('a', 1000, 230), rect('b', 1000, 230), thick=[18, 22])
+        progs = by_name(plan_programs(plan, s))
+        self.assertEqual({round(o.depth, 6) for o in progs['N1F'].ops}, {41})
+        self.assertEqual({round(o.depth, 6) for o in progs['N1S'].ops}, {30})
+        cuts = progs['N1C'].ops
+        self.assertEqual([round(o.depth, 6) for o in cuts], [22.3, 22.3, 40.5])
+
+    def test_depths_with_distinct_heights(self):
+        s = Settings()
+        s.heights.scrap, s.heights.template_stock, s.heights.shape_thickness = 16, 19, 22
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        # stack 16+19+22 = 57; fixing bottom 15 -> 42; screw bottom 16+19-8 = 27 -> 30
+        # shape bottom 35-0.3 = 34.7 -> 22.3; template bottom 16-0.5 = 15.5 -> 41.5
+        self.assertAlmostEqual(stack_top(s, plan.panels[0]), 57)
+        progs = by_name(plan_programs(plan, s))
+        self.assertAlmostEqual(progs['N1F'].ops[0].depth, 42)
+        self.assertAlmostEqual(progs['N1S'].ops[0].depth, 30)
+        self.assertAlmostEqual(progs['N1C'].ops[0].depth, 22.3)
+        self.assertAlmostEqual(progs['N1C'].ops[-1].depth, 41.5)
 
     def test_direction_and_arcs(self):
         entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
