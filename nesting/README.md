@@ -51,7 +51,7 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | template | mode auto | `auto` builds a template per group, `fixed` uses `fixed_width` x `fixed_height`, `none` cuts shapes straight on the scrap, with no template and no fixing holes. |
 | | shapes_per 2, group_by length | How many shapes share a template, and how they are grouped (`length` or `order`). |
 | | margin_end 45, margin_side 45 | Template margin around the group. |
-| | fix_inset 15, head_dia 14 | Fixing hole inset from the template edge, and screw head diameter; `head_dia` is used for a clearance check between fixing holes and shapes (a failure is reported as a plan problem). |
+| | fix_inset 15, head_dia 14 | Fixing hole inset from the template edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the template). A failure is reported as a plan problem. |
 | origin | G54 | Which origin the programs use, `G54` or `G55`. The post-processor's default is G54. Left = G54 / right = G55 is an assumption: which machine origin each one maps to has not been confirmed on the machine. Check which origin the machine uses before the first run. |
 
 The tool numbers 1 and 2 for the drills are placeholders: set the real tool numbers.

@@ -146,6 +146,62 @@ class Template(unittest.TestCase):
             self.assertEqual((t.shapes[0].x, t.shapes[0].y), (0, 0))
 
 
+class ScrewHeadClearance(unittest.TestCase):
+    """C2: the cutter edge runs a full diameter outside the shape; the head must stay clear
+    of it, and must sit inside the template with 3 mm to spare."""
+
+    def settings(self, tool=66, dia=8, margin=45, inset=15):
+        s = Settings()
+        s.router.tool, s.router.diameter = tool, dia
+        s.template.margin_end = s.template.margin_side = margin
+        s.template.fix_inset = inset
+        return s
+
+    def rejected(self, s, *needles):
+        plan = build_plan(entries(rect('sharp', 1000, 200)), s)
+        self.assertEqual(plan.panels, [])
+        self.assertEqual(len(plan.problems), 1, plan.problems)
+        for n in ('sharp',) + needles:
+            self.assertIn(n, plan.problems[0])
+        return plan.problems[0]
+
+    def test_reviewer_case_t66_d8_margin_20_inset_10(self):
+        # head 0.86 mm inside the cutter path: hole (10,10), shape corner (20,20), 14.1 < 8+7+3
+        self.rejected(self.settings(margin=20, inset=10), 'need 18.0')
+
+    def test_reviewer_case_t65_d18_margin_25_inset_10(self):
+        # 21.2 mm from the shape, needs 18+7+3 = 28
+        self.rejected(self.settings(tool=65, dia=18, margin=25, inset=10), 'need 28.0')
+
+    def test_inset_too_small_for_the_head(self):
+        msg = self.rejected(self.settings(inset=3), 'inset 3', '10')
+        self.assertIn('template', msg)
+
+    def test_inset_exactly_head_radius_plus_3_is_fine(self):
+        plan = build_plan(entries(rect('sharp', 1000, 200)), self.settings(inset=10))
+        self.assertEqual(plan.problems, [])
+
+    def test_fixed_mode_checks_the_inset_too(self):
+        s = self.settings(inset=3)
+        s.template.mode = 'fixed'
+        s.template.fixed_width, s.template.fixed_height = 1200, 400
+        self.rejected(s, 'inset 3')
+
+    def test_defaults_and_real_plates_keep_clearance(self):
+        s = Settings()
+        plan = build_plan(real_entries(), s)
+        self.assertEqual(plan.problems, [])
+        need = s.router.diameter + s.template.head_dia / 2 + 3.0     # 18
+        for t in all_templates(plan):
+            for h in t.fix_holes:
+                self.assertGreaterEqual(min(h.x, h.y, t.width - h.x, t.height - h.y),
+                                        s.template.head_dia / 2 + 3.0)
+                for p in t.shapes:
+                    dx = max(p.x - h.x, 0, h.x - (p.x + p.shape.length))
+                    dy = max(p.y - h.y, 0, h.y - (p.y + p.shape.width))
+                    self.assertGreaterEqual((dx * dx + dy * dy) ** 0.5, need)
+
+
 class Nesting(unittest.TestCase):
     def test_real_plates_fit_without_overlap(self):
         s = Settings()

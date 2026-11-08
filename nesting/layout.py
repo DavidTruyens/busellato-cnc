@@ -172,9 +172,17 @@ def _build_template(group: list[_Item], settings: Settings) -> PlacedTemplate:
     fix: list[Hole] = []
     if t.mode != 'none':
         ins = t.fix_inset
+        # the head must sit inside the template, 3 mm clear of its outline cut
+        min_inset = t.head_dia / 2 + 3.0
+        if ins < min_inset:
+            raise _Unfit(f'{names}: template fixing hole inset {ins:g} mm is less than '
+                         f'head_dia/2 + 3 = {min_inset:g} mm: the screw head would reach '
+                         f'the template outline cut')
         fix = [Hole(fx, fy, settings.drill_fix.diameter)
                for fx in (ins, W - ins) for fy in (ins, H - ins)]
-        need = settings.router.diameter / 2 + t.head_dia / 2 + 3.0
+        # the cutter centre runs a radius outside the shape, so its edge reaches a
+        # full diameter from the shape
+        need = settings.router.diameter + t.head_dia / 2 + 3.0
         for h in fix:
             for p in placed:
                 dx = max(p.x - h.x, 0, h.x - (p.x + p.shape.length))
