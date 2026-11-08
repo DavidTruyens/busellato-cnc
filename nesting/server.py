@@ -407,7 +407,11 @@ def main(argv: list[str]) -> int:
     if args.seed_plates:
         n = seed_plates(folder)
         print(f'Seeded {n} plate shapes' if n else 'Project already has shapes: nothing seeded')
-    server = make_server(folder, args.port)
+    try:
+        server = make_server(folder, args.port)
+    except (OverflowError, OSError) as e:
+        print(f'Cannot use port {args.port}: {e}', file=sys.stderr)
+        return 1
     print(f'Project {folder}\nOpen http://{HOST}:{server.server_address[1]}/  (Ctrl+C to stop)',
           flush=True)
     try:

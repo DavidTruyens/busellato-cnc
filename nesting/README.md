@@ -4,9 +4,10 @@ A local tool (Python 3.11, standard library only) that takes part outlines (DXF)
 panels, optionally builds a template around groups of parts, and writes one CNC90 program per
 tool for the Busellato S.EASY. Design: `docs/superpowers/specs/2026-11-08-nesting-tool-design.md`.
 
-**Nothing this tool writes has been run on the machine.** The programs are format-checked
-(`tools/check_cnc90.py`, and the emitter is tested against the post-processor's output), not run on
-the machine. See "Safety" before the first run.
+**Nothing this tool writes has been run on the machine.** The programs are format-checked,
+not run on the machine: the emitter reproduces the machine test programs ZZT1, ZZT1AD and ZZT2A
+byte for byte (those files are in `post/machine-tests/`, written by the Fusion post-processor),
+and generated programs pass `tools/check_cnc90.py`. See "Safety" before the first run.
 
 ## Start it
 
@@ -42,16 +43,16 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | | fix_into_scrap 1 | How far the fixing holes go into the scrap. |
 | router | tool 66, diameter 8 | Cutter tool number and diameter; the contour is offset outward by half the diameter. |
 | | spindle_rpm 18000, plunge_feed 1, cut_feed 3 | Spindle speed and feeds. |
-| | depth_per_pass 9 | Maximum cut per pass; each contour is cut in as many equal passes as needed. |
+| | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (shape contours: shape thickness + `into_template`; template outlines: template stock + `into_scrap`) and are equal steps. |
 | | clearance 4 | Extra space between neighbours; the gap between shapes is diameter + clearance. |
-| | direction ccw | Cutting direction of the contours (`ccw` or `cw`). |
+| | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
 | drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per template, screwed into the scrap. |
 | drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes drilled through each shape's own holes into the template. |
-| template | mode auto | `auto` builds a template per group, `fixed` uses `fixed_width` x `fixed_height`, `none` cuts shapes straight on the scrap. |
+| template | mode auto | `auto` builds a template per group, `fixed` uses `fixed_width` x `fixed_height`, `none` cuts shapes straight on the scrap, with no template and no fixing holes. |
 | | shapes_per 2, group_by length | How many shapes share a template, and how they are grouped (`length` or `order`). |
 | | margin_end 45, margin_side 45 | Template margin around the group. |
-| | fix_inset 15, head_dia 14 | Fixing hole inset from the template edge, and screw head diameter. |
-| origin | G54 | Machine origin used: `G54` (left) or `G55` (right). |
+| | fix_inset 15, head_dia 14 | Fixing hole inset from the template edge, and screw head diameter; `head_dia` is used for a clearance check between fixing holes and shapes (a failure is reported as a plan problem). |
+| origin | G54 | Which origin the programs use, `G54` or `G55`. The post-processor's default is G54. Left = G54 / right = G55 is an assumption: which machine origin each one maps to has not been confirmed on the machine. Check which origin the machine uses before the first run. |
 
 The tool numbers 1 and 2 for the drills are placeholders: set the real tool numbers.
 Quantities are capped at 500 per shape.

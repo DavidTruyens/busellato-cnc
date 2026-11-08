@@ -449,6 +449,41 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(seed_plates(self.dir), 0)
         self.assertEqual(sorted(p.name for p in (self.dir / 'shapes').iterdir()), before)
 
+    def run_main(self, *args):
+        import contextlib
+        import io
+        from nesting.server import main
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = main(['nesting', *args])
+            except SystemExit as e:
+                code = e.code
+        return code, out.getvalue(), err.getvalue()
+
+    def test_cli_help_exits_zero(self):
+        code, out, _ = self.run_main('--help')
+        self.assertEqual(code, 0)
+        self.assertIn('--seed-plates', out)
+
+    def test_cli_out_of_range_port_exits_one(self):
+        code, out, err = self.run_main(str(self.dir), '--seed-plates', '--port', '99999')
+        self.assertEqual(code, 1)
+        self.assertIn('Cannot use port 99999', err)
+        self.assertNotIn('Traceback', err)
+        self.assertEqual(len(list((self.dir / 'shapes').glob('*.dxf'))), 12)
+
+    def test_cli_port_in_use_exits_one(self):
+        import socket
+        with socket.socket() as s:
+            s.bind(('127.0.0.1', 0))
+            s.listen()
+            port = s.getsockname()[1]
+            code, _, err = self.run_main(str(self.dir), '--port', str(port))
+        self.assertEqual(code, 1)
+        self.assertIn(f'Cannot use port {port}', err)
+        self.assertNotIn('Traceback', err)
+
 
 if __name__ == '__main__':
     unittest.main()
