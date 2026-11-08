@@ -1,0 +1,553 @@
+<title>S.EASY Operator Screen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one operator screen (job list, machine state, pedal, two start buttons), two supporting tabs, notes for the machine owner below. */
+:root {
+  --bg: #12161a;
+  --panel: #1a2026;
+  --panel-2: #222a31;
+  --line: #313b44;
+  --fg: #e8edf1;
+  --muted: #8d9aa5;
+  --accent: #f0a21b;
+  --accent-fg: #1a1203;
+  --go: #3fbf7f;
+  --run: #4aa3e8;
+  --stop: #e5584f;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef1f3; --panel: #ffffff; --panel-2: #e4e9ed; --line: #c5ced6;
+    --fg: #172027; --muted: #5a6872; --accent: #b86f00; --accent-fg: #ffffff;
+    --go: #1d8a55; --run: #1f78c1; --stop: #c7362d; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef1f3; --panel: #ffffff; --panel-2: #e4e9ed; --line: #c5ced6;
+  --fg: #172027; --muted: #5a6872; --accent: #b86f00; --accent-fg: #ffffff;
+  --go: #1d8a55; --run: #1f78c1; --stop: #c7362d; color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-block: 20px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h1 { font-size: 30px; line-height: 1.1; }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+p { margin: 0; max-width: 65ch; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.intro { display: flex; flex-direction: column; gap: 8px; }
+.intro .tag { font-family: var(--font-mono); font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .1em; }
+.intro p { color: var(--muted); }
+
+.frame { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; container-type: inline-size; }
+.topbar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 10px 16px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+.topbar .name { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: .04em; }
+.topbar .sp { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px; padding: 3px 10px; border-radius: 3px; border: 1px solid var(--line); background: var(--bg); text-transform: uppercase; letter-spacing: .06em; }
+.chip i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.chip.ok i { background: var(--go); } .chip.run i { background: var(--run); } .chip.hot i { background: var(--accent); }
+.tabs { display: flex; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { flex: 0 0 auto; font: 600 17px var(--font-display); letter-spacing: .06em; text-transform: uppercase; background: none; color: var(--muted); border: 0; border-bottom: 3px solid transparent; padding: 14px 16px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); background: var(--panel); }
+.tabs button:hover { color: var(--fg); }
+.view { padding: 18px 16px 20px; }
+.grid-op { display: grid; grid-template-columns: 1fr; gap: 22px; }
+.grid-op > .col:first-child { order: 2; }
+@container (min-width: 720px) {
+  .grid-op { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  .grid-op > .col:first-child { order: 0; }
+}
+.col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* Job list */
+.joblist { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.job { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+.job:first-child { border-top: 0; }
+.job .idx { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+.job .pname { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: .03em; line-height: 1.1; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.job .pdesc { font-size: 13px; color: var(--muted); }
+.side { font-family: var(--font-mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 3px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+.job .count { font-family: var(--font-mono); font-size: 22px; text-align: right; white-space: nowrap; }
+.job .count small { font-size: 13px; color: var(--muted); }
+.job .bar { grid-column: 2 / 4; height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.job .bar b { display: block; height: 100%; background: var(--go); transition: width .3s; }
+.job.current { background: var(--panel-2); box-shadow: inset 4px 0 0 var(--accent); }
+.job.current .idx { color: var(--accent); }
+.job.done { opacity: .55; }
+.job.done .pname .nm { text-decoration: line-through; text-decoration-thickness: 2px; }
+
+/* Machine state */
+.steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@container (min-width: 600px) { .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); } .machine { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.step { border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; background: var(--bg); color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.step .n { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.step .t { font-family: var(--font-display); font-size: 17px; font-weight: 600; line-height: 1.15; }
+.step.now { color: var(--fg); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.step.past { color: var(--fg); border-color: var(--line); }
+.step.past .n::after { content: " done"; color: var(--go); }
+
+.machine { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ind { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+.ind .k { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.ind .v { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.3; }
+.ind .lamp { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--muted); flex: 0 0 auto; }
+.ind.on .lamp { background: var(--go); border-color: var(--go); }
+.ind.off .v { color: var(--muted); }
+
+/* Pedal and starts */
+.pedal { text-align: left; font: inherit; color: inherit; background: var(--panel-2); border: 2px solid var(--line); border-radius: 6px; padding: 14px 16px; cursor: pointer; display: flex; gap: 14px; align-items: center; }
+.pedal .lamp { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--muted); }
+.pedal b { display: block; font-family: var(--font-display); font-size: 24px; letter-spacing: .04em; font-weight: 600; line-height: 1.1; }
+.pedal span.s { font-size: 13px; color: var(--muted); }
+.pedal.cue { border-color: var(--accent); }
+.pedal.cue .lamp { border-color: var(--accent); }
+.pedal.held { border-color: var(--go); background: color-mix(in srgb, var(--go) 14%, var(--panel-2)); }
+.pedal.held .lamp { background: var(--go); border-color: var(--go); }
+
+.starts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.start {
+  min-height: 140px; border-radius: 6px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; font-family: var(--font-display);
+}
+.start .big { font-size: 40px; font-weight: 700; letter-spacing: .06em; line-height: 1; }
+.start .sub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.start .lampbar { width: 48px; height: 8px; border-radius: 4px; background: var(--line); }
+.start.dim { opacity: .4; }
+.start.blink { border-color: var(--go); opacity: 1; animation: blink 0.9s steps(2, jump-none) infinite; }
+.start.blink .lampbar { background: var(--go); }
+.start.running { border-color: var(--run); background: color-mix(in srgb, var(--run) 22%, var(--panel-2)); opacity: 1; }
+.start.running .lampbar { background: var(--run); }
+.start.running .sub { color: var(--fg); }
+@keyframes blink { 0% { background: var(--panel-2); } 100% { background: color-mix(in srgb, var(--go) 70%, var(--panel-2)); } }
+@media (prefers-reduced-motion: reduce) { .start.blink { animation: none; background: color-mix(in srgb, var(--go) 45%, var(--panel-2)); } }
+@media (max-width: 520px) { .start .big { font-size: 30px; } .start { min-height: 110px; } }
+
+.cycle { height: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.cycle b { display: block; height: 100%; width: 0; background: var(--run); }
+.cycle-label { display: flex; justify-content: space-between; gap: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.msg { min-height: 40px; font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+
+/* Desktop: AXIS on the left, operator panel docked on the right */
+.desk { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 12px; align-items: start; }
+.desk.wide { grid-template-columns: min(780px, 62%) minmax(0, 1fr); }
+@media (max-width: 900px) { .desk, .desk.wide { grid-template-columns: 1fr; } }
+.desk > .frame { order: 1; }
+.desk > .axis { order: 2; }
+.axis { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.axis img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
+.axis figcaption { font-size: 13px; color: var(--muted); }
+
+/* Tables & forms */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th { text-align: left; font-family: var(--font-mono); font-weight: 500; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.scroll-x { overflow-x: auto; }
+input[type=number], select {
+  font: 500 16px var(--font-mono); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; width: 100%; min-width: 0;
+}
+input[type=number].qty { width: 84px; }
+select.selSide { min-width: 150px; }
+.btn { font: 600 15px var(--font-body); background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.sm { padding: 5px 9px; font-size: 14px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+.pal { display: grid; grid-template-columns: 1fr; gap: 22px; }
+@container (min-width: 700px) { .pal { grid-template-columns: minmax(0, 340px) minmax(0, 1fr); } }
+.fields { display: flex; flex-direction: column; gap: 12px; }
+.field { display: grid; grid-template-columns: 1fr 140px; gap: 10px; align-items: center; }
+.field label { font-size: 14px; }
+.field label small { display: block; color: var(--muted); font-size: 12px; }
+.drawing { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+.drawing svg { width: 100%; height: auto; display: block; }
+.code { font-family: var(--font-mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+
+.notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .notes { grid-template-columns: 1fr; } }
+.note { display: flex; flex-direction: column; gap: 8px; }
+.note ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.note li { max-width: 62ch; }
+.ask { border-left: 3px solid var(--accent); padding-left: 12px; grid-column: 1 / -1; }
+footer { color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="tag">Proposal · LinuxCNC retrofit · Busellato S.EASY</span>
+    <h1>Operator screen for the S.EASY</h1>
+    <p>The operator panel sits at the left edge of the screen, next to LinuxCNC's own AXIS window, which stays untouched. Narrow, it shows only what the operator needs: pedal, start buttons and the job list. Press Expand to open the job editor and the pallet parameters. Everything is clickable. Program names and counts are examples. The AXIS window is a static screenshot and does not react to the panel.</p>
+  </header>
+
+  <div class="desk" id="desk">
+  <figure class="axis">
+    <img src="axis.jpg" alt="LinuxCNC AXIS 2.9.4 window running the simulator configuration">
+    <figcaption>LinuxCNC AXIS 2.9.4 as it runs today (screenshot from the simulator). It stays untouched.</figcaption>
+  </figure>
+
+  <section class="frame" aria-label="Operator panel mockup">
+    <div class="topbar">
+      <span class="name">BUSELLATO S.EASY</span>
+      <span class="chip ok" id="chipState"><i></i><span id="chipStateText">Ready</span></span>
+      <span class="chip"><i></i>Job: Batch 14</span>
+      <span class="sp"></span>
+      <button class="btn sm" id="expandBtn" aria-expanded="false">Expand</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-op" aria-selected="true" aria-controls="v-op">Operator</button>
+      <button role="tab" id="t-jobs" aria-selected="false" aria-controls="v-jobs">Jobs</button>
+      <button role="tab" id="t-pal" aria-selected="false" aria-controls="v-pal">Pallet</button>
+    </div>
+
+    <!-- OPERATOR -->
+    <div class="view" id="v-op" role="tabpanel" aria-labelledby="t-op">
+      <div class="grid-op">
+        <div class="col">
+          <h3>Job list</h3>
+          <div class="joblist" id="opList"></div>
+          <div class="ind on" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span class="k">Parts today</span><span class="num" style="font-size:24px" id="sTotal">0</span>
+          </div>
+        </div>
+        <div class="col">
+          <h3>Cycle</h3>
+          <div class="steps" id="steps">
+            <div class="step"><span class="n">Step 1</span><span class="t">Place plate on the pins</span></div>
+            <div class="step"><span class="n">Step 2</span><span class="t">Press the pedal</span></div>
+            <div class="step"><span class="n">Step 3</span><span class="t">Press blinking start</span></div>
+            <div class="step"><span class="n">Step 4</span><span class="t">Machining</span></div>
+          </div>
+          <div class="machine">
+            <div class="ind" id="iVac"><div class="k">Vacuum</div><div class="v"><span class="lamp"></span><span class="t">Off</span></div></div>
+            <div class="ind" id="iX"><div class="k">X pins</div><div class="v"><span class="lamp"></span><span class="t">Down</span></div></div>
+            <div class="ind" id="iYL"><div class="k">Y pins left</div><div class="v"><span class="lamp"></span><span class="t">Down</span></div></div>
+            <div class="ind" id="iYR"><div class="k">Y pins right</div><div class="v"><span class="lamp"></span><span class="t">Down</span></div></div>
+          </div>
+          <button class="pedal" id="pedal" aria-pressed="false"><span class="lamp"></span><span><b>Foot pedal</b><span class="s" id="pedalSub">Vacuum on, pins retract</span></span></button>
+          <div class="starts">
+            <button class="start dim" id="startL"><span class="big">LEFT</span><span class="lampbar"></span><span class="sub">Origin G54</span></button>
+            <button class="start dim" id="startR"><span class="big">RIGHT</span><span class="lampbar"></span><span class="sub">Origin G55</span></button>
+          </div>
+          <div>
+            <div class="cycle-label"><span id="cycleText">Waiting for pedal</span><span class="num" id="cyclePct"></span></div>
+            <div class="cycle" aria-hidden="true"><b id="cycleBar"></b></div>
+          </div>
+          <div class="msg" id="msg" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JOB LIST -->
+    <div class="view" id="v-jobs" role="tabpanel" aria-labelledby="t-jobs" hidden>
+      <div class="col">
+        <div class="toolbar">
+          <h2>Edit the job list</h2>
+          <span class="muted">Program, plate position, and how many times to run it.</span>
+        </div>
+        <div class="scroll-x">
+          <table class="tbl">
+            <thead><tr><th>#</th><th>Program</th><th>Plate</th><th>Times</th><th>Order</th><th></th></tr></thead>
+            <tbody id="edBody"></tbody>
+          </table>
+        </div>
+        <div class="toolbar">
+          <button class="btn primary" id="addJob">Add program</button>
+          <button class="btn" id="resetCounts">Reset counters</button>
+          <button class="btn" id="saveJob">Save job</button>
+          <span class="muted" id="saveNote"></span>
+        </div>
+        <p class="muted">Plate position sets which alignment pins rise and which start button blinks. A long plate sits against the left section and uses the left start.</p>
+      </div>
+    </div>
+
+    <!-- PARAMETRIC -->
+    <div class="view" id="v-pal" role="tabpanel" aria-labelledby="t-pal" hidden>
+      <div class="pal">
+        <div class="col">
+          <h2>Side pallet</h2>
+          <div class="fields">
+            <div class="field"><label for="pL">Length<small>mm</small></label><input type="number" id="pL" value="1200" min="200" max="3000" step="10"></div>
+            <div class="field"><label for="pH">Height<small>mm</small></label><input type="number" id="pH" value="580" min="100" max="1000" step="10"></div>
+            <div class="field"><label for="pT">Thickness<small>mm</small></label><input type="number" id="pT" value="18" min="8" max="40" step="1"></div>
+            <div class="field"><label for="pM">Edge distance<small>to first hole, mm</small></label><input type="number" id="pM" value="50" min="20" max="200" step="1"></div>
+            <div class="field"><label for="pP">Hole pitch<small>mm, 32 for system holes</small></label><input type="number" id="pP" value="32" min="16" max="128" step="1"></div>
+            <div class="field"><label for="pR">Rows<small>from the front edge</small></label><input type="number" id="pR" value="2" min="1" max="4" step="1"></div>
+            <div class="field"><label for="pS">Row spacing<small>mm</small></label><input type="number" id="pS" value="64" min="32" max="400" step="1"></div>
+            <div class="field"><label for="pSide">Plate position<small>section on the table</small></label>
+              <select id="pSide"><option value="L">Left section</option><option value="R">Right section</option><option value="LONG" selected>Long plate (left)</option></select></div>
+          </div>
+          <div class="toolbar"><button class="btn primary" id="addToJob">Add to job list</button><span class="muted" id="palNote"></span></div>
+        </div>
+        <div class="col">
+          <div class="drawing"><svg id="palSvg" viewBox="0 0 720 360" role="img" aria-label="Pallet preview"></svg></div>
+          <div class="muted num" id="palInfo"></div>
+          <pre class="code" id="palCode"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <section class="notes">
+    <div class="note">
+      <h2>What stays the same</h2>
+      <ul>
+        <li>One list of programs with a repeat count and a left or right origin each, as in the DOS version.</li>
+        <li>The operator works with the pedal and the start buttons only.</li>
+        <li>Pedal switches vacuum on and retracts the pins. Vacuum off and pins up happen on their own at the end of the cycle.</li>
+        <li>Parametric programming for side pallets, now with a drawing next to the numbers.</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h2>What is new</h2>
+      <ul>
+        <li>Only the correct start button blinks. The other one does nothing, so a plate cannot be started on the wrong side.</li>
+        <li>Pin, vacuum and cycle state are visible on the screen, so a stuck pin shows up as a message.</li>
+        <li>Large buttons and counters, readable from the operator position.</li>
+        <li>Counters survive a power cut, so the day resumes where it stopped.</li>
+        <li>Standard G-code behind it, with no proprietary floppy format.</li>
+        <li>Runs beside AXIS instead of replacing it, so homing, jogging and diagnostics stay one click away.</li>
+      </ul>
+    </div>
+    <div class="note" style="grid-column: 1 / -1">
+      <h2>How it sits next to LinuxCNC</h2>
+      <ul>
+        <li>AXIS stays as it is. The operator panel is a separate window docked at the left edge of the screen.</li>
+        <li>Narrow, it shows only what the operator needs. Expand opens the job editor and the pallet parameters, and AXIS gets narrower.</li>
+        <li>The panel talks to LinuxCNC through its Python interface to load programs, set the origin and start cycles. Pedal, pins and vacuum go through HAL.</li>
+        <li>LinuxCNC can also embed a panel inside the AXIS window. I would check that against version 2.9 before choosing between the two.</li>
+      </ul>
+    </div>
+    <div class="note ask">
+      <h2>Questions for the owner</h2>
+      <ul>
+        <li>At rest, are X pins and the Y pins of the active section always up? The mockup assumes so, and assumes the other section's Y pins stay down.</li>
+        <li>If the operator presses the pedal again before starting, should it release the vacuum and raise the pins again?</li>
+        <li>Can both sections be loaded at once, with the program running left and then right?</li>
+        <li>Is there only one pedal, or a second one for another function?</li>
+        <li>Which pallet and panel families do you program parametrically, and which dimensions change per order?</li>
+        <li>What resolution does the machine PC's screen have? The panel width of about 380 px assumes a full HD screen or larger.</li>
+      </ul>
+    </div>
+  </section>
+  <footer>Interactive mockup for discussion. Nothing here is connected to the machine.</footer>
+</div>
+
+<script>
+(function () {
+  var CATALOG = [
+    { id: "SP-L", desc: "Side pallet, left panel" },
+    { id: "SP-R", desc: "Side pallet, right panel" },
+    { id: "SP-LONG", desc: "Side pallet, long version" },
+    { id: "TOP-600", desc: "Top panel 600 wide, system holes" },
+    { id: "SHELF-32", desc: "Shelf, 32 mm row" },
+    { id: "BACK-3", desc: "Back panel, 3 mm groove" }
+  ];
+  var SIDES = { L: "Left section", R: "Right section", LONG: "Long plate (left)" };
+  var jobs = [
+    { prog: "SP-LONG", side: "LONG", qty: 4, done: 1 },
+    { prog: "TOP-600", side: "L", qty: 3, done: 0 },
+    { prog: "SHELF-32", side: "R", qty: 3, done: 0 },
+    { prog: "BACK-3", side: "LONG", qty: 2, done: 0 }
+  ];
+  var phase = "load"; // load, clamped, run
+  var totalToday = 12, timer = null, t0 = 0, CYCLE_MS = 4000;
+
+  function $(id) { return document.getElementById(id); }
+  function desc(p) { for (var i = 0; i < CATALOG.length; i++) if (CATALOG[i].id === p) return CATALOG[i].desc; return ""; }
+  function ci() { for (var i = 0; i < jobs.length; i++) if (jobs[i].done < jobs[i].qty) return i; return -1; }
+  function target() { var i = ci(); return i < 0 ? null : (jobs[i].side === "R" ? "R" : "L"); }
+  function sideTag(s) { return s === "L" ? "Left" : s === "R" ? "Right" : "Long plate, left"; }
+
+  function setWide(w) {
+    $("desk").classList.toggle("wide", w);
+    var b = $("expandBtn"); b.setAttribute("aria-expanded", String(w)); b.textContent = w ? "Collapse" : "Expand";
+  }
+  $("expandBtn").addEventListener("click", function () { setWide(!$("desk").classList.contains("wide")); });
+
+  var tabs = ["op", "jobs", "pal"];
+  tabs.forEach(function (k) {
+    $("t-" + k).addEventListener("click", function () {
+      tabs.forEach(function (j) { $("t-" + j).setAttribute("aria-selected", j === k ? "true" : "false"); $("v-" + j).hidden = j !== k; });
+      setWide(k !== "op");
+    });
+  });
+
+  function setInd(id, on, text) {
+    var e = $(id); e.className = "ind " + (on ? "on" : "off"); e.querySelector(".t").textContent = text;
+  }
+  function setMsg(t) { $("msg").textContent = t || ""; }
+
+  function renderOp() {
+    var i = ci(), cur = i < 0 ? null : jobs[i], tg = target();
+    var h = "";
+    jobs.forEach(function (j, k) {
+      var cls = "job" + (k === i ? " current" : "") + (j.done >= j.qty ? " done" : "");
+      h += '<div class="' + cls + '"><span class="idx">' + String(k + 1).padStart(2, "0") + '</span>' +
+        '<div><div class="pname"><span class="nm">' + j.prog + '</span><span class="side">' + sideTag(j.side) + '</span></div><div class="pdesc">' + desc(j.prog) + '</div></div>' +
+        '<div class="count">' + j.done + '<small> / ' + j.qty + '</small></div>' +
+        '<div class="bar"><b style="width:' + Math.round(100 * j.done / j.qty) + '%"></b></div></div>';
+    });
+    $("opList").innerHTML = h;
+    $("sTotal").textContent = totalToday;
+    var pinsUp = phase === "load" && !!cur;
+    setInd("iVac", phase !== "load", phase !== "load" ? "On" : "Off");
+    setInd("iX", pinsUp, pinsUp ? "Up" : "Down");
+    setInd("iYL", pinsUp && tg === "L", pinsUp && tg === "L" ? "Up" : "Down");
+    setInd("iYR", pinsUp && tg === "R", pinsUp && tg === "R" ? "Up" : "Down");
+
+    var stepNow = !cur ? -1 : phase === "load" ? 0 : phase === "clamped" ? 2 : 3;
+    var stepEls = $("steps").children;
+    for (var s = 0; s < 4; s++) {
+      var past = phase === "load" ? false : phase === "clamped" ? s < 2 : s < 3;
+      stepEls[s].className = "step" + (s === stepNow ? " now" : past ? " past" : "");
+    }
+    if (phase === "load" && cur) stepEls[1].className = "step";
+
+    var P = $("pedal");
+    P.classList.toggle("cue", phase === "load" && !!cur);
+    P.classList.toggle("held", phase === "clamped");
+    P.setAttribute("aria-pressed", String(phase === "clamped"));
+    $("pedalSub").textContent = phase === "clamped" ? "Plate held. Press again to release." : "Vacuum on, pins retract";
+
+    ["L", "R"].forEach(function (sd) {
+      var b = $("start" + sd);
+      var isT = tg === sd;
+      b.className = "start" + (phase === "clamped" && isT ? " blink" : phase === "run" && isT ? " running" : " dim");
+      b.querySelector(".sub").textContent = phase === "run" && isT ? "Running" : (sd === "L" ? "Origin G54" : "Origin G55");
+    });
+
+    var chip = $("chipState");
+    chip.className = "chip " + (phase === "run" ? "run" : "ok");
+    $("chipStateText").textContent = !cur ? "Job finished" : phase === "run" ? "Cycle running" : phase === "clamped" ? "Plate held" : "Ready";
+    if (phase === "load") $("cycleText").textContent = !cur ? "Job complete" : cur.prog + ", " + sideTag(cur.side).toLowerCase() + ". Piece " + (cur.done + 1) + " of " + cur.qty + ". Waiting for pedal";
+    if (phase === "clamped") $("cycleText").textContent = "Press the blinking " + (tg === "L" ? "LEFT" : "RIGHT") + " button";
+  }
+
+  function pedal() {
+    var cur = ci() < 0 ? null : jobs[ci()];
+    if (!cur) { setMsg("Job is finished. Load the next job."); return; }
+    if (phase === "run") { setMsg("Cycle is running. The pedal is ignored."); return; }
+    if (phase === "load") { phase = "clamped"; setMsg("Vacuum on, pins retracted. " + (cur.side === "LONG" ? "Long plate: " : "") + "press " + (target() === "L" ? "LEFT" : "RIGHT") + "."); }
+    else { phase = "load"; setMsg("Released. Vacuum off, pins up."); }
+    renderOp();
+  }
+  function start(sd) {
+    if (phase === "run") return;
+    if (phase === "load") { setMsg(ci() < 0 ? "Job is finished." : "Press the pedal first."); return; }
+    if (sd !== target()) { setMsg("Wrong side. This plate starts on " + (target() === "L" ? "LEFT" : "RIGHT") + "."); return; }
+    phase = "run"; t0 = performance.now(); setMsg("");
+    $("cycleText").textContent = jobs[ci()].prog + " on " + (sd === "L" ? "left (G54)" : "right (G55)");
+    renderOp();
+    timer = setInterval(tick, 80);
+  }
+  function tick() {
+    var p = Math.min(1, (performance.now() - t0) / CYCLE_MS);
+    $("cycleBar").style.width = (p * 100) + "%"; $("cyclePct").textContent = Math.round(p * 100) + "%";    if (p >= 1) finish();
+  }
+  function finish() {
+    clearInterval(timer); timer = null;
+    var i = ci(), prog = jobs[i].prog;
+    jobs[i].done++; totalToday++;
+    phase = "load";
+    $("cycleBar").style.width = "0"; $("cyclePct").textContent = "";
+    var n = ci();
+    setMsg(n < 0 ? "All programs done. Vacuum off, pins up." : (n !== i ? prog + " complete. " : "") + "Vacuum off, pins up. Place the next plate" + (n !== i ? " for " + jobs[n].prog : "") + ".");
+    renderOp(); renderEd();
+  }
+  $("pedal").addEventListener("click", pedal);
+  $("startL").addEventListener("click", function () { start("L"); });
+  $("startR").addEventListener("click", function () { start("R"); });
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "button" || tag === "textarea") return;
+    if (e.key === "p" || e.key === "P") pedal();
+  });
+
+  // Job editor
+  function renderEd() {
+    var h = "";
+    jobs.forEach(function (j, i) {
+      var po = CATALOG.map(function (c) { return '<option value="' + c.id + '"' + (c.id === j.prog ? " selected" : "") + ">" + c.id + " · " + c.desc + "</option>"; }).join("");
+      var so = Object.keys(SIDES).map(function (k) { return '<option value="' + k + '"' + (k === j.side ? " selected" : "") + ">" + SIDES[k] + "</option>"; }).join("");
+      h += '<tr><td class="num">' + (i + 1) + '</td>' +
+        '<td><select data-i="' + i + '" class="selProg" aria-label="Program ' + (i + 1) + '">' + po + '</select></td>' +
+        '<td><select data-i="' + i + '" class="selSide" aria-label="Plate position for program ' + (i + 1) + '">' + so + '</select></td>' +
+        '<td><input type="number" class="qty" data-i="' + i + '" value="' + j.qty + '" min="1" max="999" aria-label="Times for program ' + (i + 1) + '"></td>' +
+        '<td><button class="btn sm up" data-i="' + i + '">Up</button> <button class="btn sm dn" data-i="' + i + '">Down</button></td>' +
+        '<td><button class="btn sm rm" data-i="' + i + '">Remove</button></td></tr>';
+    });
+    $("edBody").innerHTML = h;
+  }
+  function afterEdit() { if (phase === "clamped") { phase = "load"; setMsg("Job changed. Plate released."); } renderOp(); renderEd(); }
+  $("edBody").addEventListener("change", function (e) {
+    var i = +e.target.getAttribute("data-i");
+    if (e.target.classList.contains("selProg")) jobs[i].prog = e.target.value;
+    if (e.target.classList.contains("selSide")) jobs[i].side = e.target.value;
+    if (e.target.classList.contains("qty")) { var q = Math.max(1, Math.min(999, parseInt(e.target.value, 10) || 1)); jobs[i].qty = q; if (jobs[i].done > q) jobs[i].done = q; }
+    afterEdit();
+  });
+  $("edBody").addEventListener("click", function (e) {
+    if (phase === "run") return;
+    var i = +e.target.getAttribute("data-i"); if (isNaN(i)) return;
+    if (e.target.classList.contains("up") && i > 0) { var t = jobs[i]; jobs[i] = jobs[i - 1]; jobs[i - 1] = t; }
+    if (e.target.classList.contains("dn") && i < jobs.length - 1) { var u = jobs[i]; jobs[i] = jobs[i + 1]; jobs[i + 1] = u; }
+    if (e.target.classList.contains("rm")) jobs.splice(i, 1);
+    afterEdit();
+  });
+  $("addJob").addEventListener("click", function () { if (phase === "run") return; jobs.push({ prog: "SP-L", side: "L", qty: 1, done: 0 }); afterEdit(); });
+  $("resetCounts").addEventListener("click", function () { if (phase === "run") return; jobs.forEach(function (j) { j.done = 0; }); phase = "load"; setMsg(""); renderOp(); renderEd(); });
+  $("saveJob").addEventListener("click", function () { $("saveNote").textContent = "Saved as an example. A real version stores the job on disk."; });
+
+  // Pallet parametrics
+  function val(id) { return Math.max(0, parseFloat($(id).value) || 0); }
+  function drawPallet() {
+    var L = val("pL"), H = val("pH"), T = val("pT"), M = val("pM"), P = Math.max(1, val("pP")), R = Math.max(1, Math.round(val("pR"))), S = val("pS");
+    if (L < 1 || H < 1) return;
+    var n = L - 2 * M >= 0 ? Math.floor((L - 2 * M) / P) + 1 : 0;
+    var W = 720, Hh = 360, pad = 40;
+    var sc = Math.min((W - 2 * pad) / L, (Hh - 2 * pad) / H);
+    var w = L * sc, h = H * sc, x0 = (W - w) / 2, y0 = (Hh - h) / 2;
+    var cs = getComputedStyle(document.documentElement);
+    var mu = cs.getPropertyValue("--muted").trim(), acc = cs.getPropertyValue("--accent").trim(), pn = cs.getPropertyValue("--panel-2").trim(), fg = cs.getPropertyValue("--fg").trim();
+    var s = '<rect x="' + x0 + '" y="' + y0 + '" width="' + w + '" height="' + h + '" fill="' + pn + '" stroke="' + fg + '" stroke-width="2"/>';
+    var holes = 0;
+    for (var r = 0; r < R; r++) {
+      var yy = M + r * S; if (yy > H) continue;
+      for (var k = 0; k < n; k++) {
+        s += '<circle cx="' + (x0 + (M + k * P) * sc) + '" cy="' + (y0 + h - yy * sc) + '" r="' + Math.max(1.6, 2.5 * sc) + '" fill="' + acc + '"/>';
+        holes++;
+      }
+    }
+    s += '<text x="' + (W / 2) + '" y="' + (y0 + h + 24) + '" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" fill="' + mu + '">' + L + ' mm</text>';
+    s += '<text x="' + (x0 - 12) + '" y="' + (Hh / 2) + '" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" fill="' + mu + '" transform="rotate(-90 ' + (x0 - 12) + ' ' + (Hh / 2) + ')">' + H + ' mm</text>';
+    $("palSvg").innerHTML = s;
+    $("palInfo").textContent = n + " holes per row, " + R + (R === 1 ? " row, " : " rows, ") + holes + " holes in total, panel " + T + " mm thick";
+    $("palCode").textContent = "o<side_pallet> call [" + L + "] [" + H + "] [" + T + "] [" + M + "] [" + P + "] [" + R + "] [" + S + "]\n; first hole " + M + " mm from the edge, " + n + " per row, rows measured from the front edge";
+  }
+  ["pL", "pH", "pT", "pM", "pP", "pR", "pS"].forEach(function (id) { $(id).addEventListener("input", drawPallet); });
+  $("addToJob").addEventListener("click", function () {
+    if (phase === "run") return;
+    var sd = $("pSide").value;
+    jobs.push({ prog: sd === "LONG" ? "SP-LONG" : sd === "R" ? "SP-R" : "SP-L", side: sd, qty: 1, done: 0 });
+    $("palNote").textContent = "Added to the job list as an example entry.";
+    afterEdit();
+  });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawPallet);
+
+  renderOp(); renderEd(); drawPallet();
+})();
+</script>
