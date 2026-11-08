@@ -6,23 +6,57 @@ Y is flipped for SVG (panel width - y); template x, y are the top-left corner.
 """
 from __future__ import annotations
 
+import math
+
 from .backends import BACKENDS
-from .geometry import bbox, sample, translate
-from .layout import PanelPlan, PlacedTemplate, Plan, footprint
-from .program import LINE_WARNING, ContourOp, Program, _map_seg, _panel_number, stack_top
+from .geometry import Line, _sweep, bbox, translate
+from .layout import PanelPlan, PlacedTemplate, Plan, footprint, to_panel
+from .program import LINE_WARNING, ContourOp, DrillOp, Program, _map_seg, _panel_number, stack_top
 from .settings import Settings
 
 BACKEND = 'cnc90'
+TOL = 0.001
 
 
-def _path(points, flip: float) -> str:
-    return ' '.join(f'{"M" if i == 0 else "L"}{x:.3f},{flip - y:.3f}'
-                    for i, (x, y) in enumerate(points))
+def _path(segs, flip: float) -> str:
+    """SVG path with true arcs. Flipping Y reverses the turning direction, so a
+    counter-clockwise machine arc becomes sweep 0."""
+    if not segs:
+        return ''
+    out = [f'M{segs[0].a[0]:.3f},{flip - segs[0].a[1]:.3f}']
+    for sg in segs:
+        x, y = sg.b[0], flip - sg.b[1]
+        if isinstance(sg, Line):
+            out.append(f'L{x:.3f},{y:.3f}')
+        else:
+            large = int(_sweep(sg) > math.pi)
+            out.append(f'A{sg.radius:.3f},{sg.radius:.3f} 0 {large} {int(not sg.ccw)} {x:.3f},{y:.3f}')
+    return ' '.join(out)
 
 
 def _inside(t: PlacedTemplate, x: float, y: float) -> bool:
     w, h = footprint(t)
     return t.x <= x <= t.x + w and t.y <= y <= t.y + h
+
+
+def _classify(panel: PanelPlan, drills: list[DrillOp]):
+    """Label each drill op fixing or screw by matching it to the layout's holes."""
+    def mapped(attr):
+        return [to_panel(t, h.x, h.y) for t in panel.templates for h in getattr(t, attr)]
+
+    fix_at, screw_at = mapped('fix_holes'), mapped('screw_holes')
+
+    def hit(o, at):
+        return any(abs(o.x - x) <= TOL and abs(o.y - y) <= TOL for x, y in at)
+
+    fix_ops, screw_ops = [], []
+    for o in drills:
+        f, sc = hit(o, fix_at), hit(o, screw_at)
+        if f == sc:
+            raise ValueError(f'drill at ({o.x:.3f}, {o.y:.3f}) on {panel.id} matches '
+                             f'{"both fixing and screw" if f else "no"} hole of the layout')
+        (fix_ops if f else screw_ops).append(o)
+    return fix_ops, screw_ops
 
 
 def _program_entry(p: Program, settings: Settings) -> dict:
@@ -41,9 +75,7 @@ def _panel_data(panel: PanelPlan, programs: list[Program], settings: Settings) -
             and p.name[len(prefix):] in ('F', 'S', 'C')]
     drills = [o for p in mine if p.kind == 'drill' for o in p.ops]
     cuts = {o.label: o for p in mine if p.kind == 'cut' for o in p.ops}
-    # drill programs list fixing holes first, then screw holes
-    n_fix = sum(len(t.fix_holes) for t in panel.templates)
-    fix_ops, screw_ops = drills[:n_fix], drills[n_fix:]
+    fix_ops, screw_ops = _classify(panel, drills)
 
     def holes(t, ops):
         return [{'x': o.x, 'y': pw - o.y} for o in ops if _inside(t, o.x, o.y)]
@@ -56,13 +88,13 @@ def _panel_data(panel: PanelPlan, programs: list[Program], settings: Settings) -
             moved = [_map_seg(s, t) for s in translate(ps.shape.outline, ps.x, ps.y)]
             x0, y0, x1, y1 = bbox(moved)
             op = cuts.get(f'{t.id} {ps.name} #{ps.copy}')
-            shapes.append({'name': ps.name, 'path': _path(sample(moved), pw),
-                           'cut_path': _path(sample(op.segs), pw) if op else '',
+            shapes.append({'name': ps.name, 'path': _path(moved, pw),
+                           'cut_path': _path(op.segs, pw) if op else '',
                            'cx': (x0 + x1) / 2, 'cy': pw - (y0 + y1) / 2})
         outline = cuts.get(f'{t.id} outline')
         templates.append({'id': t.id, 'x': t.x, 'y': pw - (t.y + h), 'w': w, 'h': h,
                           'rotated': t.rotated, 'shapes': shapes,
-                          'cut_path': _path(sample(outline.segs), pw) if outline else '',
+                          'cut_path': _path(outline.segs, pw) if outline else '',
                           'fix': holes(t, fix_ops), 'screw': holes(t, screw_ops)})
 
     ops = [o for p in mine for o in p.ops]

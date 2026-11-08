@@ -3,17 +3,29 @@ import re
 import unittest
 
 from nesting.dxf import Hole
-from nesting.geometry import Line, sample
-from nesting.layout import ShapeEntry, build_plan, footprint
-from nesting.preview import preview_data
-from nesting.program import ContourOp, DrillOp, plan_programs
+from nesting.geometry import Arc
+from nesting.layout import Plan, footprint, to_panel
+from nesting.preview import _path, preview_data
+from nesting.program import DrillOp, plan_programs
 from nesting.settings import Settings
 from test_nesting_program import by_name, hand_panel, plan_for, rect
-from nesting.layout import Plan
+
+
+def parse(d):
+    """Tokens of a path string: ('M'|'L', x, y) or ('A', r, large, sweep, x, y)."""
+    out = []
+    for tok in re.findall(r'[MLA][^MLA]*', d):
+        parts = tok[1:].replace(',', ' ').split()
+        if tok[0] == 'A':
+            out.append(('A', float(parts[0]), int(parts[3]), int(parts[4]),
+                        float(parts[5]), float(parts[6])))
+        else:
+            out.append((tok[0], float(parts[0]), float(parts[1])))
+    return out
 
 
 def points(d):
-    return [(float(a), float(b)) for a, b in re.findall(r'[ML]\s*(-?[\d.]+),\s*(-?[\d.]+)', d)]
+    return [(t[-2], t[-1]) for t in parse(d)]
 
 
 def build(*shapes, settings=None):
@@ -40,21 +52,43 @@ class PreviewTests(unittest.TestCase):
         close(self, fix, [(o.x, o.y) for o in pr['N1F'].ops])
         close(self, screw, [(o.x, o.y) for o in pr['N1S'].ops])
 
-    def test_holes_follow_ops_not_layout(self):
+    def test_op_off_the_layout_is_an_error(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))
-        for o in progs[0].ops:
-            o.x += 5
-        data = preview_data(plan, progs, s)
-        pw = s.panel.width
-        got = [(h['x'], pw - h['y']) for t in data['panels'][0]['templates'] for h in t['fix']]
-        close(self, got, [(o.x, o.y) for o in progs[0].ops])
+        progs[0].ops[0].x += 5
+        with self.assertRaises(ValueError):
+            preview_data(plan, progs, s)
 
-    def test_merged_drills_split_fix_and_screw(self):
+    def merged(self):
         s = Settings()
         s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
-        plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
-        t = data['panels'][0]['templates'][0]
-        self.assertEqual((len(t['fix']), len(t['screw'])), (4, 2))
+        plan, progs, s, _ = build(rect('a', 1000, 230), settings=s)
+        return plan, progs, s
+
+    def check_split(self, plan, progs, s):
+        t = plan.panels[0].templates[0]
+        pw = s.panel.width
+        out = preview_data(plan, progs, s)['panels'][0]['templates'][0]
+        close(self, [(h['x'], pw - h['y']) for h in out['fix']],
+              [to_panel(t, h.x, h.y) for h in t.fix_holes])
+        close(self, [(h['x'], pw - h['y']) for h in out['screw']],
+              [to_panel(t, h.x, h.y) for h in t.screw_holes])
+
+    def test_merged_drills_split_fix_and_screw(self):
+        plan, progs, s = self.merged()
+        self.assertEqual(len(progs[0].ops), 6)
+        self.check_split(plan, progs, s)
+
+    def test_merged_split_independent_of_op_order(self):
+        plan, progs, s = self.merged()
+        progs[0].ops.reverse()
+        self.check_split(plan, progs, s)
+
+    def test_hole_matching_both_kinds_is_an_error(self):
+        plan, progs, s, _ = build(rect('a', 1000, 230))
+        t = plan.panels[0].templates[0]
+        t.screw_holes[0] = Hole(t.fix_holes[0].x, t.fix_holes[0].y, 3)
+        with self.assertRaises(ValueError):
+            preview_data(plan, progs, s)
 
     def test_cut_path_matches_contour_ops(self):
         plan, progs, s, data = build(rect('a', 1000, 230))
@@ -63,9 +97,39 @@ class PreviewTests(unittest.TestCase):
         t = data['panels'][0]['templates'][0]
         shape_op = next(o for o in cut.ops if o.label.endswith('a #1'))
         outline_op = next(o for o in cut.ops if o.label.endswith('outline'))
-        flip = lambda pts: [(x, pw - y) for x, y in pts]
-        close(self, flip(points(t['shapes'][0]['cut_path'])), sample(shape_op.segs), ordered=True)
-        close(self, flip(points(t['cut_path'])), sample(outline_op.segs), ordered=True)
+        self.match(t['shapes'][0]['cut_path'], shape_op.segs, pw)
+        self.match(t['cut_path'], outline_op.segs, pw)
+
+    def match(self, d, segs, pw):
+        toks = parse(d)
+        self.assertEqual(toks[0][0], 'M')
+        self.assertEqual(len(toks) - 1, len(segs))
+        self.assertAlmostEqual(toks[0][1], segs[0].a[0], delta=0.001)
+        self.assertAlmostEqual(toks[0][2], pw - segs[0].a[1], delta=0.001)
+        arcs = 0
+        for tok, sg in zip(toks[1:], segs):
+            self.assertAlmostEqual(tok[-2], sg.b[0], delta=0.001)
+            self.assertAlmostEqual(tok[-1], pw - sg.b[1], delta=0.001)
+            if isinstance(sg, Arc):
+                arcs += 1
+                self.assertEqual(tok[0], 'A')
+                self.assertAlmostEqual(tok[1], sg.radius, delta=0.001)
+                self.assertEqual(tok[3], 0 if sg.ccw else 1)
+            else:
+                self.assertEqual(tok[0], 'L')
+        self.assertGreater(arcs, 0)          # the offset contour has corner arcs
+
+    def test_quarter_circle_flip(self):
+        for ccw, sweep in ((True, 0), (False, 1)):
+            a, b = ((10, 0), (0, 10)) if ccw else ((0, 10), (10, 0))
+            tok = parse(_path([Arc(a, b, (0, 0), 10, ccw)], 100))[1]
+            self.assertEqual(tok[2:4], (0, sweep))
+            self.assertEqual(tok[4:], (b[0], 100 - b[1]))
+
+    def test_large_arc_flag(self):
+        # three quarters of a circle, counter-clockwise
+        d = _path([Arc((10, 0), (0, -10), (0, 0), 10, True)], 100)
+        self.assertEqual(parse(d)[1][2], 1)
 
     def test_outline_path_is_unoffset_layout(self):
         plan, progs, s, data = build(rect('a', 1000, 230))
@@ -110,7 +174,7 @@ class PreviewTests(unittest.TestCase):
     def test_line_warning_added_once(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))
         fix = by_name(progs)['N1F']
-        fix.ops.extend(DrillOp(1, 1, 1, 1) for _ in range(300))     # long program
+        fix.ops.extend(DrillOp(fix.ops[0].x, fix.ops[0].y, 1, 1) for _ in range(300))     # long program
         data = preview_data(plan, progs, s)
         w = next(p for p in data['panels'][0]['programs'] if p['name'] == 'N1F')
         self.assertGreater(w['lines'], 250)
@@ -121,7 +185,7 @@ class PreviewTests(unittest.TestCase):
     def test_existing_line_warning_not_duplicated(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))
         fix = by_name(progs)['N1F']
-        fix.ops.extend(DrillOp(1, 1, 1, 1) for _ in range(300))
+        fix.ops.extend(DrillOp(fix.ops[0].x, fix.ops[0].y, 1, 1) for _ in range(300))
         fix.warnings.append('N1F: about 303 lines, over 250')
         w = next(p for p in preview_data(plan, progs, s)['panels'][0]['programs']
                  if p['name'] == 'N1F')
