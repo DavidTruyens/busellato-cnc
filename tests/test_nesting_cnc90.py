@@ -114,5 +114,35 @@ class Cnc90Tests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class MultiPassEmitTests(unittest.TestCase):
+    """The default N1C as emitted: each contour is cut in three equal passes."""
+
+    def test_default_n1c_pass_depths_in_the_text(self):
+        s = Settings()
+        es = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
+        prog = next(p for p in plan_programs(build_plan(es, s), s) if p.name == 'N1C')
+        text = BACKENDS['cnc90'](prog, s)
+        blocks, cur = [], None                  # one block per G88 (one pass)
+        for line in text.split('\r\n')[2:]:
+            if line.startswith('G88'):
+                cur = []
+                blocks.append(cur)
+            if cur is not None:
+                cur += [float(z) for z in re.findall(r'Z(-?[\d.]+)', line)]
+        self.assertEqual(len(blocks), len(prog.ops))
+        first_outline = next(i for i, op in enumerate(prog.ops) if 'outline' in op.label)
+        self.assertGreaterEqual(first_outline, 3)
+
+        def distinct(bs):
+            out = []
+            for b in bs:
+                self.assertEqual(len(set(b)), 1, b)      # a pass stays at one depth
+                out.append(b[0])
+            return out
+
+        self.assertEqual(distinct(blocks[0:3]), [6.1, 12.2, 18.3])
+        self.assertEqual(distinct(blocks[first_outline:first_outline + 3]), [24.167, 30.333, 36.5])
+
+
 if __name__ == '__main__':
     unittest.main()

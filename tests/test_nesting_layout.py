@@ -283,5 +283,83 @@ class QuantityLimitTests(unittest.TestCase):
         self.assertEqual(sum(len(t.shapes) for p in plan.panels for t in p.templates), MAX_QTY)
 
 
+class SwappedPanel(unittest.TestCase):
+    """Panel 1220 long x 2440 wide: the long templates must turn 90 degrees.
+    Checked with geometry written here, not with the layout helpers."""
+
+    def setUp(self):
+        self.s = Settings()
+        self.s.panel.length, self.s.panel.width = 1220, 2440
+        self.plan = build_plan(real_entries(), self.s)
+
+    @staticmethod
+    def rect(t):
+        w, h = (t.height, t.width) if t.rotated else (t.width, t.height)
+        return t.x, t.y, t.x + w, t.y + h
+
+    @staticmethod
+    def on_panel(t, x, y):
+        # template frame -> panel: a quarter turn counter-clockwise, then the offset
+        return (t.x + t.height - y, t.y + x) if t.rotated else (t.x + x, t.y + y)
+
+    def test_all_placed_and_some_turned(self):
+        self.assertEqual(self.plan.problems, [])
+        ts = all_templates(self.plan)
+        self.assertEqual(sum(len(t.shapes) for t in ts), 12)
+        self.assertTrue(any(t.rotated for t in ts))
+
+    def test_everything_inside_the_panel_and_its_template(self):
+        L, W, e = self.s.panel.length, self.s.panel.width, self.s.panel.edge
+        for t in all_templates(self.plan):
+            x0, y0, x1, y1 = self.rect(t)
+            self.assertTrue(e - 1e-6 <= x0 and x1 <= L - e + 1e-6 and e - 1e-6 <= y0
+                            and y1 <= W - e + 1e-6, (t.id, x0, y0, x1, y1))
+            pts = [self.on_panel(t, h.x, h.y) for h in t.fix_holes + t.screw_holes]
+            for p in t.shapes:
+                for seg in p.shape.outline:
+                    pts += [self.on_panel(t, p.x + seg.a[0], p.y + seg.a[1]),
+                            self.on_panel(t, p.x + seg.b[0], p.y + seg.b[1])]
+            for x, y in pts:
+                self.assertTrue(x0 - 1e-6 <= x <= x1 + 1e-6 and y0 - 1e-6 <= y <= y1 + 1e-6,
+                                (t.id, x, y))
+
+    def test_programs_stay_on_the_panel(self):
+        from nesting.program import ContourOp, plan_programs
+        L, W = self.s.panel.length, self.s.panel.width
+        r = self.s.router.diameter / 2
+        for prog in plan_programs(self.plan, self.s):
+            self.assertFalse([w for w in prog.warnings if 'cutter' in w], prog.warnings)
+            for op in prog.ops:
+                pts = ([a for s in op.segs for a in (s.a, s.b)] if isinstance(op, ContourOp)
+                       else [(op.x, op.y)])
+                for x, y in pts:
+                    self.assertTrue(r <= x <= L - r and r <= y <= W - r, (prog.name, x, y))
+
+    def test_no_overlap_and_gap_between_templates(self):
+        for pan in self.plan.panels:
+            rs = [self.rect(t) for t in pan.templates]
+            for i in range(len(rs)):
+                for j in range(i + 1, len(rs)):
+                    a, b = rs[i], rs[j]
+                    sep = max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
+                    self.assertGreaterEqual(sep, self.s.gap - 1e-6, (pan.id, i, j))
+
+    def test_fixing_holes_clear_of_shapes_and_template_edge(self):
+        need = self.s.router.diameter + self.s.template.head_dia / 2 + 3.0
+        edge = self.s.template.head_dia / 2 + 3.0
+        for t in all_templates(self.plan):
+            x0, y0, x1, y1 = self.rect(t)
+            for h in t.fix_holes:
+                hx, hy = self.on_panel(t, h.x, h.y)
+                self.assertGreaterEqual(min(hx - x0, x1 - hx, hy - y0, y1 - hy), edge - 1e-6)
+                for p in t.shapes:
+                    cs = [self.on_panel(t, p.x + cx, p.y + cy)
+                          for cx in (0, p.shape.length) for cy in (0, p.shape.width)]
+                    sx0, sx1 = min(c[0] for c in cs), max(c[0] for c in cs)
+                    sy0, sy1 = min(c[1] for c in cs), max(c[1] for c in cs)
+                    dx, dy = max(sx0 - hx, 0, hx - sx1), max(sy0 - hy, 0, hy - sy1)
+                    self.assertGreaterEqual((dx * dx + dy * dy) ** 0.5, need - 1e-6, (t.id, h))
+
+
 if __name__ == '__main__':
     unittest.main()

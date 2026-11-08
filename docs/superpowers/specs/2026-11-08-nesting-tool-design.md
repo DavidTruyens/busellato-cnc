@@ -1,7 +1,7 @@
 # Panel nesting and program generator — design
 
 Date: 2026-11-08
-Status: UI mockup approved in chat (`docs/nesting-tool/mockup.html`); written spec awaiting review
+Status: approved; implemented on branch nesting-tool (plan 2026-11-08-nesting-tool.md); not yet run on the machine
 
 ## Goal
 
@@ -22,9 +22,11 @@ Fusion round trip for each tweak is too slow. The tool replaces it for this kind
   as lines and arcs, layer `HOLES` = circles, mm, lower-left of the outline at 0,0) and
   `plates/plates.json` (name, thickness, bounding box, hole centres and diameters). Verified closed
   outlines and bounding boxes against Fusion for the 12 current plates.
-- `tools/nest_plates.py` + `tests/test_nest_plates.py` — pairing by length, template with 4 fixing
-  holes and one screw hole under each part hole, MaxRects nesting with 90° turns,
-  `nest/nest.json`. On the 12 plates: 6 templates on 3 panels. All dimensions are `Config` defaults.
+- `tools/nest_plates.py` + `tests/test_nest_plates.py` and their output `nest/nest.json` (pairing by
+  length, template with 4 fixing holes and one screw hole under each part hole, MaxRects nesting
+  with 90° turns) were the starting point. They have been replaced by the `nesting` package
+  (`nesting/layout.py` and `tests/test_nesting_layout.py`, started with `python -m nesting`; see
+  `nesting/README.md`) and are no longer in the repo.
 - `post/busellato-cnc90.cps` and `docs/superpowers/specs/2026-09-25-fusion-post-design.md` — the
   CNC90 source format: header `G71X<stock X>Y<stock Y>Z<stock Z>…`, `G81` single holes, `G88`
   contour start, `G1`, `G2`/`G3` arcs with radius `U`, `P5` = top face, `G54`/`G55`, `F` in
