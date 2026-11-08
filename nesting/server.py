@@ -1,6 +1,6 @@
 """Local web server: the page plus a small JSON API over one project folder.
 
-  python3 -m nesting.server PROJECT_DIR [PORT]
+  python3 -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
 
 PROJECT_DIR/shapes/*.dxf are the shapes, PROJECT_DIR/project.json holds quantities, on/off
 flags and settings, PROJECT_DIR/out/<YYYYMMDD-HHMMSS>/ receives each generated job.
@@ -8,9 +8,11 @@ Binds to 127.0.0.1 only.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import threading
@@ -374,14 +376,40 @@ def make_server(project_dir: Path, port: int = 8765) -> ThreadingHTTPServer:
     return server
 
 
+def seed_plates(project_dir: Path, plates_dir: Path | None = None) -> int:
+    """Copy plates/*.dxf into PROJECT_DIR/shapes, only if that folder has no files yet.
+
+    Returns the number of files copied (0 when the project already has shapes).
+    """
+    shapes = Path(project_dir) / 'shapes'
+    shapes.mkdir(parents=True, exist_ok=True)
+    if any(shapes.iterdir()):
+        return 0
+    plates_dir = Path(plates_dir) if plates_dir else Path(__file__).resolve().parent.parent / 'plates'
+    files = sorted(plates_dir.glob('*.dxf'))
+    for f in files:
+        shutil.copyfile(f, shapes / f.name)
+    return len(files)
+
+
 def main(argv: list[str]) -> int:
-    if not 2 <= len(argv) <= 3:
-        print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
-        return 2
-    folder = Path(argv[1]).resolve()
+    ap = argparse.ArgumentParser(
+        prog='python3 -m nesting',
+        description='Nest parts on panels and write CNC90 programs (local web page, 127.0.0.1 only).')
+    ap.add_argument('project_dir', nargs='?', default='nesting-project',
+                    help='project folder, created if missing (default: ./nesting-project)')
+    ap.add_argument('--port', type=int, default=8765, help='port (default 8765)')
+    ap.add_argument('--seed-plates', action='store_true',
+                    help="copy plates/*.dxf into the project's shapes/ if that is empty")
+    args = ap.parse_args(argv[1:])
+    folder = Path(args.project_dir).resolve()
     (folder / 'shapes').mkdir(parents=True, exist_ok=True)
-    server = make_server(folder, int(argv[2]) if len(argv) == 3 else 8765)
-    print(f'Project {folder}\nOpen http://{HOST}:{server.server_address[1]}/  (Ctrl+C to stop)')
+    if args.seed_plates:
+        n = seed_plates(folder)
+        print(f'Seeded {n} plate shapes' if n else 'Project already has shapes: nothing seeded')
+    server = make_server(folder, args.port)
+    print(f'Project {folder}\nOpen http://{HOST}:{server.server_address[1]}/  (Ctrl+C to stop)',
+          flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,6 +1,9 @@
 import http.client
 import json
+import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -8,7 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from nesting.server import make_server
+from nesting.server import make_server, seed_plates
 from nesting.settings import Settings
 from test_nesting_dxf import dxf, line, rect
 
@@ -409,6 +412,42 @@ class ServerTests(unittest.TestCase):
             self.assertNotIn(bad, html.replace('http://www.w3.org/2000/svg', ''))
         self.assertIn('below the top of the stack', html)
         self.assertEqual(self.call('GET', '/nope')[0], 404)
+
+    def test_end_to_end_12_plates(self):
+        self.assertEqual(seed_plates(self.dir), 12)
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertEqual(len(plan['panels']), 3)
+        self.assertEqual(plan['problems'], [])
+        status, res = self.call('POST', '/api/generate', {})
+        self.assertEqual(status, 200, res)
+        folder = Path(res['folder'])
+        self.assertEqual(folder.parent, self.dir / 'out')
+        names = [f'N{n}{k}' for n in (1, 2, 3) for k in 'FSC']
+        self.assertEqual(res['programs'], names)
+        for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
+            self.assertIn(name, res['files'])
+        programs = [f for f in folder.rglob('*') if f.name in names]
+        self.assertEqual(sorted(f.name for f in programs), sorted(names))
+        r = subprocess.run([sys.executable, str(repo / 'tools' / 'check_cnc90.py'),
+                            *map(str, programs)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        # depth per pass must not be ignored: each cut contour is cut in several passes
+        text = next(f for f in programs if f.name == 'N1C').read_text(encoding='ascii')
+        starts = re.findall(r'^G88\S*?(X-?[\d.]+Y-?[\d.]+)Z(-?[\d.]+)$', text, re.M)
+        self.assertTrue(starts, text)
+        first_zs = [z for xy, z in starts if xy == starts[0][0]]
+        self.assertGreater(len(set(first_zs)), 1, first_zs)
+
+    def test_seed_plates_only_into_empty_project(self):
+        self.assertEqual(seed_plates(self.dir), 12)
+        self.assertEqual(sorted(p.name for p in (self.dir / 'shapes').glob('*.dxf')),
+                         sorted(p.name for p in PLATES))
+        (self.dir / 'shapes' / 'extra.dxf').write_bytes(b'x')
+        (self.dir / 'shapes' / PLATES[0].name).unlink()
+        before = sorted(p.name for p in (self.dir / 'shapes').iterdir())
+        self.assertEqual(seed_plates(self.dir), 0)
+        self.assertEqual(sorted(p.name for p in (self.dir / 'shapes').iterdir()), before)
 
 
 if __name__ == '__main__':
