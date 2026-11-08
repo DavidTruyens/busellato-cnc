@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,11 +18,11 @@ from .settings import Settings
 
 LOADER = Path(__file__).resolve().parent.parent / 'tools' / 'make-loader.py'
 
-Z_LABELS = [('stack_top', 'Stack height (top of stack above the cups)'),
-            ('fixing', 'Fixing holes: drill depth'),
-            ('screw', 'Screw holes: drill depth'),
-            ('shape_cut', 'Shapes: cut depth'),
-            ('template_cut', 'Templates: cut depth')]
+Z_LABELS = [('stack_top', 'Stack height (top of the stack above the cups)'),
+            ('fixing', 'Fixing holes: drill depth below the top of the stack'),
+            ('screw', 'Screw holes: drill depth below the top of the stack'),
+            ('shape_cut', 'Shapes: cut depth below the top of the stack'),
+            ('template_cut', 'Templates: cut depth below the top of the stack')]
 
 CSS = """body{font-family:Arial,sans-serif;margin:12mm;color:#000}
 h1{font-size:18pt;margin:0 0 4mm}h2{font-size:14pt;margin:0 0 3mm}
@@ -110,18 +112,28 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
     if out_dir.exists():
         raise FileExistsError(f'{out_dir} already exists; choose a new folder')
     emit = BACKENDS[backend]
-    with tempfile.TemporaryDirectory() as tmp:
-        staged = []
-        for p in programs:
-            path = Path(tmp) / p.name
-            path.write_bytes(emit(p, settings).encode('ascii'))
-            staged.append(str(path))
-        r = subprocess.run([sys.executable, str(LOADER), str(out_dir), *staged],
-                           capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
-    (out_dir / 'PROJECT.json').write_text(
-        json.dumps({'settings': settings.to_dict(), 'project': project}, indent=2), encoding='utf-8')
-    data = preview_data(plan, programs, settings)
-    (out_dir / 'RUNSHEET.html').write_text(_runsheet(data, project, plan), encoding='utf-8')
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
+    # build everything beside out_dir, publish with one rename as the last step
+    stage = Path(tempfile.mkdtemp(dir=out_dir.parent, prefix='.' + out_dir.name + '-'))
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = []
+            for p in programs:
+                path = Path(tmp) / p.name
+                path.write_bytes(emit(p, settings).encode('ascii'))
+                staged.append(str(path))
+            r = subprocess.run([sys.executable, str(LOADER), str(stage), *staged],
+                               capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
+        (stage / 'PROJECT.json').write_text(
+            json.dumps({'settings': settings.to_dict(), 'project': project}, indent=2), encoding='utf-8')
+        data = preview_data(plan, programs, settings)
+        (stage / 'RUNSHEET.html').write_text(_runsheet(data, project, plan), encoding='utf-8')
+        if out_dir.exists():
+            raise FileExistsError(f'{out_dir} already exists; choose a new folder')
+        os.rename(stage, out_dir)
+    except BaseException:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
     return sorted(out_dir.iterdir())

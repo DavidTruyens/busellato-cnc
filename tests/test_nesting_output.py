@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from nesting.backends import BACKENDS
 from nesting.dxf import read_dxf
@@ -68,6 +69,7 @@ class OutputTests(unittest.TestCase):
             bad.name = orig
         self.assertIn('folder', str(cm.exception))
         self.assertFalse(self.out.exists())
+        self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
 
     def test_program_files_pass_check_cnc90(self):
         self.write()
@@ -120,6 +122,32 @@ class OutputTests(unittest.TestCase):
         out = Path(self.tmp.name) / f'sheet{len(list(Path(self.tmp.name).iterdir()))}'
         write_output(out, plan or self.plan, progs, settings, {})
         return (out / 'RUNSHEET.html').read_text(encoding='utf-8')
+
+
+    def test_failure_after_loader_leaves_nothing_and_retry_works(self):
+        with mock.patch('nesting.output.preview_data', side_effect=ValueError('boom')):
+            with self.assertRaises(ValueError):
+                self.write()
+        self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
+        files = self.write()
+        self.assertTrue(files)
+
+    def test_existing_file_is_an_error_and_unchanged(self):
+        self.out.write_text('keep')
+        with self.assertRaises(FileExistsError):
+            self.write()
+        self.assertEqual(self.out.read_text(), 'keep')
+        self.assertEqual([p.name for p in Path(self.tmp.name).iterdir()], ['job'])
+
+    def test_returned_paths_exist_inside_out_dir(self):
+        for p in self.write():
+            self.assertTrue(p.is_file())
+            self.assertEqual(p.parent, self.out)
+
+    def test_heights_say_depth_is_below_top_of_stack(self):
+        self.write()
+        html = (self.out / 'RUNSHEET.html').read_text(encoding='utf-8')
+        self.assertIn('below the top of the stack', html)
 
 
 if __name__ == '__main__':
