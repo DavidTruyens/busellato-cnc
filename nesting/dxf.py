@@ -204,6 +204,34 @@ def _area(chain: list[Seg]) -> float:
     return (x1 - x0) * (y1 - y0)
 
 
+def _sample(outline: list[Seg]) -> list[Pt]:
+    """Polygon approximating the outline; arcs sampled every ~2 degrees."""
+    pts: list[Pt] = []
+    for s in outline:
+        pts.append(s.a)
+        if isinstance(s, Arc):
+            a0 = math.atan2(s.a[1] - s.center[1], s.a[0] - s.center[0])
+            a1 = math.atan2(s.b[1] - s.center[1], s.b[0] - s.center[0])
+            sweep = (a1 - a0) % (2 * math.pi) if s.ccw else -((a0 - a1) % (2 * math.pi))
+            n = max(2, int(abs(sweep) / math.radians(2)) + 1)
+            for k in range(1, n):
+                t = a0 + sweep * k / n
+                pts.append((s.center[0] + s.radius * math.cos(t),
+                            s.center[1] + s.radius * math.sin(t)))
+    return pts
+
+
+def _inside(poly: list[Pt], x: float, y: float) -> bool:
+    """Ray casting point-in-polygon test."""
+    inside = False
+    n = len(poly)
+    for i in range(n):
+        (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % n]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
 def read_dxf(path: str | Path) -> Shape:
     path = Path(path)
     try:
@@ -235,6 +263,7 @@ def read_dxf(path: str | Path) -> Shape:
     if on_holes:
         chosen = on_holes
     else:
-        chosen = [c for c in circles if x0 <= c[1] <= x1 and y0 <= c[2] <= y1]
+        poly = _sample(outline)
+        chosen = [c for c in circles if _inside(poly, c[1], c[2])]
     holes = [Hole(cx - x0, cy - y0, 2 * r) for _, cx, cy, r in chosen]
     return Shape(path.stem, translate(outline, -x0, -y0), holes)
