@@ -32,6 +32,18 @@ class SettingsTests(unittest.TestCase):
     def test_defaults_validate(self):
         Settings.default().validate()
 
+    def test_shapes_per_must_be_a_whole_number_of_one_or_more(self):
+        for value in (1.5, 0, -2, True, "2", 2.0):
+            with self.subTest(value=value):
+                s = Settings.default()
+                s.template.shapes_per = value
+                with self.assertRaises(SettingsError) as cm:
+                    s.validate()
+                self.assertEqual(cm.exception.field, "template.shapes_per")
+        s = Settings.default()
+        s.template.shapes_per = 3
+        s.validate()
+
     def test_rejected(self):
         cases = [
             ("router.depth_per_pass", 0),

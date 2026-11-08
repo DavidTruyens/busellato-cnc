@@ -122,8 +122,13 @@ class Settings:
             "drill_fix.tool", "drill_fix.diameter", "drill_fix.feed",
             "drill_screw.tool", "drill_screw.diameter", "drill_screw.depth",
             "drill_screw.feed",
-            "template.shapes_per", "template.head_dia",
+            "template.head_dia",
         ]
+        shapes_per = self.template.shapes_per
+        if (not isinstance(shapes_per, int) or isinstance(shapes_per, bool)
+                or shapes_per < 1):
+            raise SettingsError("template.shapes_per",
+                                "must be a whole number, 1 or more")
         non_negative = [
             "panel.edge",
             "heights.into_template", "heights.into_scrap", "heights.fix_into_scrap",
