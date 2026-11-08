@@ -488,6 +488,26 @@ class ServerTests(unittest.TestCase):
         self.assertIn('below the top of the stack', html)
         self.assertEqual(self.call('GET', '/nope')[0], 404)
 
+    def test_page_and_readme_say_which_drill_settings_are_not_written(self):
+        # I2: G81 carries no F; the drill diameters only decide whether F and S merge
+        status, html = self.call('GET', '/')
+        self.assertEqual(status, 200)
+        readme = (repo / 'nesting' / 'README.md').read_text()
+        feed = "not written to the program (the control uses the tool's own feed)"
+        dia = 'used only to decide whether the two drill jobs share one program'
+        for text in (html, readme):
+            self.assertIn(feed, text)
+            self.assertIn(dia, text)
+        for key, note in (('drill_fix.feed', 'NOTE_FEED'), ('drill_screw.feed', 'NOTE_FEED'),
+                          ('drill_fix.diameter', 'NOTE_DIA'), ('drill_screw.diameter', 'NOTE_DIA')):
+            self.assertRegex(html, r"\['%s',[^\]]*%s\]" % (re.escape(key), note))
+        self.assertIn(f"const NOTE_FEED = \"{feed}\"", html)
+        self.assertIn(f"const NOTE_DIA = '{dia}'", html)
+        for row in ('| drill_fix |', '| drill_screw |'):
+            line = next(l for l in readme.splitlines() if l.startswith(row))
+            self.assertIn(feed, line)
+            self.assertIn(dia, line)
+
     def test_end_to_end_12_plates(self):
         self.assertEqual(seed_plates(self.dir), 12)
         status, plan = self.call('GET', '/api/plan')

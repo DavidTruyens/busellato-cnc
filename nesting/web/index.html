@@ -52,6 +52,7 @@ input.bad,select.bad{border-color:var(--err);background:#fff5f4}
 .field label{color:var(--ink)}
 .field .unit{color:var(--mute);font-size:12px;margin-left:3px}
 .ferr{grid-column:1/-1;color:var(--err);font-size:12px}
+.fnote{grid-column:1/-1;color:var(--mute);font-size:12px;margin-top:-3px}
 .ferr:empty{display:none}
 .note{font-size:12px;color:var(--mute);margin:4px 0}
 .radio{display:block;margin:3px 0}
@@ -216,6 +217,9 @@ const getK = (o, k) => k.split('.').reduce((a, p) => a == null ? a : a[p], o);
 function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, p) => a[p], o)[last] = v; }
 
 // ---- settings controls: every field of Settings -----------------------------------------
+const NOTE_FEED = "not written to the program (the control uses the tool's own feed)";
+const NOTE_DIA = 'used only to decide whether the two drill jobs share one program';
+// [key, label, unit or choices, step, kind, only in template mode, note under the field]
 const FIELDS = {
   heightFields: [
     ['heights.scrap', 'Scrap plate on cups', 'mm'],
@@ -233,12 +237,12 @@ const FIELDS = {
     ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
   drillFields: [
     ['drill_fix.tool', 'Fixing drill tool', 'T', 1, 'int'],
-    ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5],
-    ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5],
+    ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
+    ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED],
     ['drill_screw.tool', 'Screw drill tool', 'T', 1, 'int'],
-    ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5],
+    ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
     ['drill_screw.depth', 'Screw hole depth into template', 'mm'],
-    ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5]],
+    ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED]],
   tplFields: [
     ['template.shapes_per', 'Shapes per template', '', 1, 'int'],
     ['template.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
@@ -276,7 +280,7 @@ function parseValue(raw){
 function buildFields(){
   Object.entries(FIELDS).forEach(([box, list]) => {
     const host = $(box);
-    list.forEach(([key, label, unit, step, kind, only]) => {
+    list.forEach(([key, label, unit, step, kind, only, note]) => {
       let input;
       const id = 'f_' + key.replace('.', '_');
       if (Array.isArray(unit)){
@@ -293,6 +297,7 @@ function buildFields(){
       const f = el('div', {className: Array.isArray(unit) ? 'field half' : 'field'},
                    el('label', {htmlFor: id}, label), input);
       if (!Array.isArray(unit)) f.append(el('span', {className: 'unit'}, unit));
+      if (note) f.append(el('div', {className: 'fnote'}, note));
       const err = el('div', {className: 'ferr'}); err.dataset.err = key;
       f.append(err);
       if (only) f.dataset.only = only;

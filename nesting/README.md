@@ -46,8 +46,8 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (shape contours: shape thickness + `into_template`; template outlines: template stock + `into_scrap`) and are equal steps. |
 | | clearance 4 | Extra space between neighbours; the gap between shapes is diameter + clearance. |
 | | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
-| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per template, screwed into the scrap. |
-| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes drilled through each shape's own holes into the template. |
+| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per template, screwed into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
+| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes drilled through each shape's own holes into the template. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
 | template | mode auto | `auto` builds a template per group, `fixed` uses `fixed_width` x `fixed_height`, `none` cuts shapes straight on the scrap, with no template and no fixing holes. |
 | | shapes_per 2, group_by length | How many shapes share a template, and how they are grouped (`length` or `order`). |
 | | margin_end 45, margin_side 45 | Template margin around the group. |
