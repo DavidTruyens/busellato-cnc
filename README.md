@@ -49,7 +49,7 @@ tools/            imaging scripts (image-disk.sh, extract-disk.sh)
 NOTES.md          running log, dated entries, newest last
 ```
 
-The nesting tool (`python3 -m nesting`) that lays out parts and writes CNC90 programs is
+The nesting tool (`python -m nesting`) that lays out parts and writes CNC90 programs is
 described in [nesting/README.md](nesting/README.md).
 
 ## Open questions

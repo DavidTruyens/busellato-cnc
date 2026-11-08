@@ -12,8 +12,13 @@ and generated programs pass `tools/check_cnc90.py`. See "Safety" before the firs
 ## Start it
 
 ```
-python3 -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
+python -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
 ```
+
+Run it from the busellato-cnc folder (the repo folder that holds `nesting/` and `plates/`).
+On Windows, python.org installs `python` and `py`: use `python -m nesting` or `py -m nesting`,
+not `python3` (on Windows that opens the Microsoft Store). On macOS or Linux, where `python` may
+be missing, use `python3` in its place.
 
 - `PROJECT_DIR` defaults to `./nesting-project` and is created if missing. It holds `shapes/*.dxf`
   (the parts), `project.json` (quantities, on/off flags, settings) and `out/` (generated jobs).
@@ -104,7 +109,7 @@ CNC90-specific.
 From the repo root (`tests` is not a package):
 
 ```
-python3 -m unittest discover -s tests
+python -m unittest discover -s tests
 ```
 
-One file: `python3 -m unittest discover -s tests -p 'test_nesting_server.py'`.
+One file: `python -m unittest discover -s tests -p 'test_nesting_server.py'`.

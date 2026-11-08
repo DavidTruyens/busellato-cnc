@@ -1,6 +1,8 @@
 """Local web server: the page plus a small JSON API over one project folder.
 
-  python3 -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
+  python -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
+
+Run it from the busellato-cnc folder (on Windows `py -m nesting` also works).
 
 PROJECT_DIR/shapes/*.dxf are the shapes, PROJECT_DIR/project.json holds quantities, on/off
 flags and settings, PROJECT_DIR/out/<YYYYMMDD-HHMMSS>/ receives each generated job.
@@ -394,8 +396,9 @@ def seed_plates(project_dir: Path, plates_dir: Path | None = None) -> int:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
-        prog='python3 -m nesting',
-        description='Nest parts on panels and write CNC90 programs (local web page, 127.0.0.1 only).')
+        prog='python -m nesting',
+        description='Nest parts on panels and write CNC90 programs (local web page, 127.0.0.1 only).',
+        epilog='Run it from the busellato-cnc folder. On Windows `py -m nesting` also works.')
     ap.add_argument('project_dir', nargs='?', default='nesting-project',
                     help='project folder, created if missing (default: ./nesting-project)')
     ap.add_argument('--port', type=int, default=8765, help='port (default 8765)')

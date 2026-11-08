@@ -1,4 +1,4 @@
-"""python3 -m nesting: start the nesting server (see nesting/README.md)."""
+"""python -m nesting: start the nesting server (see nesting/README.md)."""
 import sys
 
 from .server import main

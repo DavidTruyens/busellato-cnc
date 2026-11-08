@@ -614,6 +614,28 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('--seed-plates', out)
 
+    def test_cli_help_names_the_command_that_works_on_windows(self):
+        # I5: python.org installs `python` and `py` on Windows; `python3` opens the Store stub
+        r = subprocess.run([sys.executable, '-m', 'nesting', '--help'], cwd=repo,
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('python -m nesting', r.stdout)
+        self.assertIn('py -m nesting', r.stdout)
+        self.assertIn('busellato-cnc folder', r.stdout)
+        self.assertNotIn('python3', r.stdout)
+
+    def test_no_python3_start_command_anywhere(self):
+        texts = {p: p.read_text() for p in (repo / 'README.md', repo / 'nesting' / 'README.md',
+                                            repo / 'nesting' / 'server.py',
+                                            repo / 'nesting' / '__main__.py')}
+        for path, text in texts.items():
+            self.assertNotIn('python3 -m nesting', text, path)
+        readme = texts[repo / 'nesting' / 'README.md']
+        self.assertIn('python -m nesting', readme)
+        self.assertIn('py -m nesting', readme)
+        self.assertIn('busellato-cnc folder', readme)
+        self.assertIn('python -m unittest discover -s tests', readme)
+
     def test_cli_out_of_range_port_exits_one(self):
         code, out, err = self.run_main(str(self.dir), '--seed-plates', '--port', '99999')
         self.assertEqual(code, 1)
