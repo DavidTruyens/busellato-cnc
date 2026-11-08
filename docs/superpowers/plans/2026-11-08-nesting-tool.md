@@ -39,7 +39,7 @@
 **Interfaces:**
 - Produces: `Settings` (dataclass tree) with `Settings.default() -> Settings`, `to_dict() -> dict`, `Settings.from_dict(d: dict) -> Settings` (unknown keys ignored, missing keys default), `validate() -> None` raising `SettingsError(field: str, message: str)`.
   - `panel`: `length=2440, width=1220, edge=10`
-  - `heights`: `scrap=18, template_stock=18, shape_thickness=18, into_template=0.3, into_scrap=0.5`
+  - `heights`: `scrap=18, template_stock=18, shape_thickness=18, into_template=0.3, into_scrap=0.5, fix_into_scrap=1`
   - `router`: `tool=66, diameter=8, spindle_rpm=18000, plunge_feed=1, cut_feed=3, depth_per_pass=9, clearance=4, direction='ccw'`
   - `drill_fix`: `tool=1, diameter=6, feed=1`; `drill_screw`: `tool=2, diameter=3, depth=8, feed=1`
   - `template`: `mode='auto'` (`'auto' | 'fixed' | 'none'`), `shapes_per=2, group_by='length'` (`'length' | 'order'`), `margin_end=45, margin_side=45, fix_inset=15, head_dia=14, fixed_width=0, fixed_height=0`
