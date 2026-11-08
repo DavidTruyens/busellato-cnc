@@ -1,0 +1,56 @@
+"""CNC90 (TPA, SORG\\SRG) source writer. Format: docs/superpowers/specs/2026-09-25-fusion-post-design.md."""
+from __future__ import annotations
+
+from ..geometry import Arc
+from ..program import ContourOp, DrillOp, Program
+from ..settings import Settings
+
+
+def fmt(v: float) -> str:
+    """Up to 3 decimals, trailing zeros and a trailing dot removed."""
+    s = f'{round(v, 3):.3f}'.rstrip('0').rstrip('.')
+    return '0' if s in ('-0', '') else s
+
+
+def _xy(p) -> str:
+    return f'X{fmt(p[0])}Y{fmt(p[1])}'
+
+
+def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[str]:
+    z = f'Z{fmt(op.depth)}'
+    start = op.segs[0].a
+    out = [f'G88G90{origin}P5{tool}S{int(program.spindle_rpm)}'
+           f'F{fmt(program.plunge_feed)}{_xy(start)}{z}']
+    feed = program.plunge_feed
+    first = True
+    for seg in op.segs:
+        f = ''
+        if first and program.cut_feed != feed:
+            if isinstance(seg, Arc):
+                out.append(f'G1G90F{fmt(program.cut_feed)}{_xy(start)}{z}')
+            else:
+                f = f'F{fmt(program.cut_feed)}'
+            feed = program.cut_feed
+        first = False
+        if isinstance(seg, Arc):
+            code = 'G3' if seg.ccw else 'G2'
+            out.append(f'{code}G90G17{_xy(seg.b)}U{fmt(seg.radius)}')
+        else:
+            out.append(f'G1G90{f}{_xy(seg.b)}{z}')
+    return out
+
+
+def emit(program: Program, settings: Settings) -> str:
+    origin = settings.origin
+    tool = f'T01{program.tool:02d}'
+    body: list[str] = ['G150()']
+    for op in program.ops:
+        if isinstance(op, DrillOp):
+            body.append(f'G81G90{origin}P5{tool}{_xy((op.x, op.y))}Z{fmt(op.depth)}')
+        else:
+            body += _contour(op, program, tool, origin)
+    body.append('M2')
+    n = len(body) + 1
+    x, y, z = program.stock
+    lines = [f'G71X{fmt(x)}Y{fmt(y)}Z{fmt(z)}T00N{n}L{n - 3}'] + body
+    return ''.join(line.upper() + '\r\n' for line in lines)
