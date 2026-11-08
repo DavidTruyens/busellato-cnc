@@ -11,7 +11,7 @@ import math
 from .backends import BACKENDS
 from .geometry import Line, _sweep, bbox, translate
 from .layout import PanelPlan, PlacedTemplate, Plan, footprint, to_panel
-from .program import LINE_WARNING, ContourOp, DrillOp, Program, _map_seg, _panel_number, stack_top
+from .program import LINE_WARNING, base_label, ContourOp, DrillOp, Program, _map_seg, _panel_number, stack_top
 from .settings import Settings
 
 BACKEND = 'cnc90'
@@ -74,7 +74,7 @@ def _panel_data(panel: PanelPlan, programs: list[Program], settings: Settings) -
     mine = [p for p in programs if p.name.startswith(prefix)
             and p.name[len(prefix):] in ('F', 'S', 'C')]
     drills = [o for p in mine if p.kind == 'drill' for o in p.ops]
-    cuts = {o.label: o for p in mine if p.kind == 'cut' for o in p.ops}
+    cuts = {base_label(o.label): o for p in mine if p.kind == 'cut' for o in p.ops}
     fix_ops, screw_ops = _classify(panel, drills)
 
     def holes(t, ops):
@@ -98,14 +98,14 @@ def _panel_data(panel: PanelPlan, programs: list[Program], settings: Settings) -
                           'fix': holes(t, fix_ops), 'screw': holes(t, screw_ops)})
 
     ops = [o for p in mine for o in p.ops]
-    shape_cut = next((o.depth for o in ops if isinstance(o, ContourOp)
-                      and not o.label.endswith(' outline')), None)
+    shape_cut = next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)
+                      and not base_label(o.label).endswith(' outline')), None)
     z = {'stack_top': stack_top(settings, panel),
          'fixing': fix_ops[0].depth if fix_ops else None,
          'screw': screw_ops[0].depth if screw_ops else None,
          'shape_cut': shape_cut,
-         'template_cut': next((o.depth for o in ops if isinstance(o, ContourOp)
-                               and o.label.endswith(' outline')), None)}
+         'template_cut': next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)
+                               and base_label(o.label).endswith(' outline')), None)}
     return {'id': panel.id, 'templates': templates,
             'programs': [_program_entry(p, settings) for p in mine],
             'z': {k: v for k, v in z.items() if v is not None}}

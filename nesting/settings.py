@@ -129,6 +129,10 @@ class Settings:
                 or shapes_per < 1):
             raise SettingsError("template.shapes_per",
                                 "must be a whole number, 1 or more")
+        for path in ("router.tool", "drill_fix.tool", "drill_screw.tool"):
+            v = self._get(path)
+            if not isinstance(v, int) or isinstance(v, bool) or v < 1:
+                raise SettingsError(path, "must be a whole tool number, 1 or more")
         non_negative = [
             "panel.edge",
             "heights.into_template", "heights.into_scrap", "heights.fix_into_scrap",

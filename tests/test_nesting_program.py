@@ -5,7 +5,7 @@ from pathlib import Path
 from nesting.dxf import Hole, Shape, read_dxf
 from nesting.geometry import Arc, Line, OffsetError, bbox
 from nesting.layout import PanelPlan, PlacedShape, PlacedTemplate, Plan, ShapeEntry, build_plan, footprint, to_panel
-from nesting.program import ContourOp, DrillOp, pass_depths, plan_programs, stack_top
+from nesting.program import ContourOp, DrillOp, base_label, pass_depths, plan_programs, stack_top
 from nesting.settings import Settings
 
 repo = Path(__file__).resolve().parent.parent
@@ -27,6 +27,11 @@ def plan_for(*shapes, thick=None, settings=None):
 
 def by_name(progs):
     return {p.name: p for p in progs}
+
+
+def cut_depths(ops, label):
+    """Depths of the passes of one contour, in op order."""
+    return [o.depth for o in ops if base_label(o.label) == label]
 
 
 def hand_panel(pid, rotated=False):
@@ -68,15 +73,15 @@ class ProgramTests(unittest.TestCase):
         self.assertAlmostEqual(progs['N1F'].ops[0].depth, 37)
         self.assertAlmostEqual(progs['N1S'].ops[0].depth, 26)
         cuts = progs['N1C'].ops
-        self.assertAlmostEqual(cuts[0].depth, 18.3)
-        self.assertAlmostEqual(cuts[-1].depth, 36.5)
+        self.assertAlmostEqual(cuts[2].depth, 18.3)       # last pass of the shape
+        self.assertAlmostEqual(cuts[-1].depth, 36.5)      # last pass of the template
 
     def test_cut_order_shapes_before_templates(self):
         plan, s = plan_for(rect('a', 1000, 230), rect('b', 600, 230), rect('c', 500, 230),
                            rect('d', 400, 230))
         ops = by_name(plan_programs(plan, s))['N1C'].ops
-        kinds = ['outline' if o.label.endswith('outline') else 'shape' for o in ops]
-        self.assertEqual(kinds, ['shape'] * 4 + ['outline'] * 2)
+        kinds = ['outline' if base_label(o.label).endswith('outline') else 'shape' for o in ops]
+        self.assertEqual(kinds, ['shape'] * 12 + ['outline'] * 6)
 
     def test_passes_equal_steps(self):
         steps = pass_depths(18.3, 9)
@@ -100,7 +105,7 @@ class ProgramTests(unittest.TestCase):
         fw, fh = footprint(t)
         for op in progs['N1C'].ops:
             x0, y0, x1, y1 = bbox(op.segs)
-            if op.label.endswith('outline'):
+            if base_label(op.label).endswith('outline'):
                 self.assertAlmostEqual(x0, 100 - 4)
                 self.assertAlmostEqual(x1, 100 + fw + 4)
             else:
@@ -136,9 +141,11 @@ class ProgramTests(unittest.TestCase):
         for op in progs['N1S'].ops:
             self.assertAlmostEqual(op.depth, 36 - (18 - 8))
         cuts = progs['N1C'].ops
-        self.assertEqual(len(cuts), 1)
-        self.assertFalse(cuts[0].label.endswith('outline'))
-        self.assertAlmostEqual(cuts[0].depth, 36 - (18 - 0.5))
+        # material 18 + 0.5 = 18.5 -> 3 passes from the top; no template outline at all
+        self.assertEqual(len(cuts), 3)
+        self.assertFalse(any('outline' in o.label for o in cuts))
+        for o, want in zip(cuts, (18.5 / 3, 18.5 * 2 / 3, 18.5)):
+            self.assertAlmostEqual(o.depth, want)
 
     def test_offset_error_names_the_shape(self):
         pts = [(0, 0), (500, 0), (500, 100), (252, 100), (252, 60), (248, 60),
@@ -155,7 +162,10 @@ class ProgramTests(unittest.TestCase):
         self.assertEqual({round(o.depth, 6) for o in progs['N1F'].ops}, {41})
         self.assertEqual({round(o.depth, 6) for o in progs['N1S'].ops}, {30})
         cuts = progs['N1C'].ops
-        self.assertEqual([round(o.depth, 6) for o in cuts], [22.3, 22.3, 40.5])
+        # each contour's final depth: both shapes 22.3, template 40.5
+        self.assertAlmostEqual(cut_depths(cuts, 'T01 a #1')[-1], 22.3)
+        self.assertAlmostEqual(cut_depths(cuts, 'T01 b #1')[-1], 22.3)
+        self.assertAlmostEqual(cut_depths(cuts, 'T01 outline')[-1], 40.5)
 
     def test_depths_with_distinct_heights(self):
         s = Settings()
@@ -167,7 +177,7 @@ class ProgramTests(unittest.TestCase):
         progs = by_name(plan_programs(plan, s))
         self.assertAlmostEqual(progs['N1F'].ops[0].depth, 42)
         self.assertAlmostEqual(progs['N1S'].ops[0].depth, 30)
-        self.assertAlmostEqual(progs['N1C'].ops[0].depth, 22.3)
+        self.assertAlmostEqual(progs['N1C'].ops[2].depth, 22.3)
         self.assertAlmostEqual(progs['N1C'].ops[-1].depth, 41.5)
 
     def test_direction_and_arcs(self):
@@ -205,6 +215,67 @@ class ProgramTests(unittest.TestCase):
         self.assertTrue(progs['N1C'].ops)      # never split or refused
         plan2, s2 = plan_for(rect('a', 1000, 230))
         self.assertEqual(by_name(plan_programs(plan2, s2))['N1C'].warnings, [])
+
+    # ---- real passes: depth_per_pass is applied to the material only ----
+    def real_n1c(self, settings=None):
+        s = settings or Settings()
+        entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
+        plan = build_plan(entries, s)
+        return by_name(plan_programs(plan, s))['N1C'], s
+
+    def test_real_plan_passes_per_contour(self):
+        cut, _ = self.real_n1c()
+        labels = []
+        for o in cut.ops:
+            b = base_label(o.label)
+            if not labels or labels[-1] != b:
+                labels.append(b)
+        # contours are cut one after another, each fully before the next
+        self.assertEqual(len(labels), len(set(labels)))
+        self.assertEqual(len(cut.ops), 3 * len(labels))
+        outline_at = [i for i, b in enumerate(labels) if b.endswith('outline')]
+        self.assertEqual(outline_at, list(range(len(labels) - len(outline_at), len(labels))))
+        for b in labels:
+            d = cut_depths(cut.ops, b)
+            self.assertEqual(len(d), 3)
+            self.assertEqual(d, sorted(d))
+            if b.endswith('outline'):
+                for got, want in zip(d, (18 + 18.5 / 3, 18 + 18.5 * 2 / 3, 36.5)):
+                    self.assertAlmostEqual(got, want, places=6)
+            else:
+                for got, want in zip(d, (6.1, 12.2, 18.3)):
+                    self.assertAlmostEqual(got, want, places=6)
+        for i in range(0, len(cut.ops), 3):
+            self.assertEqual([base_label(o.label) for o in cut.ops[i:i + 3]],
+                             [base_label(cut.ops[i].label)] * 3)
+            self.assertEqual([o.label.rsplit(' ', 1)[1] for o in cut.ops[i:i + 3]],
+                             ['1/3', '2/3', '3/3'])
+
+    def test_mixed_thickness_pass_starts(self):
+        plan, s = plan_for(rect('a', 1000, 230), rect('b', 1000, 230), thick=[18, 22])
+        ops = by_name(plan_programs(plan, s))['N1C'].ops
+        for got, want in zip(cut_depths(ops, 'T01 a #1'), (10.1, 16.2, 22.3)):  # top 4 down
+            self.assertAlmostEqual(got, want, places=6)
+        for got, want in zip(cut_depths(ops, 'T01 b #1'), (22.3 / 3, 22.3 * 2 / 3, 22.3)):
+            self.assertAlmostEqual(got, want, places=6)
+        self.assertEqual(len(cut_depths(ops, 'T01 a #1')), 3)
+        self.assertEqual(len(cut_depths(ops, 'T01 b #1')), 3)
+        for got, want in zip(cut_depths(ops, 'T01 outline'), (22 + 18.5 / 3, 22 + 18.5 * 2 / 3, 40.5)):
+            self.assertAlmostEqual(got, want, places=6)
+
+    def test_large_depth_per_pass_gives_one_pass(self):
+        s = Settings()
+        s.router.depth_per_pass = 100
+        cut, _ = self.real_n1c(s)
+        self.assertEqual(len(cut.ops), 6)
+        self.assertAlmostEqual(cut.ops[0].depth, 18.3)
+        self.assertAlmostEqual(cut.ops[-1].depth, 36.5)
+
+    def test_estimate_is_emitted_line_count(self):
+        from nesting.backends import BACKENDS
+        cut, s = self.real_n1c()       # defaults: 6 contours x 3 passes is still over 250
+        n = len(BACKENDS['cnc90'](cut, s).splitlines())
+        self.assertEqual(cut.warnings, [f'N1C: about {n} lines, over 250'])
 
 
 if __name__ == '__main__':

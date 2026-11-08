@@ -44,6 +44,19 @@ class SettingsTests(unittest.TestCase):
         s.template.shapes_per = 3
         s.validate()
 
+    def test_tool_numbers_must_be_whole(self):
+        for field in ("router.tool", "drill_fix.tool", "drill_screw.tool"):
+            for value in (66.5, True, "66", 0, -1, 2.0):
+                with self.subTest(field=field, value=value):
+                    s = Settings.default()
+                    _set(s, field, value)
+                    with self.assertRaises(SettingsError) as cm:
+                        s.validate()
+                    self.assertEqual(cm.exception.field, field)
+            s = Settings.default()
+            _set(s, field, 7)
+            s.validate()
+
     def test_rejected(self):
         cases = [
             ("router.depth_per_pass", 0),

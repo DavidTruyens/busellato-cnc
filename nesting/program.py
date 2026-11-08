@@ -7,6 +7,7 @@ No G-code text is written here.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from .geometry import Arc, Line, OffsetError, Seg, offset_outline, set_direction, split_large_arcs, translate
@@ -86,22 +87,25 @@ def _panel_number(panel: PanelPlan) -> str:
     return digits or panel.id.upper()
 
 
-def _estimate_lines(ops: list, settings: Settings) -> int:
-    n = 3
-    for op in ops:
-        if isinstance(op, ContourOp):
-            passes = pass_count(op.depth, settings.router.depth_per_pass)
-            n += (1 + len(op.segs)) * passes
-        else:
-            n += 1
-    return n
-
-
 def _finish(p: Program, settings: Settings) -> Program:
-    est = _estimate_lines(p.ops, settings)
-    if est > LINE_WARNING:
-        p.warnings.append(f'{p.name}: about {est} lines, over {LINE_WARNING}')
+    from .backends import BACKENDS      # late: the backends import this module
+    lines = len(BACKENDS['cnc90'](p, settings).splitlines())
+    if lines > LINE_WARNING:
+        p.warnings.append(f'{p.name}: about {lines} lines, over {LINE_WARNING}')
     return p
+
+
+def base_label(label: str) -> str:
+    """A contour label without its ' pass k/n' suffix."""
+    return re.sub(r' pass \d+/\d+$', '', label)
+
+
+def _pass_ops(segs: list[Seg], label: str, start: float, material: float,
+              settings: Settings) -> list[ContourOp]:
+    """One ContourOp per pass; passes are counted over the material only."""
+    n = pass_count(material, settings.router.depth_per_pass)
+    return [ContourOp(segs, start + material * k / n, f'{label} pass {k}/{n}')
+            for k in range(1, n + 1)]
 
 
 def _rect_segs(t: PlacedTemplate) -> list[Seg]:
@@ -121,8 +125,7 @@ def _panel_programs(panel: PanelPlan, settings: Settings) -> list[Program]:
     ts = _template_stock(settings)
     screw_depth = top - (h.scrap + ts - screw.depth)
     # with a template the cut ends just into it; without, just into the scrap
-    shape_depth = top - ((h.scrap + ts - h.into_template) if ts else (h.scrap - h.into_scrap))
-    outline_depth = top - (h.scrap - h.into_scrap)
+    shape_into = h.into_template if ts else h.into_scrap     # how far a shape cut goes below its bottom
 
     fix_ops: list[DrillOp] = []
     screw_ops: list[DrillOp] = []
@@ -142,10 +145,11 @@ def _panel_programs(panel: PanelPlan, settings: Settings) -> list[Program]:
                 segs = _contour([_map_seg(s, t) for s in moved], settings)
             except OffsetError as e:
                 raise OffsetError(f'{label}: {e}') from e
-            cuts.append(ContourOp(segs, shape_depth, label))
+            t0 = top - (h.scrap + ts + ps.thickness)
+            cuts += _pass_ops(segs, label, t0, ps.thickness + shape_into, settings)
         if ts:    # no template layer, no template outline
-            outlines.append(ContourOp(_contour(_rect_segs(t), settings),
-                                      outline_depth, f'{t.id} outline'))
+            outlines += _pass_ops(_contour(_rect_segs(t), settings), f'{t.id} outline',
+                                  top - (h.scrap + ts), ts + h.into_scrap, settings)
 
     progs: list[Program] = []
 

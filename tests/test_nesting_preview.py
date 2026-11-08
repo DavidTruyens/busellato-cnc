@@ -95,8 +95,11 @@ class PreviewTests(unittest.TestCase):
         pw = s.panel.width
         cut = by_name(progs)['N1C']
         t = data['panels'][0]['templates'][0]
-        shape_op = next(o for o in cut.ops if o.label.endswith('a #1'))
-        outline_op = next(o for o in cut.ops if o.label.endswith('outline'))
+        shape_ops = [o for o in cut.ops if ' a #1 pass ' in o.label]
+        outline_ops = [o for o in cut.ops if ' outline pass ' in o.label]
+        self.assertEqual(len(shape_ops), 3)
+        self.assertEqual(len(outline_ops), 3)
+        shape_op, outline_op = shape_ops[-1], outline_ops[-1]
         self.match(t['shapes'][0]['cut_path'], shape_op.segs, pw)
         self.match(t['cut_path'], outline_op.segs, pw)
 
@@ -197,8 +200,11 @@ class PreviewTests(unittest.TestCase):
         pr = by_name(progs)
         self.assertEqual(z['fixing'], pr['N1F'].ops[0].depth)
         self.assertEqual(z['screw'], pr['N1S'].ops[0].depth)
-        self.assertEqual(z['shape_cut'], pr['N1C'].ops[0].depth)
+        # the cut ops are passes now: the preview reports the final depth of each cut
+        self.assertEqual(z['shape_cut'], pr['N1C'].ops[2].depth)
         self.assertEqual(z['template_cut'], pr['N1C'].ops[-1].depth)
+        self.assertAlmostEqual(z['shape_cut'], 18.3)
+        self.assertAlmostEqual(z['template_cut'], 36.5)
         self.assertIn('stack_top', z)
 
     def test_problems_passed_through(self):
