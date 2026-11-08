@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel nesting and programs</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#fff; --ink:#1c2230; --mute:#667085; --line:#d9dde5;
+  --accent:#1f5fbf; --accent-ink:#fff; --warn:#a15c00; --warn-bg:#fff4e0;
+  --stock:#f1e6cf; --stock-line:#9b7b3c; --tmpl:#dcc79c; --plate:#a9c7ea; --plate-line:#245a9e;
+  --fix:#c0261c; --pilot:#111; --ok:#1b7f43; --err:#b42318;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;font-weight:600}
+.badge{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:99px;padding:2px 10px;font-size:12px}
+.spacer{flex:1}
+#status{font-size:12px;color:var(--mute)}
+#status.bad{color:var(--err)}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:6px;cursor:pointer}
+button:hover{border-color:#aab3c2}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.6;cursor:wait}
+main{flex:1;min-height:0;display:grid;grid-template-columns:270px 1fr 310px;gap:0}
+aside,section.center{min-height:0;overflow:auto}
+aside{background:var(--panel);padding:12px 14px}
+aside.left{border-right:1px solid var(--line)}
+aside.right{border-left:1px solid var(--line)}
+h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:14px 0 6px}
+h2:first-child{margin-top:0}
+table{border-collapse:collapse;width:100%}
+th,td{padding:4px 6px;text-align:left;border-bottom:1px solid #eceff4;font-size:13px;white-space:nowrap}
+th{font-weight:500;color:var(--mute);font-size:12px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.name span{display:inline-block;max-width:100px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+input[type=number],select{font:inherit;width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+input.qty{width:46px;text-align:right}
+input.bad,select.bad{border-color:var(--err);background:#fff5f4}
+.drop{border:2px dashed #b9c1cf;border-radius:8px;padding:12px;text-align:center;color:var(--mute);margin:8px 0}
+.drop.over{border-color:var(--accent);background:#eef4ff}
+.drop u{cursor:pointer}
+.upmsg{font-size:12px;margin:4px 0}
+.upmsg div{margin:2px 0}
+.upmsg .err{color:var(--err)}
+.upmsg .ok{color:var(--ok)}
+.field{display:grid;grid-template-columns:1fr 78px 38px;gap:6px;align-items:center;margin:5px 0}
+.field.wide{grid-template-columns:1fr}
+.field.wide label{color:var(--mute);font-size:12px}
+.field.half{grid-template-columns:1fr 126px}
+.field label{color:var(--ink)}
+.field .unit{color:var(--mute);font-size:12px;margin-left:3px}
+.ferr{grid-column:1/-1;color:var(--err);font-size:12px}
+.ferr:empty{display:none}
+.note{font-size:12px;color:var(--mute);margin:4px 0}
+.radio{display:block;margin:3px 0}
+section.center{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tab{padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg span{padding:5px 12px;cursor:pointer;border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--accent);color:#fff}
+.canvas{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;overflow:auto;flex-shrink:0}
+svg text{font-family:inherit}
+.tmpl{cursor:pointer}
+.tmpl:hover rect.t{stroke-width:4}
+.stats{color:var(--mute);font-size:13px}
+.banner{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:8px;padding:8px 12px;font-size:13px}
+.banner ul{margin:4px 0 0;padding-left:18px}
+.banner:empty{display:none}
+.progs{background:var(--panel);border:1px solid var(--line);border-radius:8px;flex-shrink:0}
+.progs h2{margin:0;padding:10px 12px 4px}
+.progs table td{padding:6px 12px}
+.progs tr[data-name]{cursor:pointer}
+.progs tr.sel td{background:#eef4ff}
+.progs .wtxt{color:var(--warn);font-size:12px;white-space:normal}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.codehead{padding:6px 12px;background:#1b2233;color:#9fb0cc;font-size:12px}
+pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 0 8px 8px;max-height:210px;min-height:60px;overflow:auto}
+.pill{display:inline-block;border-radius:99px;padding:1px 8px;font-size:12px;border:1px solid var(--line);background:#f7f8fa}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:#f0cf94}
+.zbox{background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+.zbox b{font-variant-numeric:tabular-nums}
+.zbox table td{padding:2px 0;white-space:normal;border-bottom:0}
+.sel-card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fbfcfe;font-size:13px}
+#result{position:fixed;inset:0;background:rgba(15,20,35,.5);display:none;align-items:center;justify-content:center;z-index:5}
+#result .box{background:#fff;border-radius:10px;max-width:680px;width:92%;max-height:86vh;overflow:auto;padding:18px 20px}
+#result h3{margin:0 0 6px}
+#result ol{padding-left:20px}
+#result .err{color:var(--err)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.legend .cutonly{display:none}
+.legend.cut .cutonly{display:inline}
+@media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Panel nesting &amp; programs</h1>
+  <span class="badge">Not yet run on the machine: check every program in the simulator first</span>
+  <span class="spacer"></span>
+  <span id="status"></span>
+  <button class="primary" id="gen">Generate programs</button>
+</header>
+
+<main>
+<aside class="left">
+  <h2>Shapes</h2>
+  <table id="shapes"><thead><tr><th></th><th>Name</th><th class="num">L × W</th><th class="num">Qty</th></tr></thead><tbody></tbody></table>
+  <div class="drop" id="drop">Drop DXF files here<br><small>or <u id="choose">choose files</u> — outline + circles, any 2D shape</small></div>
+  <input type="file" id="file" accept=".dxf" multiple hidden>
+  <div class="upmsg" id="upmsg"></div>
+
+  <h2>Template</h2>
+  <div data-k="template.mode" id="modes">
+    <label class="radio"><input type="radio" name="tm" value="auto"> Auto: one per group of shapes</label>
+    <label class="radio"><input type="radio" name="tm" value="fixed"> Fixed rectangle (enter size)</label>
+    <label class="radio"><input type="radio" name="tm" value="none"> None: cut straight from the panel</label>
+    <div class="ferr" data-err="template.mode"></div>
+  </div>
+  <div id="tplFields"></div>
+  <p class="note" id="panelNote"></p>
+
+  <h2>Panel</h2>
+  <div id="panelFields"></div>
+</aside>
+
+<section class="center">
+  <div class="bar" id="ptabs"></div>
+  <div class="bar">
+    <div class="seg" id="views"><span data-v="layout" class="on">Layout</span><span data-v="drill">Drill job</span><span data-v="cut">Cut job</span></div>
+    <span class="stats" id="stats"></span>
+    <span class="spacer"></span>
+    <div class="legend" id="legend">
+      <span><i style="background:var(--tmpl)"></i>template</span>
+      <span><i style="background:var(--plate)"></i>shape</span>
+      <span><i style="background:var(--fix)"></i>fixing hole (to scrap plate)</span>
+      <span><i style="background:var(--pilot)"></i>screw hole (shape to template)</span>
+      <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre)</span>
+    </div>
+  </div>
+  <div class="banner" id="problems"></div>
+  <div class="canvas"><svg id="svg" width="100%"></svg></div>
+
+  <div class="progs">
+    <h2>Programs for <span id="pname"></span></h2>
+    <table id="progs"></table>
+    <div class="codehead" id="codehead">Program text</div>
+    <pre id="code"></pre>
+  </div>
+</section>
+
+<aside class="right">
+  <h2>Selection</h2>
+  <div class="sel-card" id="sel">Click a template on the panel.</div>
+
+  <h2>Heights (Z)</h2>
+  <div id="heightFields"></div>
+  <div class="zbox" id="zbox"></div>
+  <p class="note">All in mm. The program's stock height is the stack height (scrap + template + shape); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
+
+  <h2>Router (cut job)</h2>
+  <div class="field wide"><label for="tool">Tool</label><select id="tool" data-k="router.tool"></select><div class="ferr" data-err="router.tool"></div><div class="ferr" data-err="router.diameter"></div></div>
+  <div id="routerFields"></div>
+  <p class="note" id="gapNote"></p>
+
+  <h2>Drills</h2>
+  <div id="drillFields"></div>
+
+  <h2>Machine</h2>
+  <div id="machineFields"></div>
+  <p class="note">Values shown are placeholders until measured at the machine.</p>
+</aside>
+</main>
+
+<div id="result"><div class="box">
+  <h3 id="rtitle">Programs written</h3>
+  <p class="note" id="rfolder"></p>
+  <div id="files"></div>
+  <div id="rsteps">
+    <h3 style="margin-top:12px">At the machine</h3>
+    <ol>
+      <li>Print <code>RUNSHEET.html</code> from the folder: panel drawings, steps and depths.</li>
+      <li>Copy everything in the folder to the root of the diskette.</li>
+      <li>DOS: run <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites, says what it did).</li>
+      <li>CNC90 file management: register each program, then open and save it once in the editor.</li>
+      <li>Compile. Check every program in the simulator; run the first panel in the air, then on scrap.</li>
+      <li>Per panel: fixing holes → screw the panel down → place the shapes → screw holes → screw the shapes down → cut.</li>
+      <li>Optional: <code>A:COLLECT</code> copies the compiler output to <code>A:\OUT\</code>.</li>
+    </ol>
+  </div>
+  <button id="rclose">Close</button>
+</div></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = v => String(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const fmt = v => (Math.round(v * 10) / 10).toString();
+function el(tag, props, ...kids){
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  kids.forEach(k => e.append(k));   // strings become text nodes
+  return e;
+}
+const getK = (o, k) => k.split('.').reduce((a, p) => a == null ? a : a[p], o);
+function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, p) => a[p], o)[last] = v; }
+
+// ---- settings controls: every field of Settings -----------------------------------------
+const FIELDS = {
+  heightFields: [
+    ['heights.scrap', 'Scrap plate on cups', 'mm'],
+    ['heights.template_stock', 'Template stock', 'mm'],
+    ['heights.shape_thickness', 'Shape thickness', 'mm'],
+    ['heights.into_template', 'Cut below shape into template', 'mm', 0.1],
+    ['heights.into_scrap', 'Cut into scrap', 'mm', 0.1],
+    ['heights.fix_into_scrap', 'Fixing holes into scrap', 'mm', 0.5]],
+  routerFields: [
+    ['router.spindle_rpm', 'Spindle', 'rpm', 500],
+    ['router.plunge_feed', 'Plunge feed', 'm/min', 0.5],
+    ['router.cut_feed', 'Cut feed', 'm/min', 0.5],
+    ['router.depth_per_pass', 'Depth per pass', 'mm'],
+    ['router.clearance', 'Clearance between cuts', 'mm'],
+    ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
+  drillFields: [
+    ['drill_fix.tool', 'Fixing drill tool', 'T', 1, 'int'],
+    ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5],
+    ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5],
+    ['drill_screw.tool', 'Screw drill tool', 'T', 1, 'int'],
+    ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5],
+    ['drill_screw.depth', 'Screw hole depth into template', 'mm'],
+    ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5]],
+  tplFields: [
+    ['template.shapes_per', 'Shapes per template', '', 1, 'int'],
+    ['template.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
+    ['template.margin_end', 'End margin', 'mm'],
+    ['template.margin_side', 'Side margin', 'mm'],
+    ['template.fix_inset', 'Fixing hole inset', 'mm'],
+    ['template.head_dia', 'Screw head Ø (clearance)', 'mm'],
+    ['template.fixed_width', 'Fixed template length', 'mm', 1, 'num', 'fixed'],
+    ['template.fixed_height', 'Fixed template width', 'mm', 1, 'num', 'fixed']],
+  panelFields: [
+    ['panel.length', 'Panel length', 'mm'],
+    ['panel.width', 'Panel width', 'mm'],
+    ['panel.edge', 'Unusable edge', 'mm']],
+  machineFields: [
+    ['origin', 'Origin', [['G54', 'G54'], ['G55', 'G55']]]]
+};
+const ROUTER_TOOLS = [[66, 8, 'T66 Ø8 (right, 4.5 HP)'], [65, 18, 'T65 Ø18 (left, 7 HP)']];
+const Z_LABELS = [
+  ['stack_top', 'Stack height (top of the stack above the cups)'],
+  ['fixing', 'Fixing holes: drill depth below the top of the stack'],
+  ['screw', 'Screw holes: drill depth below the top of the stack'],
+  ['shape_cut', 'Shapes: cut depth below the top of the stack'],
+  ['template_cut', 'Templates: cut depth below the top of the stack']];
+
+let project = null, plan = null;
+let panelIdx = 0, view = 'layout', selT = null, selProg = null;
+let timer = null, queue = Promise.resolve(), saveError = null, firstPlan = true;
+
+function parseValue(raw){
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;   // the server names the field when it is wrong
+}
+
+function buildFields(){
+  Object.entries(FIELDS).forEach(([box, list]) => {
+    const host = $(box);
+    list.forEach(([key, label, unit, step, kind, only]) => {
+      let input;
+      const id = 'f_' + key.replace('.', '_');
+      if (Array.isArray(unit)){
+        input = el('select', {id});
+        unit.forEach(([v, t]) => input.append(el('option', {value: v}, t)));
+        input.value = getK(project.settings, key);
+        input.addEventListener('change', () => { setK(project.settings, key, input.value); changed(); });
+      } else {
+        input = el('input', {id, type: 'number', step: String(step || 1)});
+        input.value = getK(project.settings, key);
+        input.addEventListener('input', () => { setK(project.settings, key, parseValue(input.value)); changed(); });
+      }
+      input.dataset.k = key;
+      const f = el('div', {className: Array.isArray(unit) ? 'field half' : 'field'},
+                   el('label', {htmlFor: id}, label), input);
+      if (!Array.isArray(unit)) f.append(el('span', {className: 'unit'}, unit));
+      const err = el('div', {className: 'ferr'}); err.dataset.err = key;
+      f.append(err);
+      if (only) f.dataset.only = only;
+      host.append(f);
+    });
+  });
+  // router tool: tool number and diameter together
+  const sel = $('tool'), r = project.settings.router;
+  const tools = ROUTER_TOOLS.slice();
+  if (!tools.some(([t, d]) => t === r.tool && d === r.diameter)) tools.push([r.tool, r.diameter, `T${r.tool} Ø${r.diameter} (from project)`]);
+  tools.forEach(([t, d, txt]) => sel.append(el('option', {value: t + '|' + d}, txt)));
+  sel.value = r.tool + '|' + r.diameter;
+  sel.addEventListener('change', () => { const [t, d] = sel.value.split('|').map(Number); r.tool = t; r.diameter = d; changed(); });
+  document.querySelectorAll('#modes input').forEach(i => {
+    i.checked = i.value === project.settings.template.mode;
+    i.addEventListener('change', () => { project.settings.template.mode = i.value; changed(); });
+  });
+  syncSettingsNotes();
+}
+
+function syncSettingsNotes(){
+  const s = project.settings;
+  document.querySelectorAll('[data-only]').forEach(f => f.style.display = s.template.mode === f.dataset.only ? '' : 'none');
+  $('panelNote').textContent = `Templates are nested on ${s.panel.width} × ${s.panel.length} panels; 90° turns allowed.`;
+  const gap = Number(s.router.diameter) + Number(s.router.clearance);
+  $('gapNote').textContent = `Gap between shapes and between templates: tool Ø + clearance = ${Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
+}
+
+// ---- field errors ------------------------------------------------------------------------
+function clearErrors(){
+  document.querySelectorAll('.ferr').forEach(e => e.textContent = '');
+  document.querySelectorAll('.bad').forEach(e => e.classList.remove('bad'));
+}
+function showFieldError(err){
+  // returns true when the field has a control on the page
+  const box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`);
+  if (!box) return false;
+  box.textContent = err.message;
+  const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
+  if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
+  return true;
+}
+
+function status(text, bad){ $('status').textContent = text; $('status').classList.toggle('bad', !!bad); }
+
+// ---- sync with the server ----------------------------------------------------------------
+function changed(){
+  syncSettingsNotes();
+  status('Saving…');
+  clearTimeout(timer);
+  timer = setTimeout(() => { timer = null; sync(); }, 300);
+}
+function sync(){
+  queue = queue.then(async () => {
+    const r = await fetch('/api/project', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(project)});
+    const b = await r.json();
+    clearErrors();
+    if (!r.ok){
+      saveError = b.field ? b : {field: '', message: b.error || 'not saved'};
+      showFieldError(saveError);
+      status(`Not saved: ${saveError.field} ${saveError.message}`, true);
+      renderProblems();
+      return;
+    }
+    saveError = null;
+    status('Saved');
+    await loadPlan();
+  }).catch(e => status('Server not reachable: ' + e.message, true));
+  return queue;
+}
+function flush(){
+  if (timer){ clearTimeout(timer); timer = null; sync(); }
+  return queue;
+}
+
+async function loadPlan(){
+  const r = await fetch('/api/plan');
+  plan = await r.json();
+  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, panels: [], problems: [plan.error || 'plan failed'], settings_error: null};
+  if (plan.settings_error) showFieldError(plan.settings_error);
+  if (panelIdx >= plan.panels.length) panelIdx = 0;
+  const p = plan.panels[panelIdx];
+  if (!p || !p.templates.some(t => t.id === selT)) selT = null;
+  if (firstPlan && p){
+    firstPlan = false;
+    const h0 = location.hash.slice(1);
+    if (h0 === 'drill' || h0 === 'cut'){
+      view = h0; selT = p.templates.length ? p.templates[0].id : null;
+      const g = p.programs.find(x => x.kind === h0); selProg = g ? g.name : null;
+    }
+  }
+  renderAll();
+}
+
+// ---- shapes list and upload ----------------------------------------------------------------
+function renderShapes(){
+  const body = $('shapes').tBodies[0];
+  body.replaceChildren();
+  if (!project.shapes.length){
+    body.append(el('tr', {}, el('td', {colSpan: 4, className: 'note'}, 'No shapes yet: drop DXF files below.')));
+  }
+  project.shapes.forEach(s => {
+    const cb = el('input', {type: 'checkbox', checked: s.enabled});
+    cb.addEventListener('change', () => { s.enabled = cb.checked; changed(); });
+    const q = el('input', {className: 'qty', type: 'number', min: '0', step: '1', value: String(s.qty)});
+    q.addEventListener('input', () => { s.qty = parseValue(q.value); changed(); });
+    body.append(el('tr', {}, el('td', {}, cb), el('td', {className: 'name', title: s.name}, el('span', {}, s.name)),
+      el('td', {className: 'num'}, `${Math.round(s.length)} × ${Math.round(s.width)}`), el('td', {className: 'num'}, q)));
+  });
+}
+
+async function upload(files){
+  await flush();
+  const box = $('upmsg');
+  box.replaceChildren();
+  for (const f of files){
+    let line;
+    try {
+      const r = await fetch('/api/shapes', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                             body: JSON.stringify({filename: f.name, text: await f.text()})});
+      const b = await r.json();
+      line = r.ok ? el('div', {className: 'ok'}, `${b.name}: ${Math.round(b.length)} × ${Math.round(b.width)}, ${b.holes} holes${b.replaced ? ' (replaced the earlier file)' : ''}`)
+                  : el('div', {className: 'err'}, b.error || b.message || `${f.name}: upload failed`);
+    } catch (e){ line = el('div', {className: 'err'}, `${f.name}: ${e.message}`); }
+    box.append(line);
+  }
+  const r = await fetch('/api/project');
+  project.shapes = (await r.json()).shapes;
+  renderShapes();
+  changed();
+}
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); upload([...e.dataTransfer.files]); });
+$('choose').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', () => { upload([...$('file').files]); $('file').value = ''; });
+
+// ---- panel drawing ---------------------------------------------------------------------------
+function panelAt(){ return plan && plan.panels[panelIdx]; }
+
+function renderTabs(){
+  const L = plan.panel.length, W = plan.panel.width;
+  $('ptabs').replaceChildren(...plan.panels.map((q, i) => {
+    const used = q.templates.reduce((a, t) => a + t.w * t.h, 0) / (L * W);
+    const tab = el('span', {className: 'tab' + (i === panelIdx ? ' on' : '')},
+                   `${q.id} · ${q.templates.length} template${q.templates.length === 1 ? '' : 's'} · ${Math.round(used * 100)}% used`);
+    tab.addEventListener('click', () => { panelIdx = i; selT = null; selProg = null; renderAll(); });
+    return tab;
+  }));
+}
+
+function renderPanel(){
+  const L = plan.panel.length, W = plan.panel.width, p = panelAt();
+  let s = `<rect x="0" y="0" width="${esc(L)}" height="${esc(W)}" fill="var(--stock)" stroke="var(--stock-line)" stroke-width="3"/>`;
+  if (!p){
+    s += `<text x="${esc(L / 2)}" y="${esc(W / 2)}" font-size="48" text-anchor="middle" fill="#667085">No shapes placed on a panel</text>`;
+  } else {
+    let order = 0;
+    const cutN = {};
+    p.templates.forEach(t => t.shapes.forEach((q, qi) => cutN[t.id + '/' + qi] = ++order));
+    p.templates.forEach(t => {
+      const on = selT === t.id;
+      s += `<g class="tmpl" data-id="${esc(t.id)}">`;
+      s += `<rect class="t" x="${esc(t.x)}" y="${esc(t.y)}" width="${esc(t.w)}" height="${esc(t.h)}" fill="var(--tmpl)" stroke="${on ? 'var(--accent)' : '#6b4e16'}" stroke-width="${on ? 6 : 2.5}"/>`;
+      s += `<text x="${esc(t.x + 34)}" y="${esc(t.y + 36)}" font-size="24" fill="#6b4e16">${esc(t.id)}</text>`;
+      t.shapes.forEach((q, qi) => {
+        s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="2.5"/>`;
+        if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="2.5"/>`;
+        s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10)}" font-size="30" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + cutN[t.id + '/' + qi] + ')') : ''}</text>`;
+      });
+      if (view !== 'cut'){
+        const big = view === 'drill';
+        t.fix.forEach((h, i) => {
+          s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${big ? 14 : 8}" fill="${big ? '#fff' : 'none'}" stroke="var(--fix)" stroke-width="3"/>`;
+          if (big) s += `<text x="${esc(h.x + 18)}" y="${esc(h.y - 12)}" font-size="22" fill="var(--fix)">${i + 1}</text>`;
+        });
+        t.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${big ? 10 : 6}" fill="${big ? '#fff' : 'none'}" stroke="var(--pilot)" stroke-width="3"/>`);
+      } else if (t.cut_path){
+        s += `<path d="${esc(t.cut_path)}" fill="none" stroke="#c0261c" stroke-width="3" stroke-dasharray="14 8"/>`;
+        s += `<text x="${esc(t.x + t.w - 14)}" y="${esc(t.y + 34)}" font-size="28" text-anchor="end" fill="#c0261c">template outline: cut last</text>`;
+      }
+      s += '</g>';
+    });
+  }
+  const svg = $('svg');
+  svg.setAttribute('viewBox', `-10 -10 ${L + 20} ${W + 20}`);
+  svg.innerHTML = s;
+  svg.querySelectorAll('.tmpl').forEach(g => g.addEventListener('click', () => { selT = g.dataset.id; renderPanel(); renderSel(); }));
+  $('legend').classList.toggle('cut', view === 'cut');
+  if (p){
+    const used = p.templates.reduce((a, t) => a + t.w * t.h, 0);
+    $('stats').textContent = `${fmt(used / 1e6)} m² of ${fmt(L * W / 1e6)} m² panel`;
+  } else $('stats').textContent = '';
+}
+
+function renderSel(){
+  const p = panelAt(), t = p && p.templates.find(x => x.id === selT), box = $('sel');
+  if (!t){ box.textContent = 'Click a template on the panel.'; return; }
+  const dims = Object.fromEntries(project.shapes.map(s => [s.name, s]));
+  box.replaceChildren(el('b', {}, t.id), ` on ${p.id} `);
+  if (t.rotated) box.append(el('span', {className: 'pill'}, 'turned 90°'));
+  box.append(el('br'), `${fmt(t.w)} × ${fmt(t.h)} mm on the panel`);
+  t.shapes.forEach(q => {
+    const d = dims[q.name];
+    box.append(el('br'), `• ${q.name}` + (d ? ` (${Math.round(d.length)} × ${Math.round(d.width)})` : ''));
+  });
+  box.append(el('br'), el('span', {className: 'note'}, `${t.fix.length} fixing holes, ${t.screw.length} screw holes`));
+}
+
+function renderZ(){
+  const p = panelAt(), box = $('zbox');
+  if (!p){ box.textContent = 'No panel: nothing to drill or cut.'; return; }
+  const rows = Z_LABELS.filter(([k]) => p.z[k] != null)
+    .map(([k, label]) => el('tr', {}, el('td', {}, label), el('td', {className: 'num'}, el('b', {}, fmt(p.z[k])))));
+  box.replaceChildren(el('div', {className: 'note'}, `${p.id}, mm: stack height, then each depth below the top of the stack`),
+                      el('table', {}, el('tbody', {}, ...rows)));
+}
+
+// ---- programs and the real program text ------------------------------------------------------
+function renderProgs(){
+  const p = panelAt(), tbl = $('progs');
+  $('pname').textContent = p ? p.id : '—';
+  tbl.replaceChildren();
+  if (!p){ $('codehead').textContent = 'Program text'; $('code').textContent = ''; return; }
+  if (!p.programs.some(g => g.name === selProg)) selProg = p.programs.length ? p.programs[0].name : null;
+  tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'Program'), el('th', {}, 'Tool'), el('th', {}, 'Does'),
+                                       el('th', {className: 'num'}, 'Operations'), el('th', {className: 'num'}, 'Lines'))));
+  const body = el('tbody');
+  p.programs.forEach(g => {
+    const does = el('td', {}, g.description);
+    g.warnings.forEach(w => does.append(el('br'), el('span', {className: 'wtxt'}, '⚠ ' + w)));
+    const tr = el('tr', {className: g.name === selProg ? 'sel' : ''}, el('td', {}, el('b', {}, g.name)),
+                  el('td', {}, 'T' + g.tool), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
+    tr.dataset.name = g.name;
+    tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderPanel(); renderProgs(); });
+    body.append(tr);
+  });
+  tbl.append(body);
+  renderCode();
+}
+
+let codeReq = 0;
+async function renderCode(){
+  const name = selProg, mine = ++codeReq;
+  $('codehead').textContent = name ? `${name}: program text as it will be written` : 'Program text';
+  if (!name){ $('code').textContent = ''; return; }
+  $('code').textContent = '…';
+  try {
+    const r = await fetch('/api/program?name=' + encodeURIComponent(name));
+    const text = r.ok ? await r.text() : ((await r.json()).error || 'not available');
+    if (mine === codeReq) $('code').textContent = text;
+  } catch (e){ if (mine === codeReq) $('code').textContent = e.message; }
+}
+
+function renderProblems(){
+  const box = $('problems'), items = [];
+  if (saveError) items.push(`Not saved: ${saveError.field ? saveError.field + ': ' : ''}${saveError.message}. The drawing shows the last saved settings.`);
+  if (plan && plan.settings_error) items.push(`Setting ${plan.settings_error.field}: ${plan.settings_error.message}`);
+  if (plan) plan.problems.forEach(p => items.push(p));
+  box.replaceChildren();
+  if (items.length) box.append(el('b', {}, 'Problems'), el('ul', {}, ...items.map(t => el('li', {}, t))));
+}
+
+function syncView(){ document.querySelectorAll('#views span').forEach(e => e.classList.toggle('on', e.dataset.v === view)); }
+document.querySelectorAll('#views span').forEach(e => e.addEventListener('click', () => { view = e.dataset.v; syncView(); renderPanel(); }));
+
+function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); }
+
+// ---- generate --------------------------------------------------------------------------------
+const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, never overwrites',
+  'L1.BAT': 'helper for LOAD.BAT', 'COLLECT.BAT': 'after compiling: copies the compiler output to A:\\OUT\\',
+  'C1.BAT': 'helper for COLLECT.BAT', 'PROJECT.json': 'all settings and shapes of this job', 'RUNSHEET.html': 'printable run sheet'};
+$('gen').addEventListener('click', async () => {
+  const btn = $('gen');
+  btn.disabled = true;
+  try {
+    await flush();
+    const files = $('files');
+    files.replaceChildren();
+    $('rfolder').textContent = '';
+    if (saveError){
+      showResult(false, `Settings not saved (${saveError.field} ${saveError.message}): fix that first.`);
+      return;
+    }
+    const r = await fetch('/api/generate', {method: 'POST'});
+    const b = await r.json();
+    if (!r.ok){ showResult(false, b.error || 'generate failed', b.problems); return; }
+    const progs = Object.fromEntries((plan ? plan.panels : []).flatMap(p => p.programs).map(g => [g.name, g]));
+    $('rfolder').textContent = 'Folder: ' + b.folder;
+    const body = el('tbody');
+    b.files.forEach(n => {
+      const g = progs[n];
+      body.append(el('tr', {}, el('td', {}, el('b', {}, n)),
+        el('td', {}, g ? `T${g.tool} · ${g.description}` : (NOTES[n] || '')),
+        el('td', {}, g ? el('code', {}, `SRG\\${n[0]}\\${n.slice(1)}`) : '')));
+    });
+    files.append(el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'File'), el('th', {}, 'What'), el('th', {}, 'Machine path'))), body));
+    showResult(true, '', b.problems);
+  } catch (e){ showResult(false, e.message); }
+  finally { btn.disabled = false; }
+});
+function showResult(ok, error, problems){
+  $('rtitle').textContent = ok ? 'Programs written' : 'Nothing written';
+  $('rsteps').style.display = ok ? '' : 'none';
+  const files = $('files');
+  if (error) files.append(el('p', {className: 'err'}, error));
+  if (problems && problems.length)
+    files.append(el('p', {className: 'err'}, 'Left out (see the run sheet):'), el('ul', {}, ...problems.map(t => el('li', {}, t))));
+  $('result').style.display = 'flex';
+}
+$('rclose').addEventListener('click', () => $('result').style.display = 'none');
+$('result').addEventListener('click', e => { if (e.target.id === 'result') $('result').style.display = 'none'; });
+
+// ---- start -----------------------------------------------------------------------------------
+(async () => {
+  try {
+    const r = await fetch('/api/project');
+    project = await r.json();
+    if (!r.ok) throw new Error(project.error || 'cannot read the project');
+    buildFields();
+    renderShapes();
+    status('Loaded');
+    await loadPlan();
+  } catch (e){ status('Cannot load the project: ' + e.message, true); }
+})();
+</script>
+</body>
+</html>
