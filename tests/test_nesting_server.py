@@ -524,6 +524,43 @@ class ServerTests(unittest.TestCase):
             self.assertIn(feed, line)
             self.assertIn(dia, line)
 
+    def first_contour_min_x(self):
+        status, text = self.call('GET', '/api/program?name=N1C')
+        self.assertEqual(status, 200, text)
+        lines = text.splitlines()[2:]               # after G71 and G150()
+        xs = []
+        for i, line in enumerate(lines):
+            if line.startswith('G88') and i:
+                break
+            m = re.search(r'X(-?[\d.]+)', line)
+            if m:
+                xs.append(float(m.group(1)))
+        return min(xs)
+
+    def test_put_router_diameter_7_8_offsets_by_3_9(self):
+        # I4: any diameter can be typed; the contour is offset by half of it
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        self.assertAlmostEqual(self.first_contour_min_x(), 10 + 45 - 4)
+        proj['settings']['router']['diameter'] = 7.8
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, body)
+        self.assertEqual((body['settings']['router']['tool'], body['settings']['router']['diameter']),
+                         (66, 7.8))
+        self.assertAlmostEqual(self.first_contour_min_x(), 10 + 45 - 3.9)
+        proj['settings']['router']['diameter'] = 0
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual((status, body['field']), (400, 'router.diameter'))
+
+    def test_page_router_tool_and_diameter_are_typed_with_a_preset(self):
+        status, html = self.call('GET', '/')
+        self.assertNotIn('<select id="tool"', html)
+        self.assertRegex(html, r"\['router\.tool', [^\]]*'int'\]")
+        self.assertRegex(html, r"\['router\.diameter', ")
+        self.assertIn('<select id="preset"', html)
+        self.assertIn("[66, 8, 'T66 Ø8 (right, 4.5 HP)']", html)
+        self.assertIn("[65, 18, 'T65 Ø18 (left, 7 HP)']", html)
+
     def test_end_to_end_12_plates(self):
         self.assertEqual(seed_plates(self.dir), 12)
         status, plan = self.call('GET', '/api/plan')

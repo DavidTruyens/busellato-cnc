@@ -165,7 +165,8 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <p class="note">All in mm. The program's stock height is the stack height (scrap + template + shape); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
 
   <h2>Router (cut job)</h2>
-  <div class="field wide"><label for="tool">Tool</label><select id="tool" data-k="router.tool"></select><div class="ferr" data-err="router.tool"></div><div class="ferr" data-err="router.diameter"></div></div>
+  <div class="field wide"><label for="preset">Preset: fills the router tool and Ø</label><select id="preset"></select></div>
+  <div id="routerToolFields"></div>
   <div id="routerFields"></div>
   <p class="note" id="gapNote"></p>
 
@@ -228,6 +229,9 @@ const FIELDS = {
     ['heights.into_template', 'Cut below shape into template', 'mm', 0.1],
     ['heights.into_scrap', 'Cut into scrap', 'mm', 0.1],
     ['heights.fix_into_scrap', 'Fixing holes into scrap', 'mm', 0.5]],
+  routerToolFields: [
+    ['router.tool', 'Router tool', 'T', 1, 'int'],
+    ['router.diameter', 'Router Ø', 'mm', 0.1]],
   routerFields: [
     ['router.spindle_rpm', 'Spindle', 'rpm', 500],
     ['router.plunge_feed', 'Plunge feed', 'm/min', 0.5],
@@ -304,13 +308,17 @@ function buildFields(){
       host.append(f);
     });
   });
-  // router tool: tool number and diameter together
-  const sel = $('tool'), r = project.settings.router;
-  const tools = ROUTER_TOOLS.slice();
-  if (!tools.some(([t, d]) => t === r.tool && d === r.diameter)) tools.push([r.tool, r.diameter, `T${r.tool} Ø${r.diameter} (from project)`]);
-  tools.forEach(([t, d, txt]) => sel.append(el('option', {value: t + '|' + d}, txt)));
-  sel.value = r.tool + '|' + r.diameter;
-  sel.addEventListener('change', () => { const [t, d] = sel.value.split('|').map(Number); r.tool = t; r.diameter = d; changed(); });
+  // router preset: fills the tool and diameter inputs, which save like any other field
+  const sel = $('preset');
+  sel.append(el('option', {value: ''}, 'Typed in'));
+  ROUTER_TOOLS.forEach(([t, d, txt]) => sel.append(el('option', {value: t + '|' + d}, txt)));
+  sel.addEventListener('change', () => {
+    if (!sel.value) return;
+    const [t, d] = sel.value.split('|').map(Number), r = project.settings.router;
+    r.tool = t; r.diameter = d;
+    $('f_router_tool').value = t; $('f_router_diameter').value = d;
+    changed();
+  });
   document.querySelectorAll('#modes input').forEach(i => {
     i.checked = i.value === project.settings.template.mode;
     i.addEventListener('change', () => { project.settings.template.mode = i.value; changed(); });
@@ -320,6 +328,8 @@ function buildFields(){
 
 function syncSettingsNotes(){
   const s = project.settings;
+  const preset = ROUTER_TOOLS.find(([t, d]) => t === s.router.tool && d === s.router.diameter);
+  $('preset').value = preset ? preset[0] + '|' + preset[1] : '';
   document.querySelectorAll('[data-only]').forEach(f => f.style.display = s.template.mode === f.dataset.only ? '' : 'none');
   $('panelNote').textContent = `Templates are nested on ${s.panel.width} × ${s.panel.length} panels; 90° turns allowed.`;
   const gap = Number(s.router.diameter) + Number(s.router.clearance);
