@@ -79,7 +79,8 @@ def translate(segs: list[Seg], dx: float, dy: float) -> list[Seg]:
 
 TAU = 2 * math.pi
 _SNAP = 1e-3     # offset ends closer than this are joined at their midpoint
-_GOUGE = 2e-3    # allowed shortfall of the offset distance (input jitter)
+_DIST_TOL = 2e-3  # allowed error of the offset distance (input jitter)
+_TANGENT = 1e-3   # max |sin| of the angle at a join counted as tangent
 
 
 class OffsetError(Exception):
@@ -325,8 +326,9 @@ def offset_outline(segs: list[Seg], r: float, outward: bool = True) -> list[Seg]
     Lines shift along their normal, arcs change radius about the same centre.
     Convex corners get a tangent arc of radius r around the corner; concave
     corners are trimmed at the intersection. Arcs whose radius shrinks to
-    nothing are dropped. Raises OffsetError rather than returning a path that
-    skips an edge, crosses itself or comes closer than r to the outline.
+    nothing are dropped when they are tangent to both neighbours (a smooth
+    fillet). Raises OffsetError rather than returning a path that skips a
+    feature, crosses itself or is not exactly r from the outline.
     The result keeps the winding direction of the input.
     """
     if r <= 0:
@@ -334,6 +336,14 @@ def offset_outline(segs: list[Seg], r: float, outward: bool = True) -> list[Seg]
     ccw = _signed_area(segs) > 0
     side = 1.0 if ccw == outward else -1.0   # +1: offset to the right
     offs = [(i, _Off(s, r, side)) for i, s in enumerate(segs)]
+    for i, o in offs:
+        if o.is_arc and o.radius <= 1e-6 and not _smooth(segs, i):
+            c = segs[i].center
+            raise OffsetError(f"arc R{segs[i].radius:g} around ({c[0]:.2f}, "
+                              f"{c[1]:.2f}) is smaller than the tool and meets "
+                              f"its edges at a corner: feature narrower than "
+                              f"the tool")
+    # Smooth fillets smaller than r vanish into the corner of their neighbours.
     offs = [(i, o) for i, o in offs if not o.is_arc or o.radius > 1e-6]
     if len(offs) < 2:
         raise OffsetError("outline too small for the tool")
@@ -378,6 +388,16 @@ def offset_outline(segs: list[Seg], r: float, outward: bool = True) -> list[Seg]
     return out
 
 
+def _smooth(segs: list[Seg], i: int) -> bool:
+    """Whether segs[i] runs tangent into both of its neighbours."""
+    def tangent(u: Seg, v: Seg) -> bool:
+        t, w = _tangent(u, True), _tangent(v, False)
+        return (abs(t[0] * w[1] - t[1] * w[0]) < _TANGENT
+                and t[0] * w[0] + t[1] * w[1] > 0)
+    n = len(segs)
+    return tangent(segs[i - 1], segs[i]) and tangent(segs[i], segs[(i + 1) % n])
+
+
 def _check(out: list[Seg], segs: list[Seg], r: float, ccw: bool) -> None:
     step = min(0.5, r / 4)
     pts = sample(out, step)
@@ -386,6 +406,11 @@ def _check(out: list[Seg], segs: list[Seg], r: float, ccw: bool) -> None:
     if _self_intersects(pts, 4 * step):
         raise OffsetError("offset path crosses itself")
     for p in pts:
-        if distance_to_chain(p, segs) < r - _GOUGE:
+        d = distance_to_chain(p, segs)
+        if d < r - _DIST_TOL:
             raise OffsetError(f"offset path comes closer than {r} to the "
                               f"outline at ({p[0]:.2f}, {p[1]:.2f})")
+        if d > r + _DIST_TOL:
+            raise OffsetError(f"offset path is {d:.3f} from the outline at "
+                              f"({p[0]:.2f}, {p[1]:.2f}) instead of {r}: a "
+                              f"feature narrower than the tool was skipped")

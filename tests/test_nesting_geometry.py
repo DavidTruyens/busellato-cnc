@@ -124,6 +124,56 @@ class OffsetTests(unittest.TestCase):
         with self.assertRaises(OffsetError):
             offset_outline(block, 4)
 
+    def assert_raises_both_windings(self, chain, outward=True):
+        for ccw in (True, False):
+            with self.subTest(ccw=ccw):
+                with self.assertRaises(OffsetError):
+                    offset_outline(set_direction(chain, ccw), 4, outward)
+
+    def test_round_pocket_opening_onto_edge_raises(self):
+        h = math.sqrt(9 - 2.5 ** 2)
+        pa, pb = (50 + h, 40), (50 - h, 40)
+        self.assert_raises_both_windings(
+            [Line((0, 0), (100, 0)), Line((100, 0), (100, 41)),
+             Line((100, 41), pa), Arc(pa, pb, (50, 37.5), 3, False),
+             Line(pb, (0, 40)), Line((0, 40), (0, 0))])
+
+    def test_corner_bite_smaller_than_tool_raises(self):
+        self.assert_raises_both_windings(
+            [Line((0, 0), (100, 0)), Line((100, 0), (100, 97)),
+             Arc((100, 97), (97, 100), (100, 100), 3, False),
+             Line((97, 100), (0, 100)), Line((0, 100), (0, 0))])
+
+    def test_edge_bite_smaller_than_tool_raises(self):
+        h = 3 * math.sin(math.acos(1.5 / 3))
+        pa, pb = (50 + h, 40), (50 - h, 40)
+        self.assert_raises_both_windings(
+            [Line((0, 0), (100, 0)), Line((100, 0), (100, 40.5)),
+             Line((100, 40.5), pa), Arc(pa, pb, (50, 41.5), 3, False),
+             Line(pb, (0, 40)), Line((0, 40), (0, 0))])
+
+    def test_inward_bump_with_corners_raises(self):
+        h = 3 * math.sin(math.acos(1.5 / 3))
+        pa, pb = (50 + h, 40), (50 - h, 40)
+        self.assert_raises_both_windings(
+            [Line((0, 0), (100, 0)), Line((100, 0), (100, 40.5)),
+             Line((100, 40.5), pa), Arc(pa, pb, (50, 38.5), 3, True),
+             Line(pb, (0, 40)), Line((0, 40), (0, 0))], outward=False)
+
+    def test_tangent_concave_fillet_smaller_than_tool_is_dropped(self):
+        part = [Line((0, 0), (100, 0)), Line((100, 0), (100, 100)),
+                Line((100, 100), (53, 100)),
+                Arc((53, 100), (50, 103), (53, 103), 3, False),
+                Line((50, 103), (50, 150)), Line((50, 150), (0, 150)),
+                Line((0, 150), (0, 0))]
+        for ccw in (True, False):
+            with self.subTest(ccw=ccw):
+                out = offset_outline(set_direction(part, ccw), 4)
+                arcs = [s for s in out if isinstance(s, Arc)]
+                self.assertEqual(len(arcs), 5)  # the five convex corners
+                self.assertTrue(all(a.radius == 4 for a in arcs))
+                self.assert_r_away(out, part, 4)
+
     def test_wide_slot_is_offset(self):
         for rounded in (False, True):
             with self.subTest(rounded=rounded):
