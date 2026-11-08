@@ -86,5 +86,54 @@ class SettingsTests(unittest.TestCase):
                     self.assertEqual(cm.exception.field, field)
 
 
+class CupDepthTests(unittest.TestCase):
+    """C1: no written depth may reach the top of the vacuum cups (stack top)."""
+
+    def rejected(self, field, value, mode=None):
+        s = Settings.default()
+        if mode:
+            s.template.mode = mode
+        _set(s, field, value)
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, field)
+        self.assertIn("cups", cm.exception.message)
+        return cm.exception
+
+    def test_reviewer_examples_rejected(self):
+        e = self.rejected("heights.into_scrap", 20)
+        self.assertIn("heights.scrap", e.message)
+        self.assertIn("18", e.message)
+        self.rejected("heights.fix_into_scrap", 20)
+        e = self.rejected("drill_screw.depth", 40)
+        self.assertIn("36", e.message)          # scrap 18 + template stock 18
+
+    def test_equal_to_the_limit_is_rejected(self):
+        self.rejected("heights.into_scrap", 18)
+        self.rejected("heights.fix_into_scrap", 18)
+        self.rejected("drill_screw.depth", 36)
+        self.rejected("heights.into_template", 18)
+
+    def test_into_template_must_stay_in_the_template_stock(self):
+        e = self.rejected("heights.into_template", 19)
+        self.assertIn("heights.template_stock", e.message)
+
+    def test_screw_depth_without_template_counts_the_scrap_only(self):
+        e = self.rejected("drill_screw.depth", 18, mode="none")
+        self.assertIn("18", e.message)
+        s = Settings.default()
+        s.template.mode = "none"
+        s.drill_screw.depth = 17.9
+        s.validate()
+
+    def test_just_below_the_limits_is_fine(self):
+        s = Settings.default()
+        s.heights.into_scrap = 17.9
+        s.heights.fix_into_scrap = 17.9
+        s.heights.into_template = 17.9
+        s.drill_screw.depth = 35.9
+        s.validate()
+
+
 if __name__ == "__main__":
     unittest.main()

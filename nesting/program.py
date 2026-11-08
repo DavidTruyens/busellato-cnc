@@ -46,6 +46,22 @@ class Program:
     warnings: list[str] = field(default_factory=list)
 
 
+class ProgramError(ValueError):
+    """A program would be unsafe to run (for example a depth into the vacuum cups)."""
+
+
+def check_depths(p: Program) -> None:
+    """Raise ProgramError when an op reaches the top of the cups: depth >= stack top (stock Z)."""
+    top = p.stock[2]
+    for op in p.ops:
+        if op.depth >= top:
+            what = (f'contour {op.label}' if isinstance(op, ContourOp)
+                    else f'drill at X{op.x:.3f} Y{op.y:.3f}')
+            raise ProgramError(f'{p.name}: {what} goes to depth {op.depth:.3f}, at or below '
+                               f'the top of the vacuum cups (stack height {top:.3f}); '
+                               f'nothing is generated')
+
+
 def _template_stock(settings: Settings) -> float:
     """Without a template layer (mode 'none') the shapes sit straight on the scrap."""
     return 0.0 if settings.template.mode == 'none' else settings.heights.template_stock
@@ -88,6 +104,7 @@ def _panel_number(panel: PanelPlan) -> str:
 
 
 def _finish(p: Program, settings: Settings) -> Program:
+    check_depths(p)
     from .backends import BACKENDS      # late: the backends import this module
     lines = len(BACKENDS['cnc90'](p, settings).splitlines())
     if lines > LINE_WARNING:

@@ -5,7 +5,8 @@ from pathlib import Path
 from nesting.dxf import Hole, Shape, read_dxf
 from nesting.geometry import Arc, Line, OffsetError, bbox
 from nesting.layout import PanelPlan, PlacedShape, PlacedTemplate, Plan, ShapeEntry, build_plan, footprint, to_panel
-from nesting.program import ContourOp, DrillOp, base_label, pass_depths, plan_programs, stack_top
+from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, check_depths,
+                             pass_depths, plan_programs, stack_top)
 from nesting.settings import Settings
 
 repo = Path(__file__).resolve().parent.parent
@@ -40,6 +41,50 @@ def hand_panel(pid, rotated=False):
     t = PlacedTemplate('T01', 690, 290, [ps], [Hole(15, 15, 6)], [Hole(45 + 150, 45 + 40, 3)],
                        x=100, y=50, rotated=rotated)
     return PanelPlan(pid, [t])
+
+
+class CupDepthCheckTests(unittest.TestCase):
+    """C1: a program never carries a depth at or below the top of the cups."""
+
+    def prog(self, ops):
+        return Program('N1C', 66, 'cut', 'test', (2440, 1220, 54), ops)
+
+    def test_too_deep_drill_raises_with_program_and_depth(self):
+        p = self.prog([DrillOp(100, 100, 30, 3), DrillOp(200, 100, 54, 3)])
+        with self.assertRaises(ProgramError) as cm:
+            check_depths(p)
+        msg = str(cm.exception)
+        self.assertIn('N1C', msg)
+        self.assertIn('54', msg)
+        self.assertIn('200', msg)                       # which drill
+        self.assertIsInstance(cm.exception, ValueError)
+
+    def test_too_deep_contour_raises_with_label(self):
+        seg = [Line((0, 0), (10, 0)), Line((10, 0), (0, 0))]
+        p = self.prog([ContourOp(seg, 54.5, 'T01 a #1 pass 2/2')])
+        with self.assertRaises(ProgramError) as cm:
+            check_depths(p)
+        self.assertIn('T01 a #1 pass 2/2', str(cm.exception))
+        self.assertIn('54.5', str(cm.exception))
+
+    def test_shallower_ops_pass(self):
+        seg = [Line((0, 0), (10, 0)), Line((10, 0), (0, 0))]
+        check_depths(self.prog([DrillOp(1, 1, 53.9, 3), ContourOp(seg, 53.99, 'x')]))
+
+    def test_plan_programs_refuses_a_too_deep_setting(self):
+        # validate() would stop this first; plan_programs must stop it on its own too
+        plan, s = plan_for(rect('a', 1000, 200))
+        s.heights.into_scrap = 20
+        with self.assertRaises(ProgramError) as cm:
+            plan_programs(plan, s)
+        self.assertIn('N1C', str(cm.exception))
+        self.assertIn('outline', str(cm.exception))
+
+    def test_default_real_plan_passes(self):
+        es = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
+        s = Settings()
+        progs = plan_programs(build_plan(es, s), s)
+        self.assertEqual(len(progs), 9)
 
 
 class ProgramTests(unittest.TestCase):

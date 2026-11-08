@@ -101,6 +101,50 @@ class ServerTests(unittest.TestCase):
         self.assertIn('qty', body['field'])
         self.assertFalse((self.dir / 'project.json').exists())
 
+    def test_put_depth_into_the_cups_is_400_with_field(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        for group, key, value in (('heights', 'into_scrap', 20), ('heights', 'fix_into_scrap', 20),
+                                  ('drill_screw', 'depth', 40)):
+            with self.subTest(field=f'{group}.{key}'):
+                bad = json.loads(json.dumps(proj))
+                bad['settings'][group][key] = value
+                status, body = self.call('PUT', '/api/project', bad)
+                self.assertEqual(status, 400)
+                self.assertEqual(body['field'], f'{group}.{key}')
+                self.assertIn('cups', body['message'])
+        self.assertFalse((self.dir / 'project.json').exists())
+
+    def test_plan_with_depth_into_the_cups_names_the_field(self):
+        self.seed(PLATES[:1])
+        s = Settings().to_dict()
+        s['heights']['into_scrap'] = 20
+        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertEqual(plan['settings_error']['field'], 'heights.into_scrap')
+        self.assertEqual(plan['panels'], [])
+        self.assertNoTrace(plan)
+
+    def test_plan_program_depth_check_is_a_problem_not_a_trace(self):
+        # the program-level check is a backstop behind validate(): bypass validate to reach it
+        from unittest import mock
+        self.seed(PLATES[:1])
+        s = Settings().to_dict()
+        s['heights']['into_scrap'] = 20
+        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
+        with mock.patch('nesting.server.validate', lambda settings: None):
+            status, plan = self.call('GET', '/api/plan')
+            self.assertEqual(status, 200)
+            self.assertEqual(plan['panels'], [])
+            self.assertIsNone(plan['settings_error'])
+            self.assertTrue(any('N1C' in p and 'cups' in p for p in plan['problems']), plan['problems'])
+            self.assertNoTrace(plan)
+            status, body = self.call('POST', '/api/generate')
+            self.assertEqual(status, 400)
+            self.assertIn('cups', body['error'])
+        self.assertFalse((self.dir / 'out').exists())
+
     def test_upload_valid_dxf_adds_shape(self):
         text = dxf(rect(0, 0, 500, 200))
         status, body = self.call('POST', '/api/shapes', {'filename': 'part A.dxf', 'text': text})

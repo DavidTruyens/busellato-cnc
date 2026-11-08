@@ -160,3 +160,23 @@ class Settings:
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
+        self._validate_depths()
+
+    def _validate_depths(self) -> None:
+        """No written depth may reach the top of the vacuum cups (below the scrap plate)."""
+        h = self.heights
+        ts = 0.0 if self.template.mode == "none" else h.template_stock
+        cups = "deeper reaches the vacuum cups"
+        limits = [
+            ("heights.into_scrap", h.into_scrap, h.scrap, "heights.scrap", cups),
+            ("heights.fix_into_scrap", h.fix_into_scrap, h.scrap, "heights.scrap", cups),
+            ("drill_screw.depth", self.drill_screw.depth, h.scrap + ts,
+             "heights.scrap" if self.template.mode == "none"
+             else "heights.template_stock + heights.scrap", cups),
+            ("heights.into_template", h.into_template, h.template_stock,
+             "heights.template_stock",
+             "deeper cuts through the template, towards the vacuum cups"),
+        ]
+        for path, value, limit, what, why in limits:
+            if not value < limit:
+                raise SettingsError(path, f"must be less than {what} ({limit:g} mm): {why}")
