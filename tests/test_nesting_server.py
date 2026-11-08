@@ -274,6 +274,22 @@ class ServerTests(unittest.TestCase):
         self.assertIsNone(plan['settings_error'])
         self.assertNoTrace(plan)
 
+    def test_plan_shows_cutter_outside_panel_warning(self):
+        self.seed(PLATES[:2])
+        status, plan = self.call('GET', '/api/plan')
+        warnings = [w for p in plan['panels'][0]['programs'] for w in p['warnings']]
+        self.assertFalse(any('cutter reaches' in w for w in warnings), warnings)
+        s = Settings().to_dict()
+        s['panel']['edge'] = 0
+        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertEqual(plan['problems'], [])
+        cut = next(p for p in plan['panels'][0]['programs'] if p['kind'] == 'cut')
+        self.assertTrue(any(w.startswith(f"{cut['name']}: cutter reaches X-8.0..")
+                            and 'outside the panel 0..2440 x 0..1220' in w
+                            for w in cut['warnings']), cut['warnings'])
+
     def test_plan_with_unreadable_dxf_in_shapes_is_a_problem(self):
         self.seed(PLATES[:1])
         (self.dir / 'shapes' / 'bad.dxf').write_text(dxf(line(0, 0, 10, 0)))

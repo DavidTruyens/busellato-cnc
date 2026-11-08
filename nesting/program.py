@@ -10,7 +10,8 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from .geometry import Arc, Line, OffsetError, Seg, offset_outline, set_direction, split_large_arcs, translate
+from .geometry import (Arc, Line, OffsetError, Seg, bbox, offset_outline, set_direction,
+                       split_large_arcs, translate)
 from .layout import PanelPlan, PlacedTemplate, Plan, to_panel
 from .settings import Settings
 
@@ -103,8 +104,27 @@ def _panel_number(panel: PanelPlan) -> str:
     return digits or panel.id.upper()
 
 
+def _outside_panel(p: Program, settings: Settings) -> str | None:
+    """A warning when the cutter edge (tool centre path widened by the radius) leaves the panel."""
+    segs = [s for op in p.ops if isinstance(op, ContourOp) for s in op.segs]
+    if not segs:
+        return None
+    r = settings.router.diameter / 2
+    x0, y0, x1, y1 = bbox(segs)
+    x0, y0, x1, y1 = x0 - r, y0 - r, x1 + r, y1 + r
+    length, width = settings.panel.length, settings.panel.width
+    eps = 1e-6
+    if x0 >= -eps and y0 >= -eps and x1 <= length + eps and y1 <= width + eps:
+        return None
+    return (f'{p.name}: cutter reaches X{x0:.1f}..{x1:.1f}, Y{y0:.1f}..{y1:.1f}, '
+            f'outside the panel 0..{length:g} x 0..{width:g}')
+
+
 def _finish(p: Program, settings: Settings) -> Program:
     check_depths(p)
+    outside = _outside_panel(p, settings)
+    if outside:
+        p.warnings.append(outside)
     from .backends import BACKENDS      # late: the backends import this module
     lines = len(BACKENDS['cnc90'](p, settings).splitlines())
     if lines > LINE_WARNING:

@@ -87,6 +87,54 @@ class CupDepthCheckTests(unittest.TestCase):
         self.assertEqual(len(progs), 9)
 
 
+CUTTER_WARNING = re.compile(r'^(N\d+C): cutter reaches X(-?\d+\.\d)\.\.(-?\d+\.\d), '
+                            r'Y(-?\d+\.\d)\.\.(-?\d+\.\d), outside the panel 0\.\.(\S+) x 0\.\.(\S+)$')
+
+
+class CutterOutsidePanelTests(unittest.TestCase):
+    """I3: a cut that reaches past the panel is a warning, never a refusal."""
+
+    def cutter_warnings(self, progs):
+        return [w for p in progs for w in p.warnings if 'cutter reaches' in w]
+
+    def test_defaults_give_no_warning(self):
+        es = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
+        s = Settings()
+        progs = plan_programs(build_plan(es, s), s)
+        self.assertEqual(self.cutter_warnings(progs), [])
+
+    def test_edge_0_warns_with_the_cutter_bounds(self):
+        s = Settings()
+        s.panel.edge = 0
+        plan, _ = plan_for(rect('a', 1000, 200), settings=s)
+        t = plan.panels[0].templates[0]
+        self.assertEqual((t.x, t.y), (0, 0))
+        progs = by_name(plan_programs(plan, s))
+        ws = self.cutter_warnings(progs.values())
+        self.assertEqual(len(ws), 1, ws)
+        m = CUTTER_WARNING.match(ws[0])
+        self.assertIsNotNone(m, ws[0])
+        self.assertEqual(m.group(1), 'N1C')
+        self.assertIn(ws[0], progs['N1C'].warnings)
+        # independent: the outline centre line runs r outside the template, the cutter edge 2r
+        w, h = footprint(t)
+        d = s.router.diameter
+        self.assertEqual([float(g) for g in m.group(2, 3, 4, 5)],
+                         [round(t.x - d, 1), round(t.x + w + d, 1),
+                          round(t.y - d, 1), round(t.y + h + d, 1)])
+        self.assertEqual((m.group(6), m.group(7)), ('2440', '1220'))
+        self.assertEqual(self.cutter_warnings([progs['N1F'], progs['N1S']]), [])
+
+    def test_cutter_just_inside_the_panel_is_fine(self):
+        s = Settings()
+        s.panel.edge = 8            # outline centre at 4, cutter edge at 0
+        plan, _ = plan_for(rect('a', 1000, 200), settings=s)
+        self.assertEqual(self.cutter_warnings(plan_programs(plan, s)), [])
+        s.panel.edge = 7.9
+        plan, _ = plan_for(rect('a', 1000, 200), settings=s)
+        self.assertEqual(len(self.cutter_warnings(plan_programs(plan, s))), 1)
+
+
 class ProgramTests(unittest.TestCase):
     def test_three_programs_per_panel_with_names(self):
         plan, s = plan_for(rect('a', 1000, 230))
