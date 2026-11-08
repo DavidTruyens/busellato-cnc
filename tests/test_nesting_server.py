@@ -156,6 +156,37 @@ class ServerTests(unittest.TestCase):
         names = [s['name'] for s in self.call('GET', '/api/project')[1]['shapes']]
         self.assertEqual(names, ['part A'])
 
+    def test_upload_crlf_dxf_gives_the_same_shape_as_lf(self):
+        text = PLATES[0].read_text()
+        status, lf = self.call('POST', '/api/shapes', {'filename': 'lf.dxf', 'text': text})
+        self.assertEqual(status, 200)
+        crlf_text = text.replace('\n', '\r\n')
+        status, crlf = self.call('POST', '/api/shapes', {'filename': 'crlf.dxf', 'text': crlf_text})
+        self.assertEqual(status, 200, crlf)
+        self.assertEqual({k: v for k, v in crlf.items() if k != 'name'},
+                         {k: v for k, v in lf.items() if k != 'name'})
+        # stored exactly as sent: no newline translation (Windows would write \r\r\n)
+        self.assertEqual((self.dir / 'shapes' / 'crlf.dxf').read_bytes(), crlf_text.encode('utf-8'))
+
+    def test_upload_crlf_dxf_survives_windows_newline_translation(self):
+        # emulate Windows text mode: '\n' is written as '\r\n' unless newline='' is given
+        from unittest import mock
+        import builtins
+        import io
+        real_open = io.open
+
+        def win_open(file, mode='r', buffering=-1, encoding=None, errors=None, newline=None,
+                     closefd=True, opener=None):
+            if 'w' in mode and 'b' not in mode and newline is None:
+                newline = '\r\n'
+            return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+        text = PLATES[0].read_text().replace('\n', '\r\n')
+        with mock.patch.object(io, 'open', win_open), mock.patch.object(builtins, 'open', win_open):
+            status, body = self.call('POST', '/api/shapes', {'filename': 'win.dxf', 'text': text})
+        self.assertEqual(status, 200, body)
+        self.assertEqual((self.dir / 'shapes' / 'win.dxf').read_bytes(), text.encode('utf-8'))
+
     def test_upload_open_outline_is_400_with_file_name(self):
         text = dxf(line(0, 0, 100, 0), line(100, 0, 100, 50))
         status, body = self.call('POST', '/api/shapes', {'filename': 'broken.dxf', 'text': text})

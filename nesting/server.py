@@ -190,7 +190,7 @@ class Project:
             name = same[0].name
         with tempfile.TemporaryDirectory(dir=self.dir, prefix='.upload-') as tmp:
             path = Path(tmp) / name                 # same name, so messages name the file
-            path.write_text(text, encoding='utf-8')
+            path.write_text(text, encoding='utf-8', newline='')   # as sent: no \r\r\n on Windows
             try:
                 shape = read_dxf(path)
             except DxfError as e:

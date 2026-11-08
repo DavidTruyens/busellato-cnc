@@ -182,5 +182,36 @@ class DxfTests(unittest.TestCase):
         self.assertAlmostEqual(shape.width, 75, delta=1e-9)
 
 
+class EncodingTests(unittest.TestCase):
+    """I1: read_dxf reads UTF-8 explicitly, accepts a BOM, and never fails on a stray byte."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def write_bytes(self, name, data):
+        p = Path(self.tmp.name) / name
+        p.write_bytes(data)
+        return p
+
+    def test_utf8_bom_reads(self):
+        text = dxf(rect(0, 0, 500, 200))
+        shape = read_dxf(self.write_bytes("bom.dxf", b"\xef\xbb\xbf" + text.encode("utf-8")))
+        self.assertEqual(bbox(shape.outline), (0, 0, 500, 200))
+
+    def test_crlf_reads_like_lf(self):
+        text = (ROOT / "plates" / "3-1.dxf").read_text()
+        lf = read_dxf(self.write_bytes("lf.dxf", text.encode("utf-8")))
+        crlf = read_dxf(self.write_bytes("crlf.dxf", text.replace("\n", "\r\n").encode("utf-8")))
+        self.assertEqual((crlf.outline, crlf.holes), (lf.outline, lf.holes))
+
+    def test_utf8_text_and_stray_bytes_read(self):
+        body = rect(0, 0, 300, 100)
+        data = ("999\nOnderdeel éè °\n" + dxf(body)).encode("utf-8")
+        self.assertEqual(bbox(read_dxf(self.write_bytes("u.dxf", data)).outline), (0, 0, 300, 100))
+        data = b"999\nlatin-1 \xe9\n" + dxf(body).encode("ascii")
+        self.assertEqual(bbox(read_dxf(self.write_bytes("l.dxf", data)).outline), (0, 0, 300, 100))
+
+
 if __name__ == "__main__":
     unittest.main()

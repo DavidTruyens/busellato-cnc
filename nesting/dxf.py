@@ -235,7 +235,8 @@ def _inside(poly: list[Pt], x: float, y: float) -> bool:
 def read_dxf(path: str | Path) -> Shape:
     path = Path(path)
     try:
-        text = path.read_text(errors="replace")
+        # explicit UTF-8 (a BOM is dropped); a stray byte must not stop the outline being read
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as e:
         raise DxfError(path, f"cannot open file: {e.strerror or e}") from e
     try:
