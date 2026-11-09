@@ -1,14 +1,45 @@
 # Panel nesting and program generator — design
 
 Date: 2026-11-08
-Status: approved; implemented on branch nesting-tool (plan 2026-11-08-nesting-tool.md); not yet run on the machine
+Status: approved; implemented on branch nesting-tool (plan 2026-11-08-nesting-tool.md); revised
+2026-11-09 (see "Revision 2026-11-09"); not yet run on the machine
+
+## Revision 2026-11-09 (the physical model was corrected by the user)
+
+The first version assumed the whole 1220 × 2440 panel lies on the scrap plate and that a
+"template" is cut loose around each group of shapes. That is wrong:
+
+- The machine's Y travel is limited, so a whole panel cannot be machined at once. A **panel
+  saw** first cuts each panel into rectangular **blanks**, each holding a group of shapes
+  (default 2) and fitting the machine's **work frame** (long side along machine X).
+- One blank at a time lies on the scrap plate on the vacuum cups, screwed down through **4
+  fixing holes** in its margin. Each shape's own holes get a **screw hole** drilled through the
+  blank into the scrap, so the shape stays fixed. Then the shape outlines are cut out of the
+  blank; the blank's leftover frame is **never cut** (there is no template outline cut).
+- The stack on the cups is scrap + blank; the stock Z is scrap + panel thickness, shape cuts go
+  through the blank and a little into the scrap (what the old template mode `none` did).
+- Work frame settings `machine.frame_x` 3072 and `machine.frame_y` 787 mm are **unverified
+  placeholders** decoded from a control config file, to verify on the machine's axis parameter
+  screens. A group whose blank does not fit is split, down to one shape; a shape that does not fit
+  alone is an error naming it.
+- Nesting is a **panel-saw guillotine plan**: stage 1 cuts make strips across the panel, stage 2
+  cuts free the blanks from a strip, a stage 3 cut trims a blank narrower than its strip; kerf
+  (default 4 mm) between every two pieces, edge trim at the borders, blanks may turn 90° on the
+  panel. Both strip directions are tried (fewest panels, then least waste inside the strips). The
+  run sheet prints the ordered cut list per panel.
+- Programs are **per blank**, in blank coordinates: `B<nn>F`, `B<nn>S`, `B<nn>C` (more digits
+  past 99 blanks). Settings `template.*` became `blank.*`; template stock, into-template, template
+  mode and fixed template size were removed.
+
+Statements below that this revision changes are marked *(revised 2026-11-09)*.
 
 ## Goal
 
 Cut many flat 2D parts (first use: 50+ MDF classroom plates, 18 mm, 1.0–2.1 m long) on the
 Busellato S.EASY / TPA CNC90 without drawing a CAM setup per part. The user drops in DXF
-outlines. The tool builds a **template** for each group of parts, **nests** the templates on
-1220 × 2440 stock panels, and **writes the programs** the machine runs, so the person at the
+outlines. The tool groups parts into **blanks**, plans how a panel saw cuts the blanks from
+1220 × 2440 stock panels *(revised 2026-11-09; was: templates nested on panels)*, and **writes the
+programs** the machine runs, so the person at the
 shop (Yureck) can change heights, tools, feeds and depths on his own laptop and regenerate in
 seconds.
 
@@ -48,47 +79,49 @@ Fusion round trip for each tweak is too slow. The tool replaces it for this kind
    centre with Layout / Drill job / Cut job views, settings on the right, program list under the
    panel.
 2. **Generic input.** Any 2D shape as a DXF with an outline and optional circles. The 12 Fusion
-   plates are only the first data set. The tool generates the template too (modes: automatic per
-   group, fixed rectangle, none = cut straight from the panel).
-3. **Template per group, nested on panels.** The template is the bounding box of the group plus a
-   margin, rotation of shapes is not used (bounding box is enough). Templates are nested on
-   panels, 90° turns allowed.
-4. **Two kinds of fixing.** 4 fixing holes per template (outside the shapes) screw the template
-   to a scrap plate on the vacuum cups. Each shape's own holes (2 on the plates) get a screw hole
-   in the template, so the shape is screwed down before it is cut loose. Everything stays fixed
-   when the outlines are cut.
-5. **Several programs per panel, one per tool** (as the machine works): fixing holes, screw
-   holes, then the cut. Drill programs split by drill diameter; if two hole kinds use the same drill
-   they may be one program. The operator screws parts down between the drill and the cut
-   programs. Cut order: shape outlines first, template outlines last.
+   plates are only the first data set. *(revised 2026-11-09: no template modes; the blank is
+   built automatically per group.)*
+3. **Blank per group, sawn from the panels** *(revised 2026-11-09)*. The blank is the bounding box
+   of the group plus a margin, rotation of shapes is not used (bounding box is enough). Blanks
+   must fit the machine work frame and are laid out on panels in a panel-saw guillotine plan,
+   90° turns allowed.
+4. **Two kinds of fixing.** 4 fixing holes per blank (in its margin, outside the shapes) screw
+   the blank to a scrap plate on the vacuum cups. Each shape's own holes (2 on the plates) get a
+   screw hole through the blank into the scrap, so the shape is screwed down before it is cut
+   free. Everything stays fixed when the outlines are cut.
+5. **Several programs per blank, one per tool** *(revised 2026-11-09; was per panel)*: fixing
+   holes, screw holes, then the cut. Drill programs split by drill diameter; if two hole kinds use
+   the same drill they may be one program. The operator screws parts down between the drill and
+   the cut programs. Only shape outlines are cut; the blank's frame is never cut.
 6. **Settings live in the tool, not on the machine.** The user does not know whether the control
    can take parameters, so the model is: change a value on the laptop, regenerate, copy to
    diskette, register, open-and-save, compile. (Your call to revisit if parameters turn out to
    exist.) All settings are saved in one project file (`PROJECT.json`) next to the output.
 7. **Output goes through a backend interface.** First backend: CNC90 source on a diskette folder
    (+ loader batch file + printable run sheet). Later backend: LinuxCNC G-code, where no diskette
-   is needed. Nesting, templates and the preview must not depend on the backend.
+   is needed. Blanks, the saw plan and the preview must not depend on the backend.
 8. **Format knowledge is shared, not copied.** A Python emitter writes the CNC90 format. It is
    tested against the existing post-processor output (machine test programs ZZT*, same geometry,
    same lines) so the two cannot drift apart. (My call.)
 
 ## Settings the user changes (all with placeholder defaults)
 
-- Heights, in mm: scrap plate under the template, template stock, shape thickness, skin left in
-  the template when shapes are cut, how far the template cut goes into the scrap.
+- Heights, in mm: scrap plate under the blank, panel (blank) thickness, how far the shape cut and
+  the fixing holes go into the scrap *(revised 2026-11-09)*.
 - Router: tool (T65 Ø18 left, T66 Ø8 right — the "Busellato S.EASY" library), feed (m/min), depth
   per pass, gap between shapes.
 - Drills: fixing-hole diameter, screw-hole diameter, depth, feed.
-- Template: shapes per template, group by (similar length, list order, manual), margins, hole inset.
-- Panel: size 1220 × 2440, unusable edge, gap between templates.
+- Blank: shapes per blank, group by (similar length, list order), margins, hole inset.
+- Panel: size 1220 × 2440, thickness, saw trim per edge, saw kerf. Machine: work frame X × Y
+  (placeholders) *(revised 2026-11-09)*.
 - Per shape: quantity, on/off.
 
 ## Z (the point that needs care)
 
 In the CNC90 source the stock height is in the header (`G71…Z<stock Z>`) and moves are depths
 below the top of the stock (`P5`, top face). My reading, **not verified on the machine**: for this
-job the stock Z is the whole stack on the cups (scrap + template stock + shape), and depths are
-counted from the top of the shapes. The mockup shows absolute Z values for readability; the real
+job the stock Z is the whole stack on the cups (scrap + blank; *revised 2026-11-09*, was scrap +
+template stock + shape), and depths are counted from the top of the blank. The mockup shows absolute Z values for readability; the real
 output follows the post-processor's convention. The one number the operator must be able to change
 fast is therefore the stack height. The machine-test notes say the tip height is within about 1 mm
 of "stock − depth" in air for T65, and T66 sat about 3 mm lower than T65 (tool length not checked).
@@ -101,8 +134,8 @@ The tool must show the numbers it will write before writing.
 - Program size and speed: keep arcs as arcs, do not segment; warn above about 250 lines per
   program (the existing post setting) and refuse nothing silently.
 - Program names are 1–8 characters `A-Z 0-9 _ -`; the first character is the folder on the machine
-  (`SRG\<first>\<rest>`). Proposed scheme `N<panel><F|S|C>` (`N1F`, `N1S`, `N1C`) — my call, open
-  to change.
+  (`SRG\<first>\<rest>`). Scheme `B<blank><F|S|C>` (`B01F`, `B01S`, `B01C`) *(revised
+  2026-11-09; was `N<panel><F|S|C>`)*.
 - The control's date and the diskette workflow are the user's; the tool writes a folder and a
   batch file and never formats or overwrites a diskette.
 - Fusion Personal limits do not apply (this tool does not use Fusion CAM), but the Fusion
@@ -127,8 +160,8 @@ The tool must show the numbers it will write before writing.
 
 - Project layout of the code (suggested: `tools/` package or `nesting/`, local `http.server` plus
   one HTML file, no heavy dependencies), how the DXF reader is written (the repo has no `ezdxf`;
-  a small reader for LINE, ARC, CIRCLE, LWPOLYLINE is enough), packing details beyond
-  MaxRects, how templates are split when a group does not fit, the run sheet layout.
+  a small reader for LINE, ARC, CIRCLE, LWPOLYLINE is enough), packing details of the guillotine
+  plan, how groups are split when a blank does not fit, the run sheet layout.
 - The visual details of the page beyond the mockup.
 
 ## Open items (need the machine or the user)
@@ -141,11 +174,14 @@ The tool must show the numbers it will write before writing.
 5. Confirm the cut defaults in "Calls made in review" below.
 6. Whether panels have a minimum size for staying on the vacuum, and whether the scrap plate is
    re-used or re-surfaced.
-7. Machine area limits (the table is larger than a panel, but travel limits are not recorded here).
+7. Machine work frame: `machine.frame_x` / `frame_y` (3072 × 787) are placeholders from a control
+   config file; verify them on the machine's axis parameter screens. Also check where X0 Y0 of a
+   blank program lands (the blank's origin corner against the pins is assumed).
+8. Panel saw kerf (default 4 mm) and trim (10 mm) are guesses; set them to the real saw.
 
 ## Testing
 
-- Unit tests: DXF reading, grouping, template geometry and clearance, nesting without overlap,
+- Unit tests: DXF reading, grouping, blank geometry and clearance, guillotine plan validity,
   rotation transform, program emitter against the post-processor's known output, name rules.
 - `tools/check_cnc90.py` on every generated program.
 - The preview and the emitter read the same model; a test compares the hole and contour
@@ -155,37 +191,36 @@ The tool must show the numbers it will write before writing.
 ## Calls made in review (mine; change any of them)
 
 - **Shape cut:** the cutter path is the outline offset **outward** by the tool radius, computed by
-  the program (no `G41`/`G42`). It cuts through the shape and a little into the template
-  (default 0.3 mm, a setting), with no skin and no tabs: the screws hold the part until it is cut
-  free. Template outlines are offset outward too and cut into the scrap by a setting. Lead-in is a
+  the program (no `G41`/`G42`). It cuts through the blank and a little into the scrap (default
+  0.5 mm, a setting) *(revised 2026-11-09; was into the template, with a template outline cut
+  last)*, with no skin and no tabs: the screws hold the part until it is cut free. Lead-in is a
   plain straight approach from outside the outline; refine later.
 - **Z:** one function maps "depth below the top of the stack" to the numbers written; the stack
   height goes in the header. If the convention turns out wrong it is a change to that function and
-  the setting, not to the emitter. The same reference serves drills, shape cut and template cut.
+  the setting, not to the emitter. The same reference serves drills and shape cuts.
 - **Drills:** one program per distinct drill diameter. Equal diameters merge into one program.
 - **Program size:** only a warning above about 250 lines, no splitting. With 9 mm passes the cut
-  program of a 4-shape panel is roughly 250 lines (17 per shape pass, 5 per template pass), so it sits at
-  the limit; the line count is shown and depth per pass is the lever. Travel limits are unknown:
-  warn, never refuse.
+  program of a 2-shape blank is about 125 lines (per blank since 2026-11-09); the line count is
+  shown and depth per pass is the lever.
 - **Cut direction:** a setting, default counter-clockwise; climb or conventional depends on the
   spindle direction, which is not recorded here, so check it at the machine.
 - **Emitter tests:** reference programs are the ZZT machine tests and the post-processor's
   regenerated output where they cover `G88` contours, arcs with `U`, and `G81` holes. Anything they
   do not cover gets a new reference file reviewed by the user before it is trusted.
-- **Whole panel on the scrap:** confirmed, see "Physical set-up".
+- **Whole panel on the scrap:** superseded 2026-11-09: one blank at a time, see the Revision.
 
-## Physical set-up (confirmed by the user, 2026-11-08)
+## Physical set-up (confirmed by the user, 2026-11-08; corrected 2026-11-09)
 
-- The whole 1220 × 2440 panel, with all its templates, lies on **one scrap plate** on the vacuum
-  cups for the entire job. Templates and shapes are cut loose as the last step and stay screwed
-  down until the operator removes them.
-- The scrap plate is aligned by the machine's **X and Y alignment pins**. The panel goes on top,
+- *(Superseded 2026-11-09.)* ~~The whole 1220 × 2440 panel, with all its templates, lies on one
+  scrap plate on the vacuum cups for the entire job.~~ A panel saw cuts the panel into blanks;
+  one blank at a time lies on the scrap plate on the vacuum cups. The shapes are cut out of the
+  blank and stay screwed down until the operator removes them; the blank's frame is not cut.
+- The scrap plate is aligned by the machine's **X and Y alignment pins**. The blank goes on top,
   loose or with a clamp, until the holes are drilled; then the screws go in and the clamps come
-  off. The 4 fixing holes per template are screwed into the scrap; each shape is screwed to its
-  template through its own holes (drilled through the shape's existing holes).
-- The shapes are placed on the panel by the operator and located by their own holes when drilled
-  (tolerance about ±1.8 mm: 3 mm screw hole under a 6.6 mm part hole). The run sheet (my call)
-  prints each panel with every shape's position so placement needs no measuring.
+  off. The 4 fixing holes per blank are screwed into the scrap; each shape is screwed to the
+  scrap through a screw hole drilled at each of its holes *(revised 2026-11-09)*.
+- *(Superseded 2026-11-09: shapes are not placed separately; they are part of the blank.)* The
+  run sheet prints each panel's saw cut list and each blank with its shapes and holes.
 - The machine only knows its **two machine origins (left and right)** and the **top of the cups**.
   Everything else is an offset: the thickness of the scrap plate is a **Z offset** (the "scrap plate"
   height setting), and the panel's position comes from the pins, not from a measured origin. My

@@ -1,8 +1,13 @@
 # Nesting tool
 
-A local tool (Python 3.11, standard library only) that takes part outlines (DXF), nests them on
-panels, optionally builds a template around groups of parts, and writes one CNC90 program per
-tool for the Busellato S.EASY. Design: `docs/superpowers/specs/2026-11-08-nesting-tool-design.md`.
+A local tool (Python 3.11, standard library only) that takes part outlines (DXF), groups them
+into rectangular **blanks**, plans how a **panel saw** cuts those blanks from 1220 x 2440 panels,
+and writes, per blank, one CNC90 program per tool for the Busellato S.EASY. Design:
+`docs/superpowers/specs/2026-11-08-nesting-tool-design.md` (see its "Revision 2026-11-09").
+
+The machine's work frame is smaller than a panel, so a whole panel is never machined at once.
+The panel saw cuts each panel into blanks; one blank at a time is screwed to the scrap plate on
+the vacuum cups, the shapes are cut out of it, and the blank's leftover frame is never cut.
 
 **Nothing this tool writes has been run on the machine.** The programs are format-checked,
 not run on the machine: the emitter reproduces the machine test programs ZZT1, ZZT1AD and ZZT2A
@@ -39,56 +44,83 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | Group | Setting (default) | Meaning |
 |---|---|---|
 | panel | length 2440, width 1220 | Panel size. |
-| | edge 10 | Unusable border; nothing is placed there. |
-| heights | scrap 18 | Thickness of the scrap plate under the panel. |
-| | template_stock 18 | Thickness of the template material (0 is used when template mode is `none`). |
-| | shape_thickness 18 | Default thickness of a shape (a shape can carry its own). |
-| | into_template 0.3 | How far a shape cut goes below the shape into the template. |
-| | into_scrap 0.5 | How far the template outline (or a shape cut without template) goes into the scrap. |
+| | thickness 18 | Panel thickness; the blanks and so the shapes have this thickness. |
+| | edge 10 | Saw trim at every panel border; nothing is placed there. Must be 0 (no trim) or at least the kerf. |
+| | kerf 4 | Panel saw blade width; there is one kerf between every two pieces. |
+| machine | frame_x 3072, frame_y 787 | Work frame a blank must fit in, long side along machine X. **Placeholders** decoded from a control config file, not measured: to verify on the machine's axis parameter screens. |
+| heights | scrap 18 | Thickness of the scrap plate on the cups, under the blank. |
+| | into_scrap 0.5 | How far a shape cut goes below the blank into the scrap. |
 | | fix_into_scrap 1 | How far the fixing holes go into the scrap. |
 | router | tool 66, diameter 8 | Cutter tool number and diameter; the contour is offset outward by half the diameter. |
 | | spindle_rpm 18000, plunge_feed 1, cut_feed 3 | Spindle speed and feeds. |
-| | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (shape contours: shape thickness + `into_template`; template outlines: template stock + `into_scrap`) and are equal steps. |
+| | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (panel thickness + `into_scrap`) and are equal steps. |
 | | clearance 4 | Extra space between neighbours; the gap between shapes is diameter + clearance. |
 | | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
-| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per template, screwed into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
-| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes drilled through each shape's own holes into the template. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
-| template | mode auto | `auto` builds a template per group, `fixed` uses `fixed_width` x `fixed_height`, `none` cuts shapes straight on the scrap, with no template and no fixing holes. |
-| | shapes_per 2, group_by length | How many shapes share a template, and how they are grouped (`length` or `order`). |
-| | margin_end 45, margin_side 45 | Template margin around the group. |
-| | fix_inset 15, head_dia 14 | Fixing hole inset from the template edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the template). A failure is reported as a plan problem. |
+| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per blank, in its margin, through the blank into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
+| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes at each shape's own holes, through the blank; `depth` is how far below the blank, into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
+| blank | shapes_per 2, group_by length | How many shapes share a blank, and how they are grouped (`length` or `order`). A group whose blank does not fit the work frame or the panel is split, down to one shape; a blank never takes more shapes than `shapes_per`. |
+| | margin_end 45, margin_side 45 | Blank margin around the group. The blank size is rounded up to whole mm (the extra goes to the far margins). |
+| | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
 | origin | G54 | Which origin the programs use, `G54` or `G55`. The post-processor's default is G54. Left = G54 / right = G55 is an assumption: which machine origin each one maps to has not been confirmed on the machine. Check which origin the machine uses before the first run. |
 
 The tool numbers 1 and 2 for the drills are placeholders: set the real tool numbers.
 Quantities are capped at 500 per shape.
 
+A shape that does not fit a blank on its own (work frame, trimmed panel, or a clearance rule)
+is an error that names it: nothing is planned or generated until it is fixed.
+
+The shapes' own holes are not made at their drawn diameter: only a screw hole
+(`drill_screw.diameter`) is drilled at each hole centre, so the shape stays screwed down while it
+is cut free.
+
+Settings saved by the earlier template version are read with `template.*` as `blank.*` and
+`heights.shape_thickness` as `panel.thickness`; the template-only settings are dropped.
+
+## Panel saw plan
+
+Each panel is cut in a two-stage guillotine plan: stage 1 cuts go right across the panel and make
+strips, stage 2 cuts go across a strip and free the blanks, and a stage 3 cut trims a blank that
+is narrower than its strip. There is a kerf between every two pieces and the edge trim at the
+panel borders. A blank may lie turned 90 degrees on the panel; its programs are still written in
+blank coordinates. Both strip directions are tried; the plan with the fewest panels wins, then the
+one with the least waste inside the strips (kerf and slivers), then strips along the length.
+
+The cut list gives, per cut, its order, stage, direction, position (the near side of the kerf, in
+mm from the panel's origin corner), its extent, what it frees and that piece's size. Blanks are
+numbered `B01`, `B02`, ... in cut order.
+
 ## Z convention
 
-Depths are measured **below the top of the stack**. The stack is scrap + template stock + the
-thickest shape on that panel, and its height is what the program header carries as the stock Z.
+Depths are measured **below the top of the stack**. The stack is scrap + blank (panel thickness),
+and its height is what the program header carries as the stock Z.
 That makes the scrap thickness one number to change: edit `heights.scrap`, regenerate, and every
 depth follows. This reading of the CNC90 convention is not verified on the machine.
 
 ## At the machine
 
-The whole panel with all its templates lies on one scrap plate on the vacuum cups for the entire
-job, aligned by the machine's X and Y pins. Templates and shapes are cut loose as the last step.
+The scrap plate lies on the vacuum cups, aligned by the machine's X and Y pins. One blank at a
+time goes on top of it, its origin corner against the pins, long side along machine X. The
+programs are in blank coordinates (X0 Y0 = the blank's origin corner); that the origin sits at
+the pins is an assumption to check at the machine.
 
-Per panel `n`, the programs are `N<n>F` (fixing holes), `N<n>S` (screw holes) and `N<n>C` (cuts);
-`N<n>S` is not written when fixing and screw holes use the same tool and diameter, and then
-`N<n>F` carries both.
+Per blank `Bnn`, the programs are `BnnF` (fixing holes), `BnnS` (screw holes) and `BnnC` (cut
+the shape outlines); `BnnS` is not written when fixing and screw holes use the same tool and
+diameter, and then `BnnF` carries both. The first character `B` is the machine folder
+(`SRG\B\nnF`). The number has 2 digits, or more when there are more than 99 blanks (all names
+then get the same width, for example `B100C`). Every blank gets its own programs, even when two
+blanks have the same shapes in the same layout (sharing them is possible but not done).
 
 1. Copy the generated folder's contents to the diskette. In the control, run `A:LOAD`; it copies
    each program to its folder without overwriting.
 2. Register each program in file management, open it in the editor and save it once, then
    compile.
-3. Run the fixing holes (`N<n>F`).
-4. Screw the panel down onto the scrap through the fixing holes; take the clamps off.
-5. Place the shapes on their templates (the run sheet `RUNSHEET.html` draws each panel with
-   every shape's position).
-6. Run the screw-hole drill (`N<n>S`).
-7. Screw each shape to its template.
-8. Run the cut (`N<n>C`): shape outlines first, template outlines last.
+3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
+   cut list and which blank is which, then a page per blank).
+4. Lay a blank on the scrap against the pins and clamp it; run the fixing holes (`BnnF`).
+5. Screw the blank to the scrap through the fixing holes; take the clamps off.
+6. Run the screw-hole drill (`BnnS`), then screw each shape down through its screw holes.
+7. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
+8. Unscrew the shapes and the frame; next blank.
 
 ## Safety
 
@@ -99,7 +131,7 @@ step; every default is a placeholder.
 ## Add a backend
 
 A backend is a function `(Program, Settings) -> str` registered in `BACKENDS`
-(`nesting/backends/__init__.py`), next to `BACKENDS['cnc90']`. Nesting, templates and the preview
+(`nesting/backends/__init__.py`), next to `BACKENDS['cnc90']`. Blanks, the saw plan and the preview
 only produce `Program` objects (`nesting/program.py`); the backend turns them into the machine's
 source text. `write_output` takes the backend name; today the diskette loader it builds is
 CNC90-specific.

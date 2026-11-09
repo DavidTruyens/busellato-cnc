@@ -233,17 +233,19 @@ class Project:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
         except (OffsetError, DxfError, ValueError) as e:
             return self._failed(settings, [str(e)], None)
-        for panel in data['panels']:      # the emitter writes 3 decimals; so does the page
-            panel['z'] = {k: round(v, 3) for k, v in panel['z'].items()}
+        for blank in data['blanks']:      # the emitter writes 3 decimals; so does the page
+            blank['z'] = {k: round(v, 3) for k, v in blank['z'].items()}
         data['problems'] = problems
         data['settings_error'] = None
         return data
 
     @staticmethod
     def _failed(settings: Settings, problems, settings_error) -> dict:
-        panel = {'length': settings.panel.length, 'width': settings.panel.width}
-        return {'panel': panel, 'panels': [], 'problems': problems,
-                'settings_error': settings_error}
+        p, m = settings.panel, settings.machine
+        panel = {'length': p.length, 'width': p.width, 'thickness': p.thickness,
+                 'edge': p.edge, 'kerf': p.kerf}
+        return {'panel': panel, 'frame': {'x': m.frame_x, 'y': m.frame_y}, 'panels': [],
+                'blanks': [], 'problems': problems, 'settings_error': settings_error}
 
     def program_text(self, name: str) -> str:
         try:
@@ -264,7 +266,7 @@ class Project:
         except (OffsetError, ValueError) as e:
             raise ApiError(400, {'error': str(e)})
         if not programs:
-            raise ApiError(400, {'error': 'nothing to generate: no shape is placed on a panel',
+            raise ApiError(400, {'error': 'nothing to generate: no shape is placed on a blank',
                                  'problems': problems})
         out = self.dir / 'out'
         stamp = time.strftime('%Y%m%d-%H%M%S')
@@ -397,7 +399,7 @@ def seed_plates(project_dir: Path, plates_dir: Path | None = None) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         prog='python -m nesting',
-        description='Nest parts on panels and write CNC90 programs (local web page, 127.0.0.1 only).',
+        description='Plan the blanks a panel saw cuts from the panels and write CNC90 programs per blank (local web page, 127.0.0.1 only).',
         epilog='Run it from the busellato-cnc folder. On Windows `py -m nesting` also works.')
     ap.add_argument('project_dir', nargs='?', default='nesting-project',
                     help='project folder, created if missing (default: ./nesting-project)')

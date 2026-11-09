@@ -1,17 +1,18 @@
 """Preview data for the UI, built from the programs the machine will get.
 
-Hole positions and cut paths come from the programs' DrillOp / ContourOp objects.
-Only the un-offset shape outlines come from the layout.
-Y is flipped for SVG (panel width - y); template x, y are the top-left corner.
+Hole positions and cut paths come from the programs' DrillOp / ContourOp objects (blank
+coordinates); the panel view maps those same numbers onto the panel. Only the un-offset shape
+outlines and the saw plan come from the layout.
+Y is flipped for SVG (height - y); x, y of a rectangle are its top-left corner.
 """
 from __future__ import annotations
 
 import math
 
 from .backends import BACKENDS
-from .geometry import Line, _sweep, bbox, translate
-from .layout import PanelPlan, PlacedTemplate, Plan, footprint, to_panel
-from .program import LINE_WARNING, base_label, ContourOp, DrillOp, Program, _map_seg, _panel_number, stack_top
+from .geometry import Arc, Line, _sweep, bbox, translate
+from .layout import Blank, PanelPlan, Plan, SawCut, footprint, to_panel
+from .program import LINE_WARNING, ContourOp, DrillOp, Program, base_label, stack_top
 from .settings import Settings
 
 BACKEND = 'cnc90'
@@ -34,26 +35,23 @@ def _path(segs, flip: float) -> str:
     return ' '.join(out)
 
 
-def _inside(t: PlacedTemplate, x: float, y: float) -> bool:
-    w, h = footprint(t)
-    return t.x <= x <= t.x + w and t.y <= y <= t.y + h
+def _map_seg(s, b: Blank):
+    """Blank-frame segment -> panel frame; a quarter turn keeps the winding."""
+    if isinstance(s, Line):
+        return Line(to_panel(b, *s.a), to_panel(b, *s.b))
+    return Arc(to_panel(b, *s.a), to_panel(b, *s.b), to_panel(b, *s.center), s.radius, s.ccw)
 
 
-def _classify(panel: PanelPlan, drills: list[DrillOp]):
+def _classify(blank: Blank, drills: list[DrillOp]):
     """Label each drill op fixing or screw by matching it to the layout's holes."""
-    def mapped(attr):
-        return [to_panel(t, h.x, h.y) for t in panel.templates for h in getattr(t, attr)]
-
-    fix_at, screw_at = mapped('fix_holes'), mapped('screw_holes')
-
-    def hit(o, at):
-        return any(abs(o.x - x) <= TOL and abs(o.y - y) <= TOL for x, y in at)
+    def hit(o, holes):
+        return any(abs(o.x - h.x) <= TOL and abs(o.y - h.y) <= TOL for h in holes)
 
     fix_ops, screw_ops = [], []
     for o in drills:
-        f, sc = hit(o, fix_at), hit(o, screw_at)
+        f, sc = hit(o, blank.fix_holes), hit(o, blank.screw_holes)
         if f == sc:
-            raise ValueError(f'drill at ({o.x:.3f}, {o.y:.3f}) on {panel.id} matches '
+            raise ValueError(f'drill at ({o.x:.3f}, {o.y:.3f}) on {blank.id} matches '
                              f'{"both fixing and screw" if f else "no"} hole of the layout')
         (fix_ops if f else screw_ops).append(o)
     return fix_ops, screw_ops
@@ -68,50 +66,82 @@ def _program_entry(p: Program, settings: Settings) -> dict:
             'ops': len(p.ops), 'lines': lines, 'warnings': warnings}
 
 
-def _panel_data(panel: PanelPlan, programs: list[Program], settings: Settings) -> dict:
-    pw = settings.panel.width
-    prefix = f'N{_panel_number(panel)}'
-    mine = [p for p in programs if p.name.startswith(prefix)
-            and p.name[len(prefix):] in ('F', 'S', 'C')]
+def _blank_data(b: Blank, programs: list[Program], settings: Settings):
+    """(blank view in blank coordinates, holes as drilled in blank coordinates)."""
+    H = b.height
+    mine = [p for p in programs if p.blank == b.id]
     drills = [o for p in mine if p.kind == 'drill' for o in p.ops]
     cuts = {base_label(o.label): o for p in mine if p.kind == 'cut' for o in p.ops}
-    fix_ops, screw_ops = _classify(panel, drills)
-
-    def holes(t, ops):
-        return [{'x': o.x, 'y': pw - o.y} for o in ops if _inside(t, o.x, o.y)]
-
-    templates = []
-    for t in panel.templates:
-        w, h = footprint(t)
-        shapes = []
-        for ps in t.shapes:
-            moved = [_map_seg(s, t) for s in translate(ps.shape.outline, ps.x, ps.y)]
-            x0, y0, x1, y1 = bbox(moved)
-            op = cuts.get(f'{t.id} {ps.name} #{ps.copy}')
-            shapes.append({'name': ps.name, 'path': _path(moved, pw),
-                           'cut_path': _path(op.segs, pw) if op else '',
-                           'cx': (x0 + x1) / 2, 'cy': pw - (y0 + y1) / 2})
-        outline = cuts.get(f'{t.id} outline')
-        templates.append({'id': t.id, 'x': t.x, 'y': pw - (t.y + h), 'w': w, 'h': h,
-                          'rotated': t.rotated, 'shapes': shapes,
-                          'cut_path': _path(outline.segs, pw) if outline else '',
-                          'fix': holes(t, fix_ops), 'screw': holes(t, screw_ops)})
-
+    fix_ops, screw_ops = _classify(b, drills)
+    shapes = []
+    for ps in b.shapes:
+        moved = translate(ps.shape.outline, ps.x, ps.y)
+        x0, y0, x1, y1 = bbox(moved)
+        op = cuts.get(f'{b.id} {ps.name} #{ps.copy}')
+        shapes.append({'name': ps.name, 'copy': ps.copy, 'path': _path(moved, H),
+                       'cut_path': _path(op.segs, H) if op else '',
+                       'cx': (x0 + x1) / 2, 'cy': H - (y0 + y1) / 2})
     ops = [o for p in mine for o in p.ops]
-    shape_cut = next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)
-                      and not base_label(o.label).endswith(' outline')), None)
-    z = {'stack_top': stack_top(settings, panel),
+    z = {'stack_top': stack_top(settings),
          'fixing': fix_ops[0].depth if fix_ops else None,
          'screw': screw_ops[0].depth if screw_ops else None,
-         'shape_cut': shape_cut,
-         'template_cut': next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)
-                               and base_label(o.label).endswith(' outline')), None)}
-    return {'id': panel.id, 'templates': templates,
+         'shape_cut': next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)), None)}
+    data = {'id': b.id, 'panel': b.panel, 'width': b.width, 'height': b.height,
+            'rotated': b.rotated, 'shapes': shapes,
+            'fix': [{'x': o.x, 'y': H - o.y} for o in fix_ops],
+            'screw': [{'x': o.x, 'y': H - o.y} for o in screw_ops],
             'programs': [_program_entry(p, settings) for p in mine],
             'z': {k: v for k, v in z.items() if v is not None}}
+    return data, fix_ops, screw_ops
+
+
+def _cut_data(c: SawCut, settings: Settings) -> dict:
+    pw, k = settings.panel.width, settings.panel.kerf
+    if c.axis == 'x':           # runs along X at y = at .. at + kerf
+        rect = [c.start, pw - (c.at + k), c.end - c.start, k]
+    else:
+        rect = [c.at, pw - c.end, k, c.end - c.start]
+    return {'n': c.n, 'stage': c.stage, 'axis': c.axis, 'at': c.at, 'start': c.start,
+            'end': c.end, 'frees': c.frees, 'blanks': list(c.blanks),
+            'size': list(c.size) if c.size else None, 'rect': rect}
+
+
+def _panel_data(panel: PanelPlan, holes: dict, settings: Settings) -> dict:
+    pw = settings.panel.width
+    blanks = []
+    for b in panel.blanks:
+        w, h = footprint(b)
+        shapes = []
+        for ps in b.shapes:
+            moved = [_map_seg(s, b) for s in translate(ps.shape.outline, ps.x, ps.y)]
+            x0, y0, x1, y1 = bbox(moved)
+            shapes.append({'name': ps.name, 'path': _path(moved, pw),
+                           'cx': (x0 + x1) / 2, 'cy': pw - (y0 + y1) / 2})
+        fix_ops, screw_ops = holes[b.id]
+
+        def mapped(ops):
+            return [{'x': x, 'y': pw - y} for x, y in (to_panel(b, o.x, o.y) for o in ops)]
+
+        blanks.append({'id': b.id, 'x': b.x, 'y': pw - (b.y + h), 'w': w, 'h': h,
+                       'width': b.width, 'height': b.height, 'rotated': b.rotated,
+                       'shapes': shapes, 'fix': mapped(fix_ops), 'screw': mapped(screw_ops)})
+    area = settings.panel.length * settings.panel.width
+    waste = panel.waste(settings)
+    return {'id': panel.id, 'strips': panel.strips, 'blanks': blanks,
+            'cuts': [_cut_data(c, settings) for c in panel.cuts],
+            'waste': waste, 'waste_pct': 100 * waste / area}
 
 
 def preview_data(plan: Plan, programs: list[Program], settings: Settings) -> dict:
-    return {'panel': {'length': settings.panel.length, 'width': settings.panel.width},
-            'panels': [_panel_data(p, programs, settings) for p in plan.panels],
+    p, m = settings.panel, settings.machine
+    blanks, holes = [], {}
+    for b in plan.blanks:
+        data, fix_ops, screw_ops = _blank_data(b, programs, settings)
+        blanks.append(data)
+        holes[b.id] = (fix_ops, screw_ops)
+    return {'panel': {'length': p.length, 'width': p.width, 'thickness': p.thickness,
+                      'edge': p.edge, 'kerf': p.kerf},
+            'frame': {'x': m.frame_x, 'y': m.frame_y},
+            'panels': [_panel_data(pp, holes, settings) for pp in plan.panels],
+            'blanks': blanks,
             'problems': list(plan.problems)}

@@ -1,4 +1,5 @@
 """Nesting tool settings. Every guessed number lives here as a placeholder default."""
+import copy
 import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
@@ -14,16 +15,23 @@ class SettingsError(ValueError):
 class Panel:
     length: float = 2440
     width: float = 1220
-    edge: float = 10
+    thickness: float = 18   # the blanks are sawn from the panel: shapes have this thickness
+    edge: float = 10        # saw trim at every panel border
+    kerf: float = 4         # panel saw blade width
+
+
+@dataclass
+class Machine:
+    # Work frame a blank must fit in (long side along machine X). PLACEHOLDERS decoded from a
+    # control config file, not measured: to verify on the machine's axis parameter screens.
+    frame_x: float = 3072
+    frame_y: float = 787
 
 
 @dataclass
 class Heights:
     scrap: float = 18
-    template_stock: float = 18
-    shape_thickness: float = 18
-    into_template: float = 0.3
-    into_scrap: float = 0.5
+    into_scrap: float = 0.5       # how far a shape cut goes below the blank into the scrap
     fix_into_scrap: float = 1
 
 
@@ -50,21 +58,18 @@ class DrillFix:
 class DrillScrew:
     tool: int = 2  # placeholder tool number
     diameter: float = 3
-    depth: float = 8
+    depth: float = 8    # below the blank, into the scrap
     feed: float = 1
 
 
 @dataclass
-class Template:
-    mode: str = "auto"  # 'auto' | 'fixed' | 'none'
+class Blank:
     shapes_per: int = 2
     group_by: str = "length"  # 'length' | 'order'
     margin_end: float = 45
     margin_side: float = 45
     fix_inset: float = 15
     head_dia: float = 14
-    fixed_width: float = 0
-    fixed_height: float = 0
 
 
 def _build(cls, data):
@@ -83,14 +88,31 @@ def _build(cls, data):
     return cls(**kwargs)
 
 
+def _migrate(d: dict) -> dict:
+    """Settings saved before 2026-11-09 (template model): keep the values that still mean the
+    same thing. template.* -> blank.*, heights.shape_thickness -> panel.thickness."""
+    if not isinstance(d, dict):
+        return {}
+    d = copy.deepcopy(d)
+    if 'blank' not in d and isinstance(d.get('template'), dict):
+        d['blank'] = d['template']
+    heights = d.get('heights')
+    if isinstance(heights, dict) and 'shape_thickness' in heights:
+        panel = d.setdefault('panel', {})
+        if isinstance(panel, dict) and 'thickness' not in panel:
+            panel['thickness'] = heights['shape_thickness']
+    return d
+
+
 @dataclass
 class Settings:
     panel: Panel = field(default_factory=Panel)
+    machine: Machine = field(default_factory=Machine)
     heights: Heights = field(default_factory=Heights)
     router: Router = field(default_factory=Router)
     drill_fix: DrillFix = field(default_factory=DrillFix)
     drill_screw: DrillScrew = field(default_factory=DrillScrew)
-    template: Template = field(default_factory=Template)
+    blank: Blank = field(default_factory=Blank)
     origin: str = "G54"
 
     @classmethod
@@ -102,11 +124,16 @@ class Settings:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Settings":
-        return _build(cls, d)
+        return _build(cls, _migrate(d))
 
     @property
     def gap(self) -> float:
         return self.router.diameter + self.router.clearance
+
+    @property
+    def stack(self) -> float:
+        """Height of the stack on the cups: scrap plate + blank."""
+        return self.heights.scrap + self.panel.thickness
 
     def _get(self, path: str):
         obj = self
@@ -116,30 +143,30 @@ class Settings:
 
     def validate(self) -> None:
         positive = [
-            "panel.length", "panel.width",
-            "heights.scrap", "heights.template_stock", "heights.shape_thickness",
+            "panel.length", "panel.width", "panel.thickness",
+            "machine.frame_x", "machine.frame_y",
+            "heights.scrap",
             "router.tool", "router.diameter", "router.spindle_rpm",
             "router.plunge_feed", "router.cut_feed", "router.depth_per_pass",
             "drill_fix.tool", "drill_fix.diameter", "drill_fix.feed",
             "drill_screw.tool", "drill_screw.diameter", "drill_screw.depth",
             "drill_screw.feed",
-            "template.head_dia",
+            "blank.head_dia",
         ]
-        shapes_per = self.template.shapes_per
+        shapes_per = self.blank.shapes_per
         if (not isinstance(shapes_per, int) or isinstance(shapes_per, bool)
                 or shapes_per < 1):
-            raise SettingsError("template.shapes_per",
+            raise SettingsError("blank.shapes_per",
                                 "must be a whole number, 1 or more")
         for path in ("router.tool", "drill_fix.tool", "drill_screw.tool"):
             v = self._get(path)
             if not isinstance(v, int) or isinstance(v, bool) or v < 1:
                 raise SettingsError(path, "must be a whole tool number, 1 or more")
         non_negative = [
-            "panel.edge",
-            "heights.into_template", "heights.into_scrap", "heights.fix_into_scrap",
+            "panel.edge", "panel.kerf",
+            "heights.into_scrap", "heights.fix_into_scrap",
             "router.clearance",
-            "template.margin_end", "template.margin_side", "template.fix_inset",
-            "template.fixed_width", "template.fixed_height",
+            "blank.margin_end", "blank.margin_side", "blank.fix_inset",
         ]
         for path in positive:
             value = self._get(path)
@@ -154,29 +181,41 @@ class Settings:
         choices = {
             "origin": ("G54", "G55"),
             "router.direction": ("ccw", "cw"),
-            "template.mode": ("auto", "fixed", "none"),
-            "template.group_by": ("length", "order"),
+            "blank.group_by": ("length", "order"),
         }
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
+        self._validate_sizes()
         self._validate_depths()
+
+    def _validate_sizes(self) -> None:
+        """Cross-field checks: the trim, the kerf and the margins must leave room for a shape."""
+        p, b, m = self.panel, self.blank, self.machine
+        if p.edge and p.edge < p.kerf:
+            raise SettingsError("panel.edge", f"must be 0 (no trim) or at least the saw kerf "
+                                              f"panel.kerf ({p.kerf:g} mm): the trim cut's kerf "
+                                              f"lies in the trimmed edge")
+        if not 2 * p.edge + p.kerf < min(p.length, p.width):
+            raise SettingsError("panel.edge", f"trim on both sides plus a kerf leaves nothing of "
+                                              f"the {min(p.length, p.width):g} mm panel side")
+        if not 2 * b.margin_end < m.frame_x:
+            raise SettingsError("machine.frame_x", f"must be more than 2 x blank.margin_end "
+                                                   f"({2 * b.margin_end:g} mm): no room for a shape")
+        if not 2 * b.margin_side < m.frame_y:
+            raise SettingsError("machine.frame_y", f"must be more than 2 x blank.margin_side "
+                                                   f"({2 * b.margin_side:g} mm): no room for a shape")
 
     def _validate_depths(self) -> None:
         """No written depth may reach the top of the vacuum cups (below the scrap plate)."""
         h = self.heights
-        ts = 0.0 if self.template.mode == "none" else h.template_stock
         cups = "deeper reaches the vacuum cups"
         limits = [
-            ("heights.into_scrap", h.into_scrap, h.scrap, "heights.scrap", cups),
-            ("heights.fix_into_scrap", h.fix_into_scrap, h.scrap, "heights.scrap", cups),
-            ("drill_screw.depth", self.drill_screw.depth, h.scrap + ts,
-             "heights.scrap" if self.template.mode == "none"
-             else "heights.template_stock + heights.scrap", cups),
-            ("heights.into_template", h.into_template, h.template_stock,
-             "heights.template_stock",
-             "deeper cuts through the template, towards the vacuum cups"),
+            ("heights.into_scrap", h.into_scrap),
+            ("heights.fix_into_scrap", h.fix_into_scrap),
+            ("drill_screw.depth", self.drill_screw.depth),
         ]
-        for path, value, limit, what, why in limits:
-            if not value < limit:
-                raise SettingsError(path, f"must be less than {what} ({limit:g} mm): {why}")
+        for path, value in limits:
+            if not value < h.scrap:
+                raise SettingsError(path, f"must be less than heights.scrap ({h.scrap:g} mm): "
+                                          f"{cups}")

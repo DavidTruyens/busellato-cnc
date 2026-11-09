@@ -68,6 +68,11 @@ section.center{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 svg text{font-family:inherit}
 .tmpl{cursor:pointer}
 .tmpl:hover rect.t{stroke-width:4}
+.cutlist{background:var(--panel);border:1px solid var(--line);border-radius:8px;flex-shrink:0}
+.cutlist h2{margin:0;padding:10px 12px 4px}
+.cutlist table td{padding:4px 12px}
+.cutlist tr.hl td{background:#fff4e0}
+.cutlist:empty{display:none}
 .stats{color:var(--mute);font-size:13px}
 .banner{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:8px;padding:8px 12px;font-size:13px}
 .banner ul{margin:4px 0 0;padding-left:18px}
@@ -94,8 +99,9 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 #result .err{color:var(--err)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
-.legend .cutonly{display:none}
-.legend.cut .cutonly{display:inline}
+.legend .cutonly,.legend .jobonly{display:none}
+.legend.cut .cutonly,.legend.job .jobonly{display:inline}
+.legend.job .layoutonly{display:none}
 @media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
 </style>
 </head>
@@ -116,36 +122,35 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <input type="file" id="file" accept=".dxf" multiple hidden>
   <div class="upmsg" id="upmsg"></div>
 
-  <h2>Template</h2>
-  <div data-k="template.mode" id="modes">
-    <label class="radio"><input type="radio" name="tm" value="auto"> Auto: one per group of shapes</label>
-    <label class="radio"><input type="radio" name="tm" value="fixed"> Fixed rectangle (enter size)</label>
-    <label class="radio"><input type="radio" name="tm" value="none"> None: cut straight from the panel</label>
-    <div class="ferr" data-err="template.mode"></div>
-  </div>
-  <div id="tplFields"></div>
+  <h2>Blanks</h2>
+  <p class="note">A panel saw cuts each panel into blanks. One blank at a time is screwed to the scrap plate on the cups; the shapes are cut out of it and its frame is left over.</p>
+  <div id="blankFields"></div>
   <p class="note" id="panelNote"></p>
 
-  <h2>Panel</h2>
+  <h2>Panel and saw</h2>
   <div id="panelFields"></div>
 </aside>
 
 <section class="center">
   <div class="bar" id="ptabs"></div>
+  <div class="bar" id="btabs"></div>
   <div class="bar">
     <div class="seg" id="views"><span data-v="layout" class="on">Layout</span><span data-v="drill">Drill job</span><span data-v="cut">Cut job</span></div>
     <span class="stats" id="stats"></span>
     <span class="spacer"></span>
     <div class="legend" id="legend">
-      <span><i style="background:var(--tmpl)"></i>template</span>
+      <span><i style="background:var(--tmpl)"></i>blank</span>
       <span><i style="background:var(--plate)"></i>shape</span>
-      <span><i style="background:var(--fix)"></i>fixing hole (to scrap plate)</span>
-      <span><i style="background:var(--pilot)"></i>screw hole (shape to template)</span>
+      <span class="layoutonly"><i style="background:#c0261c"></i>saw cut (kerf)</span>
+      <span class="jobonly"><i style="background:none;border:2px dashed #667085"></i>machine work frame</span>
+      <span><i style="background:var(--fix)"></i>fixing hole (blank to scrap)</span>
+      <span><i style="background:var(--pilot)"></i>screw hole (shape to scrap)</span>
       <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre)</span>
     </div>
   </div>
   <div class="banner" id="problems"></div>
   <div class="canvas"><svg id="svg" width="100%"></svg></div>
+  <div class="cutlist" id="cutlist"></div>
 
   <div class="progs">
     <h2>Programs for <span id="pname"></span></h2>
@@ -157,12 +162,12 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 
 <aside class="right">
   <h2>Selection</h2>
-  <div class="sel-card" id="sel">Click a template on the panel.</div>
+  <div class="sel-card" id="sel">Click a blank on the panel.</div>
 
   <h2>Heights (Z)</h2>
   <div id="heightFields"></div>
   <div class="zbox" id="zbox"></div>
-  <p class="note">All in mm. The program's stock height is the stack height (scrap + template + shape); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
+  <p class="note">All in mm. The program's stock height is the stack height (scrap + blank); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
 
   <h2>Router (cut job)</h2>
   <div class="field wide"><label for="preset">Preset: fills the router tool and Ø</label><select id="preset"></select></div>
@@ -175,7 +180,7 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 
   <h2>Machine</h2>
   <div id="machineFields"></div>
-  <p class="note">Values shown are placeholders until measured at the machine.</p>
+  <p class="note">Values shown are placeholders until measured at the machine. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
 </aside>
 </main>
 
@@ -186,12 +191,13 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <div id="rsteps">
     <h3 style="margin-top:12px">At the machine</h3>
     <ol>
-      <li>Print <code>RUNSHEET.html</code> from the folder: panel drawings, steps and depths.</li>
+      <li>Print <code>RUNSHEET.html</code> from the folder: saw cut list per panel, then per blank its drawing, steps and depths.</li>
       <li>Copy everything in the folder to the root of the diskette.</li>
       <li>DOS: run <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites, says what it did).</li>
       <li>CNC90 file management: register each program, then open and save it once in the editor.</li>
-      <li>Compile. Check every program in the simulator; run the first panel in the air, then on scrap.</li>
-      <li>Per panel: fixing holes → screw the panel down → place the shapes → screw holes → screw the shapes down → cut.</li>
+      <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
+      <li>Saw each panel into blanks as the cut list says.</li>
+      <li>Per blank: lay it on the scrap against the pins → fixing holes → screw the blank down → screw holes → screw the shapes down → cut the shapes out.</li>
       <li>Optional: <code>A:COLLECT</code> copies the compiler output to <code>A:\OUT\</code>.</li>
     </ol>
   </div>
@@ -220,14 +226,12 @@ function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, 
 // ---- settings controls: every field of Settings -----------------------------------------
 const NOTE_FEED = "not written to the program (the control uses the tool's own feed)";
 const NOTE_DIA = 'used only to decide whether the two drill jobs share one program';
-// [key, label, unit or choices, step, kind, only in template mode, note under the field]
+// [key, label, unit or choices, step, kind, (unused), note under the field]
+const NOTE_FRAME = "placeholder: to verify on the machine's axis parameter screens";
 const FIELDS = {
   heightFields: [
     ['heights.scrap', 'Scrap plate on cups', 'mm'],
-    ['heights.template_stock', 'Template stock', 'mm'],
-    ['heights.shape_thickness', 'Shape thickness', 'mm'],
-    ['heights.into_template', 'Cut below shape into template', 'mm', 0.1],
-    ['heights.into_scrap', 'Cut into scrap', 'mm', 0.1],
+    ['heights.into_scrap', 'Shape cut into scrap', 'mm', 0.1],
     ['heights.fix_into_scrap', 'Fixing holes into scrap', 'mm', 0.5]],
   routerToolFields: [
     ['router.tool', 'Router tool', 'T', 1, 'int'],
@@ -245,34 +249,37 @@ const FIELDS = {
     ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED],
     ['drill_screw.tool', 'Screw drill tool', 'T', 1, 'int'],
     ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
-    ['drill_screw.depth', 'Screw hole depth into template', 'mm'],
+    ['drill_screw.depth', 'Screw hole depth into scrap', 'mm'],
     ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED]],
-  tplFields: [
-    ['template.shapes_per', 'Shapes per template', '', 1, 'int'],
-    ['template.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
-    ['template.margin_end', 'End margin', 'mm'],
-    ['template.margin_side', 'Side margin', 'mm'],
-    ['template.fix_inset', 'Fixing hole inset', 'mm'],
-    ['template.head_dia', 'Screw head Ø (clearance)', 'mm'],
-    ['template.fixed_width', 'Fixed template length', 'mm', 1, 'num', 'fixed'],
-    ['template.fixed_height', 'Fixed template width', 'mm', 1, 'num', 'fixed']],
+  blankFields: [
+    ['blank.shapes_per', 'Shapes per blank', '', 1, 'int'],
+    ['blank.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
+    ['blank.margin_end', 'End margin', 'mm'],
+    ['blank.margin_side', 'Side margin', 'mm'],
+    ['blank.fix_inset', 'Fixing hole inset', 'mm'],
+    ['blank.head_dia', 'Screw head Ø (clearance)', 'mm']],
   panelFields: [
     ['panel.length', 'Panel length', 'mm'],
     ['panel.width', 'Panel width', 'mm'],
-    ['panel.edge', 'Unusable edge', 'mm']],
+    ['panel.thickness', 'Panel thickness (blank)', 'mm'],
+    ['panel.edge', 'Saw trim per edge', 'mm'],
+    ['panel.kerf', 'Saw kerf', 'mm', 0.5]],
   machineFields: [
-    ['origin', 'Origin', [['G54', 'G54'], ['G55', 'G55']]]]
+    ['origin', 'Origin', [['G54', 'G54'], ['G55', 'G55']]],
+    ['machine.frame_x', 'Work frame X', 'mm', 1, 'num', '', NOTE_FRAME],
+    ['machine.frame_y', 'Work frame Y', 'mm', 1, 'num', '', NOTE_FRAME]]
 };
 const ROUTER_TOOLS = [[66, 8, 'T66 Ø8 (right, 4.5 HP)'], [65, 18, 'T65 Ø18 (left, 7 HP)']];
 const Z_LABELS = [
   ['stack_top', 'Stack height (top of the stack above the cups)'],
   ['fixing', 'Fixing holes: drill depth below the top of the stack'],
   ['screw', 'Screw holes: drill depth below the top of the stack'],
-  ['shape_cut', 'Shapes: cut depth below the top of the stack'],
-  ['template_cut', 'Templates: cut depth below the top of the stack']];
+  ['shape_cut', 'Shapes: cut depth below the top of the stack']];
+const RUNS = {x: 'along X', y: 'along Y'};
+const FREES = {offcut: 'offcut (trim)', strip: 'strip', rough: 'blank, to trim', blank: 'blank'};
 
 let project = null, plan = null;
-let panelIdx = 0, view = 'layout', selT = null, selProg = null;
+let panelIdx = 0, view = 'layout', selB = null, selProg = null, hlCut = null;
 let timer = null, queue = Promise.resolve(), saveError = null, firstPlan = true;
 
 function parseValue(raw){
@@ -319,10 +326,6 @@ function buildFields(){
     $('f_router_tool').value = t; $('f_router_diameter').value = d;
     changed();
   });
-  document.querySelectorAll('#modes input').forEach(i => {
-    i.checked = i.value === project.settings.template.mode;
-    i.addEventListener('change', () => { project.settings.template.mode = i.value; changed(); });
-  });
   syncSettingsNotes();
 }
 
@@ -330,10 +333,9 @@ function syncSettingsNotes(){
   const s = project.settings;
   const preset = ROUTER_TOOLS.find(([t, d]) => t === s.router.tool && d === s.router.diameter);
   $('preset').value = preset ? preset[0] + '|' + preset[1] : '';
-  document.querySelectorAll('[data-only]').forEach(f => f.style.display = s.template.mode === f.dataset.only ? '' : 'none');
-  $('panelNote').textContent = `Templates are nested on ${s.panel.width} × ${s.panel.length} panels; 90° turns allowed.`;
+  $('panelNote').textContent = `A blank must fit the work frame ${s.machine.frame_x} × ${s.machine.frame_y} (long side along machine X). Blanks are sawn from ${s.panel.width} × ${s.panel.length} panels; 90° turns on the panel allowed.`;
   const gap = Number(s.router.diameter) + Number(s.router.clearance);
-  $('gapNote').textContent = `Gap between shapes and between templates: tool Ø + clearance = ${Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
+  $('gapNote').textContent = `Gap between shapes on a blank: tool Ø + clearance = ${Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
 }
 
 // ---- field errors ------------------------------------------------------------------------
@@ -386,17 +388,17 @@ function flush(){
 async function loadPlan(){
   const r = await fetch('/api/plan');
   plan = await r.json();
-  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, panels: [], problems: [plan.error || 'plan failed'], settings_error: null};
+  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, frame: {x: 0, y: 0}, panels: [], blanks: [], problems: [plan.error || 'plan failed'], settings_error: null};
   if (plan.settings_error) showFieldError(plan.settings_error);
   if (panelIdx >= plan.panels.length) panelIdx = 0;
   const p = plan.panels[panelIdx];
-  if (!p || !p.templates.some(t => t.id === selT)) selT = null;
+  if (!p || !p.blanks.some(b => b.id === selB)) selB = p && p.blanks.length ? p.blanks[0].id : null;
   if (firstPlan && p){
     firstPlan = false;
     const h0 = location.hash.slice(1);
     if (h0 === 'drill' || h0 === 'cut'){
-      view = h0; selT = p.templates.length ? p.templates[0].id : null;
-      const g = p.programs.find(x => x.kind === h0); selProg = g ? g.name : null;
+      view = h0;
+      const g = blankAt().programs.find(x => x.kind === h0); selProg = g ? g.name : null;
     }
   }
   renderAll();
@@ -448,88 +450,145 @@ $('file').addEventListener('change', () => { upload([...$('file').files]); $('fi
 
 // ---- panel drawing ---------------------------------------------------------------------------
 function panelAt(){ return plan && plan.panels[panelIdx]; }
+function blankAt(){ return plan && plan.blanks.find(b => b.id === selB); }
+const pct = v => Math.round(v) + '%';
 
 function renderTabs(){
-  const L = plan.panel.length, W = plan.panel.width;
   $('ptabs').replaceChildren(...plan.panels.map((q, i) => {
-    const used = q.templates.reduce((a, t) => a + t.w * t.h, 0) / (L * W);
     const tab = el('span', {className: 'tab' + (i === panelIdx ? ' on' : '')},
-                   `${q.id} · ${q.templates.length} template${q.templates.length === 1 ? '' : 's'} · ${Math.round(used * 100)}% used`);
-    tab.addEventListener('click', () => { panelIdx = i; selT = null; selProg = null; renderAll(); });
+                   `${q.id} · ${q.blanks.length} blank${q.blanks.length === 1 ? '' : 's'} · ${pct(q.waste_pct)} waste`);
+    tab.addEventListener('click', () => { panelIdx = i; selB = q.blanks.length ? q.blanks[0].id : null; selProg = null; hlCut = null; renderAll(); });
     return tab;
   }));
+  const p = panelAt();
+  // the drill and cut jobs run one blank at a time: pick which one
+  $('btabs').replaceChildren(...(view === 'layout' || !p ? [] : [el('span', {className: 'note'}, 'Blank:'), ...p.blanks.map(b => {
+    const tab = el('span', {className: 'tab' + (b.id === selB ? ' on' : '')}, `${b.id} · ${fmt(b.width)} × ${fmt(b.height)}`);
+    tab.addEventListener('click', () => { selB = b.id; selProg = null; renderAll(); });
+    return tab;
+  })]));
 }
 
 function renderPanel(){
+  $('legend').classList.toggle('cut', view === 'cut');
+  $('legend').classList.toggle('job', view !== 'layout');
+  if (view === 'layout') renderLayout(); else renderJob();
+  renderCutList();
+}
+
+function renderLayout(){
   const L = plan.panel.length, W = plan.panel.width, p = panelAt();
   let s = `<rect x="0" y="0" width="${esc(L)}" height="${esc(W)}" fill="var(--stock)" stroke="var(--stock-line)" stroke-width="3"/>`;
+  s += `<circle cx="0" cy="${esc(W)}" r="12" fill="#1c2230"/>`;
   if (!p){
-    s += `<text x="${esc(L / 2)}" y="${esc(W / 2)}" font-size="48" text-anchor="middle" fill="#667085">No shapes placed on a panel</text>`;
+    s += `<text x="${esc(L / 2)}" y="${esc(W / 2)}" font-size="48" text-anchor="middle" fill="#667085">No shapes placed on a blank</text>`;
   } else {
-    let order = 0;
-    const cutN = {};
-    p.templates.forEach(t => t.shapes.forEach((q, qi) => cutN[t.id + '/' + qi] = ++order));
-    p.templates.forEach(t => {
-      const on = selT === t.id;
-      s += `<g class="tmpl" data-id="${esc(t.id)}">`;
-      s += `<rect class="t" x="${esc(t.x)}" y="${esc(t.y)}" width="${esc(t.w)}" height="${esc(t.h)}" fill="var(--tmpl)" stroke="${on ? 'var(--accent)' : '#6b4e16'}" stroke-width="${on ? 6 : 2.5}"/>`;
-      s += `<text x="${esc(t.x + 34)}" y="${esc(t.y + 36)}" font-size="24" fill="#6b4e16">${esc(t.id)}</text>`;
-      t.shapes.forEach((q, qi) => {
+    p.blanks.forEach(b => {
+      const on = selB === b.id;
+      s += `<g class="tmpl" data-id="${esc(b.id)}">`;
+      s += `<rect class="t" x="${esc(b.x)}" y="${esc(b.y)}" width="${esc(b.w)}" height="${esc(b.h)}" fill="var(--tmpl)" stroke="${on ? 'var(--accent)' : '#6b4e16'}" stroke-width="${on ? 6 : 2.5}"/>`;
+      b.shapes.forEach(q => {
         s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="2.5"/>`;
-        if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="2.5"/>`;
-        s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10)}" font-size="30" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + cutN[t.id + '/' + qi] + ')') : ''}</text>`;
       });
-      if (view !== 'cut'){
-        const big = view === 'drill';
-        t.fix.forEach((h, i) => {
-          s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${big ? 14 : 8}" fill="${big ? '#fff' : 'none'}" stroke="var(--fix)" stroke-width="3"/>`;
-          if (big) s += `<text x="${esc(h.x + 18)}" y="${esc(h.y - 12)}" font-size="22" fill="var(--fix)">${i + 1}</text>`;
-        });
-        t.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${big ? 10 : 6}" fill="${big ? '#fff' : 'none'}" stroke="var(--pilot)" stroke-width="3"/>`);
-      } else if (t.cut_path){
-        s += `<path d="${esc(t.cut_path)}" fill="none" stroke="#c0261c" stroke-width="3" stroke-dasharray="14 8"/>`;
-        s += `<text x="${esc(t.x + t.w - 14)}" y="${esc(t.y + 34)}" font-size="28" text-anchor="end" fill="#c0261c">template outline: cut last</text>`;
-      }
+      b.fix.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="8" fill="none" stroke="var(--fix)" stroke-width="3"/>`);
+      b.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="6" fill="none" stroke="var(--pilot)" stroke-width="3"/>`);
+      s += `<text x="${esc(b.x + b.w / 2)}" y="${esc(b.y + b.h / 2 + 22)}" font-size="64" font-weight="700" text-anchor="middle" fill="#6b4e16" opacity=".85">${esc(b.id)}</text>`;
       s += '</g>';
+    });
+    p.cuts.forEach(c => {
+      const [x, y, w, h] = c.rect, on = hlCut === c.n;
+      s += `<rect x="${esc(x)}" y="${esc(y)}" width="${esc(w)}" height="${esc(h)}" fill="#c0261c" opacity="${on ? 1 : .8}" stroke="${on ? '#c0261c' : 'none'}" stroke-width="${on ? 8 : 0}"/>`;
+      const tx = c.axis === 'x' ? x + 8 + (c.stage === 3 ? 40 : 0) : x + 8, ty = c.axis === 'x' ? y - 6 : y + 26 + (c.stage - 1) * 26;
+      s += `<text x="${esc(tx)}" y="${esc(ty)}" font-size="${on ? 30 : 22}" fill="#c0261c">${esc(c.n)}</text>`;
     });
   }
   const svg = $('svg');
-  svg.setAttribute('viewBox', `-10 -10 ${L + 20} ${W + 20}`);
+  svg.setAttribute('viewBox', `-20 -20 ${L + 40} ${W + 40}`);
   svg.innerHTML = s;
-  svg.querySelectorAll('.tmpl').forEach(g => g.addEventListener('click', () => { selT = g.dataset.id; renderPanel(); renderSel(); }));
-  $('legend').classList.toggle('cut', view === 'cut');
+  svg.querySelectorAll('.tmpl').forEach(g => g.addEventListener('click', () => { selB = g.dataset.id; selProg = null; renderLayout(); renderSel(); renderZ(); renderProgs(); }));
   if (p){
-    const used = p.templates.reduce((a, t) => a + t.w * t.h, 0);
-    $('stats').textContent = `${fmtArea(used / 1e6)} m² of ${fmtArea(L * W / 1e6)} m² panel`;
+    $('stats').textContent = `${p.blanks.length} blank${p.blanks.length === 1 ? '' : 's'}, ${p.cuts.length} saw cuts, waste ${fmtArea(p.waste / 1e6)} m² of ${fmtArea(L * W / 1e6)} m² (${pct(p.waste_pct)})`;
   } else $('stats').textContent = '';
 }
 
+function renderCutList(){
+  const p = panelAt(), box = $('cutlist');
+  box.replaceChildren();
+  if (view !== 'layout' || !p) return;
+  const body = el('tbody');
+  p.cuts.forEach(c => {
+    const what = FREES[c.frees] + (c.blanks.length ? ' ' + c.blanks.join(', ') : '');
+    const tr = el('tr', {className: hlCut === c.n ? 'hl' : ''},
+      el('td', {className: 'num'}, String(c.n)), el('td', {className: 'num'}, String(c.stage)), el('td', {}, RUNS[c.axis]),
+      el('td', {className: 'num'}, `${c.axis === 'x' ? 'Y' : 'X'} ${fmt(c.at)}`),
+      el('td', {className: 'num'}, `${fmt(c.start)} … ${fmt(c.end)}`), el('td', {}, what),
+      el('td', {className: 'num'}, c.size ? `${fmt(c.size[0])} × ${fmt(c.size[1])}` : ''));
+    tr.addEventListener('mouseenter', () => { hlCut = c.n; tr.className = 'hl'; renderLayout(); });
+    tr.addEventListener('mouseleave', () => { hlCut = null; tr.className = ''; renderLayout(); });
+    body.append(tr);
+  });
+  const pn = plan.panel;
+  box.append(el('h2', {}, `Saw cut list for ${p.id}`),
+    el('div', {className: 'note', style: 'padding:0 12px'}, `Positions in mm from the panel's origin corner (black dot, bottom left); the kerf (${fmt(pn.kerf)} mm) lies from the position upward. Stage 1 cuts go right across the panel, stage 2 across a strip, stage 3 trims one piece. Edge trim ${fmt(pn.edge)} mm.`),
+    el('table', {}, el('thead', {}, el('tr', {}, el('th', {className: 'num'}, 'Cut'), el('th', {className: 'num'}, 'Stage'), el('th', {}, 'Runs'),
+      el('th', {className: 'num'}, 'At'), el('th', {className: 'num'}, 'From … to'), el('th', {}, 'Frees'), el('th', {className: 'num'}, 'Piece X × Y'))), body));
+}
+function renderJob(){
+  // one blank in blank coordinates: that is what the machine runs
+  const b = blankAt(), fr = plan.frame;
+  const svg = $('svg');
+  if (!b){ svg.setAttribute('viewBox', '0 0 1000 200'); svg.innerHTML = '<text x="500" y="100" font-size="32" text-anchor="middle" fill="#667085">No blank</text>'; $('stats').textContent = ''; return; }
+  const H = b.height, X = Math.max(fr.x, b.width), Y = Math.max(fr.y, H);
+  const k = X / 2000;          // sizes scale with the drawing, like on the panel view
+  const n = v => esc(v * k);
+  let s = `<rect x="0" y="${esc(H - fr.y)}" width="${esc(fr.x)}" height="${esc(fr.y)}" fill="none" stroke="#667085" stroke-width="${n(3)}" stroke-dasharray="${n(18)} ${n(10)}"/>`;
+  s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
+  s += `<rect x="0" y="0" width="${esc(b.width)}" height="${esc(H)}" fill="var(--tmpl)" stroke="#6b4e16" stroke-width="${n(2.5)}"/>`;
+  s += `<text x="${n(14)}" y="${n(30)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
+  s += `<circle cx="0" cy="${esc(H)}" r="${n(9)}" fill="#1c2230"/><text x="${n(14)}" y="${esc(H + 28 * k)}" font-size="${n(20)}" fill="#1c2230">X0 Y0 (origin corner, at the pins)</text>`;
+  b.shapes.forEach((q, qi) => {
+    s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="${n(2)}"/>`;
+    if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}"/>`;
+    s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10 * k)}" font-size="${n(28)}" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + (qi + 1) + ')') : ''}</text>`;
+  });
+  if (view === 'drill'){
+    b.fix.forEach((h, i) => {
+      s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${n(12)}" fill="#fff" stroke="var(--fix)" stroke-width="${n(3)}"/>`;
+      s += `<text x="${esc(h.x + 16 * k)}" y="${esc(h.y - 12 * k)}" font-size="${n(20)}" fill="var(--fix)">${i + 1}</text>`;
+    });
+    b.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${n(8)}" fill="#fff" stroke="var(--pilot)" stroke-width="${n(3)}"/>`);
+  }
+  svg.setAttribute('viewBox', `${-30 * k} ${H - Y - 30 * k} ${X + 60 * k} ${Y + 75 * k}`);
+  svg.innerHTML = s;
+  $('stats').textContent = `${b.id}: ${fmt(b.width)} × ${fmt(H)} mm in program coordinates`;
+}
+
 function renderSel(){
-  const p = panelAt(), t = p && p.templates.find(x => x.id === selT), box = $('sel');
-  if (!t){ box.textContent = 'Click a template on the panel.'; return; }
+  const b = blankAt(), box = $('sel');
+  if (!b){ box.textContent = 'Click a blank on the panel.'; return; }
   const dims = Object.fromEntries(project.shapes.map(s => [s.name, s]));
-  box.replaceChildren(el('b', {}, t.id), ` on ${p.id} `);
-  if (t.rotated) box.append(el('span', {className: 'pill'}, 'turned 90°'));
-  box.append(el('br'), `${fmt(t.w)} × ${fmt(t.h)} mm on the panel`);
-  t.shapes.forEach(q => {
+  box.replaceChildren(el('b', {}, b.id), ` from ${b.panel} `);
+  if (b.rotated) box.append(el('span', {className: 'pill'}, 'turned 90° on the panel'));
+  box.append(el('br'), `${fmt(b.width)} × ${fmt(b.height)} mm (as sawn; long side = machine X)`);
+  b.shapes.forEach(q => {
     const d = dims[q.name];
     box.append(el('br'), `• ${q.name}` + (d ? ` (${Math.round(d.length)} × ${Math.round(d.width)})` : ''));
   });
-  box.append(el('br'), el('span', {className: 'note'}, `${t.fix.length} fixing holes, ${t.screw.length} screw holes`));
+  box.append(el('br'), el('span', {className: 'note'}, `${b.fix.length} fixing holes, ${b.screw.length} screw holes`));
 }
 
 function renderZ(){
-  const p = panelAt(), box = $('zbox');
-  if (!p){ box.textContent = 'No panel: nothing to drill or cut.'; return; }
-  const rows = Z_LABELS.filter(([k]) => p.z[k] != null)
-    .map(([k, label]) => el('tr', {}, el('td', {}, label), el('td', {className: 'num'}, el('b', {}, fmt(p.z[k])))));
-  box.replaceChildren(el('div', {className: 'note'}, `${p.id}, mm: stack height, then each depth below the top of the stack`),
+  const b = blankAt(), box = $('zbox');
+  if (!b){ box.textContent = 'No blank: nothing to drill or cut.'; return; }
+  const rows = Z_LABELS.filter(([k]) => b.z[k] != null)
+    .map(([k, label]) => el('tr', {}, el('td', {}, label), el('td', {className: 'num'}, el('b', {}, fmt(b.z[k])))));
+  box.replaceChildren(el('div', {className: 'note'}, `${b.id}, mm: stack height, then each depth below the top of the stack`),
                       el('table', {}, el('tbody', {}, ...rows)));
 }
 
 // ---- programs and the real program text ------------------------------------------------------
 function renderProgs(){
-  const p = panelAt(), tbl = $('progs');
+  const p = blankAt(), tbl = $('progs');
   $('pname').textContent = p ? p.id : '—';
   tbl.replaceChildren();
   if (!p){ $('codehead').textContent = 'Program text'; $('code').textContent = ''; return; }
@@ -543,7 +602,7 @@ function renderProgs(){
     const tr = el('tr', {className: g.name === selProg ? 'sel' : ''}, el('td', {}, el('b', {}, g.name)),
                   el('td', {}, 'T' + g.tool), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
     tr.dataset.name = g.name;
-    tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderPanel(); renderProgs(); });
+    tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderTabs(); renderPanel(); renderProgs(); });
     body.append(tr);
   });
   tbl.append(body);
@@ -573,7 +632,7 @@ function renderProblems(){
 }
 
 function syncView(){ document.querySelectorAll('#views span').forEach(e => e.classList.toggle('on', e.dataset.v === view)); }
-document.querySelectorAll('#views span').forEach(e => e.addEventListener('click', () => { view = e.dataset.v; syncView(); renderPanel(); }));
+document.querySelectorAll('#views span').forEach(e => e.addEventListener('click', () => { view = e.dataset.v; syncView(); renderTabs(); renderPanel(); }));
 
 function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); }
 
@@ -596,7 +655,7 @@ $('gen').addEventListener('click', async () => {
     const r = await fetch('/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
     const b = await r.json();
     if (!r.ok){ showResult(false, b.error || 'generate failed', b.problems); return; }
-    const progs = Object.fromEntries((plan ? plan.panels : []).flatMap(p => p.programs).map(g => [g.name, g]));
+    const progs = Object.fromEntries((plan ? plan.blanks : []).flatMap(b => b.programs).map(g => [g.name, g]));
     $('rfolder').textContent = 'Folder: ' + b.folder;
     const body = el('tbody');
     b.files.forEach(n => {

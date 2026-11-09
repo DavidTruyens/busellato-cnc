@@ -3,11 +3,12 @@ from pathlib import Path
 
 from nesting.dxf import Hole, Shape, read_dxf
 from nesting.geometry import Line
-from nesting.layout import (MAX_QTY, PlacedTemplate, ShapeEntry, build_plan, footprint,
-                            to_panel)
+from nesting.layout import (MAX_QTY, Blank, LayoutError, Plan, ShapeEntry, build_blanks,
+                            build_plan, footprint, saw_plan, to_panel)
 from nesting.settings import Settings
 
 repo = Path(__file__).resolve().parent.parent
+EPS = 1e-6
 
 
 def rect(name, length, width, holes=True):
@@ -25,28 +26,86 @@ def real_entries():
     return [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
 
 
-def all_templates(plan):
-    return [t for p in plan.panels for t in p.templates]
+def names(b):
+    return sorted(p.name for p in b.shapes)
 
 
-def names(t):
-    return sorted(p.name for p in t.shapes)
+def one_blank(length, width, settings, name='a'):
+    """A blank of exactly length x width (whole mm) around one shape, with default margins."""
+    m = settings.blank
+    return rect(name, length - 2 * m.margin_end, width - 2 * m.margin_side, holes=False)
+
+
+def check_guillotine(tc, plan, settings, n_blanks=None):
+    """Replay every panel's cut list on the panel, independently of the layout code:
+    each cut must run edge to edge through exactly one current piece, kerf respected,
+    and every blank must end up as exactly one resulting piece, inside the trimmed panel."""
+    p = settings.panel
+    L, W, e, k = p.length, p.width, p.edge, p.kerf
+    seen = []
+    for pan in plan.panels:
+        pieces = [(0.0, 0.0, L, W)]                 # x0, y0, x1, y1
+        stages = [c.stage for c in pan.cuts]
+        n1 = stages.count(1)
+        tc.assertEqual(stages[:n1], [1] * n1)       # all strip cuts first ...
+        tc.assertTrue(all(st in (2, 3) for st in stages[n1:]), stages)
+        ats = [c.at for c in pan.cuts[:n1]]
+        tc.assertEqual(ats, sorted(ats))            # ... from the origin side outward
+        tc.assertEqual([c.n for c in pan.cuts], list(range(1, len(pan.cuts) + 1)))
+        for c in pan.cuts:
+            hits = []
+            for r in pieces:
+                if c.axis == 'x':       # line at constant y, from x=start to x=end
+                    full = abs(r[0] - c.start) < EPS and abs(r[2] - c.end) < EPS
+                    inside = r[1] - EPS <= c.at and c.at < r[3] - EPS
+                else:
+                    full = abs(r[1] - c.start) < EPS and abs(r[3] - c.end) < EPS
+                    inside = r[0] - EPS <= c.at and c.at < r[2] - EPS
+                if full and inside:
+                    hits.append(r)
+            tc.assertEqual(len(hits), 1, (pan.id, c, pieces))
+            r = hits[0]
+            pieces.remove(r)
+            if c.axis == 'x':
+                lo, hi = (r[0], r[1], r[2], c.at), (r[0], min(c.at + k, r[3]), r[2], r[3])
+            else:
+                lo, hi = (r[0], r[1], c.at, r[3]), (min(c.at + k, r[2]), r[1], r[2], r[3])
+            if c.size:
+                tc.assertAlmostEqual(lo[2] - lo[0], c.size[0], delta=EPS, msg=c)
+                tc.assertAlmostEqual(lo[3] - lo[1], c.size[1], delta=EPS, msg=c)
+            pieces += [q for q in (lo, hi) if q[2] - q[0] > EPS and q[3] - q[1] > EPS]
+        for b in pan.blanks:
+            w, h = footprint(b)
+            box = (b.x, b.y, b.x + w, b.y + h)
+            tc.assertTrue(e - EPS <= box[0] and box[2] <= L - e + EPS
+                          and e - EPS <= box[1] and box[3] <= W - e + EPS, (b.id, box))
+            same = [q for q in pieces if all(abs(q[i] - box[i]) < EPS for i in range(4))]
+            tc.assertEqual(len(same), 1, (pan.id, b.id, box))
+            seen.append(b.id)
+        boxes = [(b.x, b.y, b.x + footprint(b)[0], b.y + footprint(b)[1]) for b in pan.blanks]
+        for i, a in enumerate(boxes):
+            for o in boxes[i + 1:]:
+                sep = max(o[0] - a[2], a[0] - o[2], o[1] - a[3], a[1] - o[3])
+                tc.assertGreaterEqual(sep, k - EPS)          # no overlap, a kerf between
+    tc.assertEqual(len(seen), len(set(seen)))
+    if n_blanks is not None:
+        tc.assertEqual(len(seen), n_blanks)
 
 
 class Pairing(unittest.TestCase):
     def test_neighbours_by_length(self):
         plan = build_plan(entries(rect('a', 2000, 230), rect('b', 1000, 230),
                                   rect('c', 1990, 230), rect('d', 1010, 230)), Settings())
-        self.assertEqual(sorted(names(t) for t in all_templates(plan)), [['a', 'c'], ['b', 'd']])
+        self.assertEqual(sorted(names(b) for b in plan.blanks), [['a', 'c'], ['b', 'd']])
 
     def test_odd_count_leaves_a_single(self):
         plan = build_plan(entries(*[rect(x, 1500, 230) for x in 'abc']), Settings())
-        self.assertEqual(sorted(len(t.shapes) for t in all_templates(plan)), [1, 2])
+        self.assertEqual(sorted(len(b.shapes) for b in plan.blanks), [1, 2])
 
     def test_quantity(self):
         es = [ShapeEntry(rect('a', 1500, 230), qty=3), ShapeEntry(rect('b', 1500, 230), qty=0)]
         plan = build_plan(es, Settings())
-        shapes = [p for t in all_templates(plan) for p in t.shapes]
+        shapes = [p for b in plan.blanks for p in b.shapes]
         self.assertEqual(sorted((p.name, p.copy) for p in shapes), [('a', 1), ('a', 2), ('a', 3)])
 
     def test_quantity_zero_skipped(self):
@@ -61,109 +120,78 @@ class Pairing(unittest.TestCase):
 
     def test_group_by_order_keeps_list_order(self):
         s = Settings()
-        s.template.group_by = 'order'
+        s.blank.group_by = 'order'
         plan = build_plan(entries(rect('a', 2000, 230), rect('b', 1000, 230),
                                   rect('c', 1990, 230), rect('d', 1010, 230)), s)
-        self.assertEqual(sorted(names(t) for t in all_templates(plan)), [['a', 'b'], ['c', 'd']])
-
-    def test_thickness_override_and_default(self):
-        s = Settings()
-        es = [ShapeEntry(rect('a', 1500, 230), thickness=22), ShapeEntry(rect('b', 1500, 230))]
-        plan = build_plan(es, s)
-        th = {p.name: p.thickness for t in all_templates(plan) for p in t.shapes}
-        self.assertEqual(th, {'a': 22, 'b': s.heights.shape_thickness})
+        self.assertEqual(sorted(names(b) for b in plan.blanks), [['a', 'b'], ['c', 'd']])
 
 
-class Template(unittest.TestCase):
+class BlankGeometry(unittest.TestCase):
     def setUp(self):
         self.s = Settings()
 
     def one(self, *shapes, settings=None):
         plan = build_plan(entries(*shapes), settings or self.s)
         self.assertEqual(plan.problems, [])
-        return all_templates(plan)[0]
+        return plan.blanks[0]
 
     def test_size_and_holes(self):
-        t = self.one(rect('a', 2000, 230), rect('b', 1900, 220))
-        c = self.s.template
-        self.assertAlmostEqual(t.width, 2000 + 2 * c.margin_end)
-        self.assertAlmostEqual(t.height, 450 + self.s.gap + 2 * c.margin_side)
-        self.assertEqual(len(t.fix_holes), 4)
-        self.assertEqual(len(t.screw_holes), 4)
-        a = [p for p in t.shapes if p.name == 'a'][0]     # widest at the bottom
+        b = self.one(rect('a', 2000, 230), rect('b', 1900, 220))
+        c = self.s.blank
+        self.assertEqual(b.width, 2000 + 2 * c.margin_end)
+        self.assertEqual(b.height, 450 + self.s.gap + 2 * c.margin_side)
+        self.assertEqual(len(b.fix_holes), 4)
+        self.assertEqual(len(b.screw_holes), 4)
+        a = [p for p in b.shapes if p.name == 'a'][0]     # widest at the bottom
         self.assertAlmostEqual(a.y, c.margin_side)
         self.assertAlmostEqual(a.x, c.margin_end)
-        self.assertAlmostEqual(t.screw_holes[0].x, c.margin_end + 150)
-        self.assertAlmostEqual(t.screw_holes[0].y, c.margin_side + 40)
-        self.assertEqual(t.screw_holes[0].diameter, self.s.drill_screw.diameter)
-        self.assertEqual(t.fix_holes[0].diameter, self.s.drill_fix.diameter)
+        self.assertAlmostEqual(b.screw_holes[0].x, c.margin_end + 150)
+        self.assertAlmostEqual(b.screw_holes[0].y, c.margin_side + 40)
+        self.assertEqual(b.screw_holes[0].diameter, self.s.drill_screw.diameter)
+        self.assertEqual(b.fix_holes[0].diameter, self.s.drill_fix.diameter)
 
-    def test_fixing_holes_clear_of_plates(self):
-        t = self.one(rect('a', 2000, 230), rect('b', 1900, 220))
-        for h in t.fix_holes:
-            for p in t.shapes:
+    def test_size_is_rounded_up_to_whole_mm(self):
+        b = self.one(rect('a', 1000.2, 230.7))
+        self.assertEqual((b.width, b.height), (1091, 321))
+        ins = self.s.blank.fix_inset
+        self.assertEqual(sorted({h.x for h in b.fix_holes}), [ins, 1091 - ins])
+        self.assertEqual(sorted({h.y for h in b.fix_holes}), [ins, 321 - ins])
+
+    def test_fixing_holes_clear_of_shapes(self):
+        b = self.one(rect('a', 2000, 230), rect('b', 1900, 220))
+        for h in b.fix_holes:
+            for p in b.shapes:
                 inside = (p.x <= h.x <= p.x + p.shape.length
                           and p.y <= h.y <= p.y + p.shape.width)
                 self.assertFalse(inside)
 
-    def test_too_small_margin_is_rejected(self):
+    def test_too_small_margin_is_a_hard_error(self):
         s = Settings()
-        s.template.margin_end = 20
-        s.template.margin_side = 20
-        plan = build_plan(entries(rect('a', 2000, 230)), s)
-        self.assertEqual(plan.panels, [])
-        self.assertEqual(len(plan.problems), 1)
-        self.assertIn('a', plan.problems[0])
-
-    def test_fixed_template_size(self):
-        s = Settings()
-        s.template.mode = 'fixed'
-        s.template.fixed_width = 1000
-        s.template.fixed_height = 400
-        t = self.one(rect('a', 800, 230), settings=s)
-        self.assertEqual((t.width, t.height), (1000, 400))
-        self.assertEqual(len(t.fix_holes), 4)
-
-    def test_fixed_template_too_small_is_a_problem(self):
-        s = Settings()
-        s.template.mode = 'fixed'
-        s.template.fixed_width = 500
-        s.template.fixed_height = 400
-        plan = build_plan(entries(rect('a', 800, 230)), s)
-        self.assertEqual(plan.panels, [])
-        self.assertIn('a', plan.problems[0])
-
-    def test_none_mode_has_no_fixing_holes(self):
-        s = Settings()
-        s.template.mode = 'none'
-        plan = build_plan(entries(rect('a', 1500, 230), rect('b', 1490, 230)), s)
-        ts = all_templates(plan)
-        self.assertEqual(len(ts), 2)                      # each shape its own unit
-        for t in ts:
-            self.assertEqual(t.fix_holes, [])
-            self.assertEqual(len(t.screw_holes), 2)
-            self.assertEqual((t.width, t.height), (t.shapes[0].shape.length, t.shapes[0].shape.width))
-            self.assertEqual((t.shapes[0].x, t.shapes[0].y), (0, 0))
+        s.blank.margin_end = 20
+        s.blank.margin_side = 20
+        with self.assertRaises(LayoutError) as cm:
+            build_plan(entries(rect('a', 2000, 230)), s)
+        self.assertIn('a', str(cm.exception))
+        self.assertIsInstance(cm.exception, ValueError)
 
 
 class ScrewHeadClearance(unittest.TestCase):
     """C2: the cutter edge runs a full diameter outside the shape; the head must stay clear
-    of it, and must sit inside the template with 3 mm to spare."""
+    of it, and must sit inside the blank with 3 mm to spare."""
 
     def settings(self, tool=66, dia=8, margin=45, inset=15):
         s = Settings()
         s.router.tool, s.router.diameter = tool, dia
-        s.template.margin_end = s.template.margin_side = margin
-        s.template.fix_inset = inset
+        s.blank.margin_end = s.blank.margin_side = margin
+        s.blank.fix_inset = inset
         return s
 
     def rejected(self, s, *needles):
-        plan = build_plan(entries(rect('sharp', 1000, 200)), s)
-        self.assertEqual(plan.panels, [])
-        self.assertEqual(len(plan.problems), 1, plan.problems)
+        with self.assertRaises(LayoutError) as cm:
+            build_plan(entries(rect('sharp', 1000, 200)), s)
         for n in ('sharp',) + needles:
-            self.assertIn(n, plan.problems[0])
-        return plan.problems[0]
+            self.assertIn(n, str(cm.exception))
+        return str(cm.exception)
 
     def test_reviewer_case_t66_d8_margin_20_inset_10(self):
         # head 0.86 mm inside the cutter path: hole (10,10), shape corner (20,20), 14.1 < 8+7+3
@@ -175,85 +203,249 @@ class ScrewHeadClearance(unittest.TestCase):
 
     def test_inset_too_small_for_the_head(self):
         msg = self.rejected(self.settings(inset=3), 'inset 3', '10')
-        self.assertIn('template', msg)
+        self.assertIn('blank', msg)
 
     def test_inset_exactly_head_radius_plus_3_is_fine(self):
         plan = build_plan(entries(rect('sharp', 1000, 200)), self.settings(inset=10))
-        self.assertEqual(plan.problems, [])
-
-    def test_fixed_mode_checks_the_inset_too(self):
-        s = self.settings(inset=3)
-        s.template.mode = 'fixed'
-        s.template.fixed_width, s.template.fixed_height = 1200, 400
-        self.rejected(s, 'inset 3')
+        self.assertEqual(len(plan.blanks), 1)
 
     def test_defaults_and_real_plates_keep_clearance(self):
         s = Settings()
         plan = build_plan(real_entries(), s)
-        self.assertEqual(plan.problems, [])
-        need = s.router.diameter + s.template.head_dia / 2 + 3.0     # 18
-        for t in all_templates(plan):
-            for h in t.fix_holes:
-                self.assertGreaterEqual(min(h.x, h.y, t.width - h.x, t.height - h.y),
-                                        s.template.head_dia / 2 + 3.0)
-                for p in t.shapes:
+        need = s.router.diameter + s.blank.head_dia / 2 + 3.0     # 18
+        for b in plan.blanks:
+            for h in b.fix_holes:
+                self.assertGreaterEqual(min(h.x, h.y, b.width - h.x, b.height - h.y),
+                                        s.blank.head_dia / 2 + 3.0)
+                for p in b.shapes:
                     dx = max(p.x - h.x, 0, h.x - (p.x + p.shape.length))
                     dy = max(p.y - h.y, 0, h.y - (p.y + p.shape.width))
                     self.assertGreaterEqual((dx * dx + dy * dy) ** 0.5, need)
 
 
-class Nesting(unittest.TestCase):
-    def test_real_plates_fit_without_overlap(self):
+class WorkFrame(unittest.TestCase):
+    """A blank must fit the machine work frame (frame_x along the long side)."""
+
+    def test_default_blanks_fit_the_frame(self):
+        s = Settings()
+        for b in build_plan(real_entries(), s).blanks:
+            self.assertLessEqual(b.width, s.machine.frame_x)
+            self.assertLessEqual(b.height, s.machine.frame_y)
+            self.assertGreaterEqual(b.width, b.height)          # long side along machine X
+
+    def test_frame_y_forces_a_split(self):
+        # two 400 wide shapes: 400 + 12 + 400 + 90 = 902 > 787, so one shape per blank
+        s = Settings()
+        blanks = build_blanks(entries(rect('a', 1500, 400), rect('b', 1490, 400)), s)
+        self.assertEqual(sorted(names(b) for b in blanks), [['a'], ['b']])
+        self.assertTrue(all(b.height <= 787 for b in blanks))
+        s.machine.frame_y = 902
+        blanks = build_blanks(entries(rect('a', 1500, 400), rect('b', 1490, 400)), s)
+        self.assertEqual([names(b) for b in blanks], [['a', 'b']])
+        self.assertEqual(blanks[0].height, 902)
+
+    def test_split_keeps_as_many_as_fit(self):
+        # shapes_per 3, only two fit within frame_y: 2 + 1, not 1 + 1 + 1
+        s = Settings()
+        s.blank.shapes_per = 3
+        blanks = build_blanks(entries(*[rect(x, 1500, 300) for x in 'abc']), s)
+        self.assertEqual(sorted(len(b.shapes) for b in blanks), [1, 2])
+
+    def test_no_auto_grow_beyond_shapes_per(self):
+        # three 150 wide shapes would fit in frame_y, but shapes_per is 2
+        s = Settings()
+        blanks = build_blanks(entries(*[rect(x, 1500, 150) for x in 'abc']), s)
+        self.assertEqual(sorted(len(b.shapes) for b in blanks), [1, 2])
+        s.blank.shapes_per = 3
+        self.assertEqual(len(build_blanks(entries(*[rect(x, 1500, 150) for x in 'abc']), s)), 1)
+
+    def test_one_shape_too_wide_for_the_frame_is_a_hard_error(self):
+        with self.assertRaises(LayoutError) as cm:
+            build_plan(entries(rect('wide one', 1000, 700), rect('ok', 1000, 230)), Settings())
+        msg = str(cm.exception)
+        self.assertIn('wide one', msg)
+        self.assertIn('work frame 3072 x 787', msg)
+        self.assertIn('to verify', msg)
+        self.assertNotIn('ok', msg.replace('work', ''))
+
+    def test_one_shape_too_long_for_the_frame_is_a_hard_error(self):
+        s = Settings()
+        s.machine.frame_x = 1500
+        with self.assertRaises(LayoutError) as cm:
+            build_plan(entries(rect('long', 1450, 200)), s)
+        self.assertIn('long', str(cm.exception))
+        self.assertIn('machine.frame_x', str(cm.exception))
+
+    def test_too_long_for_the_panel_is_a_hard_error(self):
+        # fits the frame, but 2400 + 90 is longer than the trimmed panel
+        with self.assertRaises(LayoutError) as cm:
+            build_plan(entries(rect('wide', 2400, 230)), Settings())
+        self.assertIn('wide', str(cm.exception))
+        self.assertIn('panel', str(cm.exception))
+
+    def test_every_unfit_shape_is_named_once(self):
+        with self.assertRaises(LayoutError) as cm:
+            build_plan([ShapeEntry(rect('x1', 3000, 200), qty=3),
+                        ShapeEntry(rect('x2', 1000, 900))], Settings())
+        msg = str(cm.exception)
+        self.assertEqual(msg.count('x1:'), 1)
+        self.assertEqual(msg.count('x2:'), 1)
+
+
+class Guillotine(unittest.TestCase):
+    def test_validator_catches_a_bad_plan(self):
+        s = Settings()
+        for change in ('at', 'start', 'size', 'x'):
+            with self.subTest(change=change):
+                plan = build_plan(real_entries(), s)
+                pan = plan.panels[0]
+                if change == 'at':
+                    pan.cuts[1].at -= 20            # strip cut through the first blank
+                elif change == 'start':
+                    pan.cuts[-1].start += 5         # stage 2 cut not edge to edge
+                elif change == 'size':
+                    pan.cuts[1].size = (2440, 1)
+                else:
+                    pan.blanks[0].x += 1            # blank not where the saw leaves it
+                with self.assertRaises(AssertionError):
+                    check_guillotine(self, plan, s)
+
+    def test_real_plates_plan_is_valid(self):
         s = Settings()
         plan = build_plan(real_entries(), s)
-        self.assertEqual(plan.problems, [])
-        self.assertEqual(sum(len(t.shapes) for t in all_templates(plan)), 12)
-        e, pl, pw = s.panel.edge, s.panel.length, s.panel.width
-        for pan in plan.panels:
-            boxes = []
-            for t in pan.templates:
-                w, h = footprint(t)
-                self.assertGreaterEqual(t.x, e - 1e-6)
-                self.assertGreaterEqual(t.y, e - 1e-6)
-                self.assertLessEqual(t.x + w, pl - e + 1e-6)
-                self.assertLessEqual(t.y + h, pw - e + 1e-6)
-                boxes.append((t.x, t.y, w, h))
-            for i, a in enumerate(boxes):
-                for b in boxes[i + 1:]:
-                    sep = max(b[0] - (a[0] + a[2]), a[0] - (b[0] + b[2]),
-                              b[1] - (a[1] + a[3]), a[1] - (b[1] + b[3]))
-                    self.assertGreaterEqual(sep, s.gap - 1e-6)
+        self.assertEqual(sum(len(b.shapes) for b in plan.blanks), 12)
+        check_guillotine(self, plan, s, n_blanks=6)
+        self.assertEqual(len(plan.panels), 3)
 
-    def test_every_template_placed_once(self):
+    def test_blank_ids_in_cut_order(self):
         plan = build_plan(real_entries(), Settings())
-        ids = [t.id for t in all_templates(plan)]
-        self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(ids), 6)
+        ids = [b.id for b in plan.blanks]
+        self.assertEqual(ids, ['B01', 'B02', 'B03', 'B04', 'B05', 'B06'])
+        for pan in plan.panels:
+            for b in pan.blanks:
+                self.assertEqual(b.panel, pan.id)
+
+    def test_deterministic(self):
+        a = build_plan(real_entries(), Settings())
+        b = build_plan(real_entries(), Settings())
+        self.assertEqual([(p.id, p.strips, p.cuts) for p in a.panels],
+                         [(p.id, p.strips, p.cuts) for p in b.panels])
+        self.assertEqual([(x.id, x.x, x.y, x.rotated, names(x)) for x in a.blanks],
+                         [(x.id, x.x, x.y, x.rotated, names(x)) for x in b.blanks])
+
+    def test_cut_list_of_one_blank(self):
+        s = Settings()
+        plan = build_plan(entries(one_blank(1100, 700, s)), s)
+        (pan,) = plan.panels
+        self.assertEqual(pan.strips, 'x')
+        got = [(c.n, c.stage, c.axis, c.at, c.start, c.end, c.frees, c.blanks, c.size)
+               for c in pan.cuts]
+        self.assertEqual(got, [
+            (1, 1, 'x', 6, 0, 2440, 'offcut', [], (2440, 6)),          # trim: kerf 6..10
+            (2, 1, 'x', 710, 0, 2440, 'strip', ['B01'], (2440, 700)),
+            (3, 2, 'y', 6, 10, 710, 'offcut', [], (6, 700)),
+            (4, 2, 'y', 1110, 10, 710, 'blank', ['B01'], (1100, 700)),
+        ])
+        b = pan.blanks[0]
+        self.assertEqual((b.x, b.y, b.rotated), (10, 10, False))
+
+    def test_cut_list_order_and_stage_3_trim(self):
+        s = Settings()
+        blanks = build_blanks([ShapeEntry(one_blank(1100, 700, s, 'tall')),
+                               ShapeEntry(one_blank(1100, 600, s, 'low'))], s)
+        (pan,) = saw_plan(blanks, s, directions=('x',))
+        got = [(c.stage, c.axis, c.at, c.start, c.end, c.frees, c.blanks, c.size)
+               for c in pan.cuts]
+        self.assertEqual(got, [
+            (1, 'x', 6, 0, 2440, 'offcut', [], (2440, 6)),
+            (1, 'x', 710, 0, 2440, 'strip', ['B01', 'B02'], (2440, 700)),
+            (2, 'y', 6, 10, 710, 'offcut', [], (6, 700)),
+            (2, 'y', 1110, 10, 710, 'blank', ['B01'], (1100, 700)),
+            (2, 'y', 2214, 10, 710, 'rough', ['B02'], (1100, 700)),
+            (3, 'x', 610, 1114, 2214, 'blank', ['B02'], (1100, 600)),
+        ])
+        self.assertEqual([c.n for c in pan.cuts], list(range(1, 7)))
+        check_guillotine(self, Plan([pan]), s, n_blanks=2)
+
+    def test_picks_the_direction_with_fewest_panels(self):
+        # 1100 x 700 blanks: strips along X hold 2 per panel, strips along Y hold 3 (turned)
+        s = Settings()
+        es = [ShapeEntry(one_blank(1100, 700, s), qty=3)]
+        blanks = build_blanks(es, s)
+        self.assertEqual(len(saw_plan(blanks, s, directions=('x',))), 2)
+        plan = build_plan(es, s)
+        self.assertEqual(len(plan.panels), 1)
+        self.assertEqual(plan.panels[0].strips, 'y')
+        self.assertTrue(all(b.rotated for b in plan.blanks))
+        check_guillotine(self, plan, s, n_blanks=3)
+
+    def test_same_panels_less_sliver_waste_wins(self):
+        # x strips: the 600 blank shares a 700 strip (sliver); y strips: no sliver
+        s = Settings()
+        es = [ShapeEntry(one_blank(1100, 700, s, 'tall')), ShapeEntry(one_blank(1100, 600, s, 'low'))]
+        plan = build_plan(es, s)
+        self.assertEqual(plan.panels[0].strips, 'y')
+        self.assertFalse(any(c.stage == 3 for c in plan.panels[0].cuts))
+        check_guillotine(self, plan, s, n_blanks=2)
+
+    def test_rotated_blanks_on_a_swapped_panel(self):
+        # panel 1220 long x 2440 wide: the 2 m blanks must turn 90 degrees
+        s = Settings()
+        s.panel.length, s.panel.width = 1220, 2440
+        plan = build_plan(real_entries(), s)
+        self.assertTrue(all(b.rotated for b in plan.blanks))
+        check_guillotine(self, plan, s, n_blanks=6)
+        for b in plan.blanks:
+            fw, fh = footprint(b)
+            self.assertEqual((fw, fh), (b.height, b.width))
+            for p in b.shapes:
+                for seg in p.shape.outline:
+                    x, y = to_panel(b, p.x + seg.a[0], p.y + seg.a[1])
+                    self.assertTrue(b.x - EPS <= x <= b.x + fw + EPS
+                                    and b.y - EPS <= y <= b.y + fh + EPS)
+
+    def test_many_blanks_with_mixed_sizes(self):
+        s = Settings()
+        es = [ShapeEntry(rect('a', 2000, 230), qty=7), ShapeEntry(rect('b', 600, 120), qty=9),
+              ShapeEntry(rect('c', 1200, 300), qty=5), ShapeEntry(rect('d', 300, 500), qty=3)]
+        plan = build_plan(es, s)
+        check_guillotine(self, plan, s, n_blanks=len(plan.blanks))
+        self.assertEqual(sum(len(b.shapes) for b in plan.blanks), 24)
+        for d in ('x', 'y'):
+            one = Plan(saw_plan(plan.blanks, s, directions=(d,)))
+            check_guillotine(self, one, s, n_blanks=len(plan.blanks))
+
+    def test_edge_zero_has_no_trim_cuts(self):
+        s = Settings()
+        s.panel.edge = 0
+        plan = build_plan(entries(one_blank(1100, 700, s)), s)
+        self.assertFalse(any(c.frees == 'offcut' for c in plan.panels[0].cuts))
+        self.assertEqual((plan.blanks[0].x, plan.blanks[0].y), (0, 0))
+        check_guillotine(self, plan, s, n_blanks=1)
+
+    def test_kerf_between_blanks(self):
+        s = Settings()
+        s.panel.kerf = 10
+        s.panel.edge = 10
+        blanks = build_blanks([ShapeEntry(one_blank(1100, 500, s), qty=4)], s)
+        plan = Plan(saw_plan(blanks, s, directions=('x',)))
+        check_guillotine(self, plan, s, n_blanks=4)
+        xs = sorted({b.x for b in plan.blanks})
+        ys = sorted({b.y for b in plan.blanks})
+        self.assertEqual(xs, [10, 1120])
+        self.assertEqual(ys, [10, 520])
+
+    def test_waste_per_panel(self):
+        s = Settings()
+        plan = build_plan(entries(one_blank(1100, 700, s)), s)
+        self.assertEqual(plan.panels[0].waste(s), 2440 * 1220 - 1100 * 700)
 
     def test_rotation_transform_maps_corners_inside_footprint(self):
-        t = PlacedTemplate('T', 300.0, 100.0, [], [], [], 50.0, 20.0, True)
-        pts = [to_panel(t, x, y) for x, y in ((0, 0), (300, 0), (300, 100), (0, 100))]
+        b = Blank('B', 300.0, 100.0, [], [], [], 'P1', 50.0, 20.0, True)
+        pts = [to_panel(b, x, y) for x, y in ((0, 0), (300, 0), (300, 100), (0, 100))]
         self.assertEqual(sorted(pts), [(50.0, 20.0), (50.0, 320.0), (150.0, 20.0), (150.0, 320.0)])
-        self.assertEqual(to_panel(t, 1, 0), (150.0, 21.0))       # template +x -> panel +y
-        self.assertEqual(footprint(t), (100.0, 300.0))
-
-    def test_oversize_shape_reported_not_raised(self):
-        plan = build_plan(entries(rect('huge', 2500, 230), rect('ok', 1000, 230)), Settings())
-        self.assertIn('huge', plan.problems[0])
-        placed = [p.name for t in all_templates(plan) for p in t.shapes]
-        self.assertEqual(placed, ['ok'])
-
-    def test_oversize_does_not_spoil_its_partner(self):
-        plan = build_plan(entries(rect('huge', 2500, 230), rect('ok', 2300, 230)), Settings())
-        self.assertEqual(len(plan.problems), 1)
-        self.assertIn('huge', plan.problems[0])
-        self.assertEqual([p.name for t in all_templates(plan) for p in t.shapes], ['ok'])
-
-    def test_template_too_big_for_panel_is_a_problem(self):
-        # fits alone in none mode... but with margins the template exceeds the panel
-        plan = build_plan(entries(rect('wide', 2400, 230)), Settings())
-        self.assertEqual(plan.panels, [])
-        self.assertIn('wide', plan.problems[0])
+        self.assertEqual(to_panel(b, 1, 0), (150.0, 21.0))       # blank +x -> panel +y
+        self.assertEqual(footprint(b), (100.0, 300.0))
 
 
 class QuantityLimitTests(unittest.TestCase):
@@ -280,85 +472,8 @@ class QuantityLimitTests(unittest.TestCase):
     def test_limit_itself_and_disabled_entries_are_fine(self):
         build_plan([ShapeEntry(rect('off', 500, 200), qty=10 ** 30, enabled=False)], Settings())
         plan = build_plan([ShapeEntry(rect('small', 100, 50, holes=False), qty=MAX_QTY)], Settings())
-        self.assertEqual(sum(len(t.shapes) for p in plan.panels for t in p.templates), MAX_QTY)
-
-
-class SwappedPanel(unittest.TestCase):
-    """Panel 1220 long x 2440 wide: the long templates must turn 90 degrees.
-    Checked with geometry written here, not with the layout helpers."""
-
-    def setUp(self):
-        self.s = Settings()
-        self.s.panel.length, self.s.panel.width = 1220, 2440
-        self.plan = build_plan(real_entries(), self.s)
-
-    @staticmethod
-    def rect(t):
-        w, h = (t.height, t.width) if t.rotated else (t.width, t.height)
-        return t.x, t.y, t.x + w, t.y + h
-
-    @staticmethod
-    def on_panel(t, x, y):
-        # template frame -> panel: a quarter turn counter-clockwise, then the offset
-        return (t.x + t.height - y, t.y + x) if t.rotated else (t.x + x, t.y + y)
-
-    def test_all_placed_and_some_turned(self):
-        self.assertEqual(self.plan.problems, [])
-        ts = all_templates(self.plan)
-        self.assertEqual(sum(len(t.shapes) for t in ts), 12)
-        self.assertTrue(any(t.rotated for t in ts))
-
-    def test_everything_inside_the_panel_and_its_template(self):
-        L, W, e = self.s.panel.length, self.s.panel.width, self.s.panel.edge
-        for t in all_templates(self.plan):
-            x0, y0, x1, y1 = self.rect(t)
-            self.assertTrue(e - 1e-6 <= x0 and x1 <= L - e + 1e-6 and e - 1e-6 <= y0
-                            and y1 <= W - e + 1e-6, (t.id, x0, y0, x1, y1))
-            pts = [self.on_panel(t, h.x, h.y) for h in t.fix_holes + t.screw_holes]
-            for p in t.shapes:
-                for seg in p.shape.outline:
-                    pts += [self.on_panel(t, p.x + seg.a[0], p.y + seg.a[1]),
-                            self.on_panel(t, p.x + seg.b[0], p.y + seg.b[1])]
-            for x, y in pts:
-                self.assertTrue(x0 - 1e-6 <= x <= x1 + 1e-6 and y0 - 1e-6 <= y <= y1 + 1e-6,
-                                (t.id, x, y))
-
-    def test_programs_stay_on_the_panel(self):
-        from nesting.program import ContourOp, plan_programs
-        L, W = self.s.panel.length, self.s.panel.width
-        r = self.s.router.diameter / 2
-        for prog in plan_programs(self.plan, self.s):
-            self.assertFalse([w for w in prog.warnings if 'cutter' in w], prog.warnings)
-            for op in prog.ops:
-                pts = ([a for s in op.segs for a in (s.a, s.b)] if isinstance(op, ContourOp)
-                       else [(op.x, op.y)])
-                for x, y in pts:
-                    self.assertTrue(r <= x <= L - r and r <= y <= W - r, (prog.name, x, y))
-
-    def test_no_overlap_and_gap_between_templates(self):
-        for pan in self.plan.panels:
-            rs = [self.rect(t) for t in pan.templates]
-            for i in range(len(rs)):
-                for j in range(i + 1, len(rs)):
-                    a, b = rs[i], rs[j]
-                    sep = max(b[0] - a[2], a[0] - b[2], b[1] - a[3], a[1] - b[3])
-                    self.assertGreaterEqual(sep, self.s.gap - 1e-6, (pan.id, i, j))
-
-    def test_fixing_holes_clear_of_shapes_and_template_edge(self):
-        need = self.s.router.diameter + self.s.template.head_dia / 2 + 3.0
-        edge = self.s.template.head_dia / 2 + 3.0
-        for t in all_templates(self.plan):
-            x0, y0, x1, y1 = self.rect(t)
-            for h in t.fix_holes:
-                hx, hy = self.on_panel(t, h.x, h.y)
-                self.assertGreaterEqual(min(hx - x0, x1 - hx, hy - y0, y1 - hy), edge - 1e-6)
-                for p in t.shapes:
-                    cs = [self.on_panel(t, p.x + cx, p.y + cy)
-                          for cx in (0, p.shape.length) for cy in (0, p.shape.width)]
-                    sx0, sx1 = min(c[0] for c in cs), max(c[0] for c in cs)
-                    sy0, sy1 = min(c[1] for c in cs), max(c[1] for c in cs)
-                    dx, dy = max(sx0 - hx, 0, hx - sx1), max(sy0 - hy, 0, hy - sy1)
-                    self.assertGreaterEqual((dx * dx + dy * dy) ** 0.5, need - 1e-6, (t.id, h))
+        self.assertEqual(sum(len(b.shapes) for b in plan.blanks), MAX_QTY)
+        self.assertEqual(plan.blanks[-1].id, 'B250')       # 3 digits once past 99
 
 
 if __name__ == '__main__':

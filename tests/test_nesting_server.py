@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from nesting.dxf import read_dxf
 from nesting.server import make_server, seed_plates
 from nesting.settings import Settings
 from test_nesting_dxf import dxf, line, rect
@@ -68,7 +69,8 @@ class ServerTests(unittest.TestCase):
         proj['shapes'][0]['qty'] = 3
         proj['shapes'][1]['enabled'] = False
         proj['settings']['router']['cut_feed'] = 4.5
-        proj['settings']['template']['mode'] = 'none'
+        proj['settings']['machine']['frame_y'] = 800
+        proj['settings']['panel']['kerf'] = 3.2
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200)
         self.assertEqual(put, proj)
@@ -138,7 +140,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(plan['panels'], [])
             self.assertIsNone(plan['settings_error'])
-            self.assertTrue(any('N1C' in p and 'cups' in p for p in plan['problems']), plan['problems'])
+            self.assertTrue(any('B01C' in p and 'cups' in p for p in plan['problems']), plan['problems'])
             self.assertNoTrace(plan)
             status, body = self.call('POST', '/api/generate')
             self.assertEqual(status, 400)
@@ -232,31 +234,81 @@ class ServerTests(unittest.TestCase):
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200)
         self.assertEqual(len(plan['panels']), 3)
-        names = [p['name'] for panel in plan['panels'] for p in panel['programs']]
-        self.assertEqual(len(names), 9)
+        self.assertEqual(len(plan['blanks']), 6)
+        names = [p['name'] for b in plan['blanks'] for p in b['programs']]
+        self.assertEqual(len(names), 18)
         self.assertEqual(plan['problems'], [])
         self.assertIsNone(plan['settings_error'])
-        z = plan['panels'][0]['z']
-        self.assertEqual(set(z), {'stack_top', 'fixing', 'screw', 'shape_cut', 'template_cut'})
+        z = plan['blanks'][0]['z']
+        self.assertEqual(z, {'stack_top': 36, 'fixing': 19, 'screw': 26, 'shape_cut': 18.5})
+        self.assertEqual(plan['frame'], {'x': 3072, 'y': 787})
+        panel = plan['panels'][0]
+        self.assertEqual([b['id'] for b in panel['blanks']], ['B01', 'B02'])
+        self.assertTrue(panel['cuts'])
+        self.assertEqual([c['n'] for c in panel['cuts']], list(range(1, len(panel['cuts']) + 1)))
 
-    def test_plan_reports_oversize_shape_not_error(self):
+    def test_plan_with_oversize_shape_is_an_error_naming_it(self):
         self.seed(PLATES[:1])
         (self.dir / 'shapes' / 'huge.dxf').write_text(dxf(rect(0, 0, 3000, 100)))
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200)
         self.assertIsNone(plan['settings_error'])
+        self.assertEqual(plan['panels'], [])
         self.assertTrue(any('huge' in p for p in plan['problems']), plan['problems'])
-        self.assertEqual(len(plan['panels']), 1)
         self.assertNoTrace(plan)
+        status, body = self.call('POST', '/api/generate')
+        self.assertEqual(status, 400)
+        self.assertIn('huge', body['error'])
+        self.assertFalse((self.dir / 'out').exists())
+
+    def test_plan_with_small_work_frame_names_shape_and_frame(self):
+        self.seed(PLATES[:1])
+        s = Settings().to_dict()
+        s['machine']['frame_y'] = 300
+        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertEqual(plan['panels'], [])
+        msg = ' '.join(plan['problems'])
+        self.assertIn(PLATES[0].stem, msg)
+        self.assertIn('work frame 3072 x 300', msg)
+
+    def test_put_invalid_new_settings_is_400_with_field(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        for group, key, value in (('machine', 'frame_x', 0), ('machine', 'frame_y', -1),
+                                  ('panel', 'kerf', -2), ('panel', 'edge', 2),
+                                  ('machine', 'frame_y', 80)):
+            with self.subTest(field=f'{group}.{key}', value=value):
+                bad = json.loads(json.dumps(proj))
+                bad['settings'][group][key] = value
+                status, body = self.call('PUT', '/api/project', bad)
+                self.assertEqual(status, 400)
+                self.assertEqual(body['field'], f'{group}.{key}')
+        self.assertFalse((self.dir / 'project.json').exists())
+
+    def test_old_project_json_is_read_with_the_new_settings(self):
+        self.seed(PLATES[:1])
+        old = {'template': {'mode': 'auto', 'shapes_per': 1, 'margin_end': 50},
+               'heights': {'scrap': 18, 'template_stock': 18, 'shape_thickness': 18,
+                           'into_template': 0.3}}
+        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': old}))
+        status, proj = self.call('GET', '/api/project')
+        self.assertEqual(status, 200)
+        self.assertEqual(proj['settings']['blank']['margin_end'], 50)
+        self.assertNotIn('template', proj['settings'])
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(plan['problems'], [])
+        self.assertEqual(plan['blanks'][0]['width'], round(read_dxf(PLATES[0]).length) + 100)
 
     def test_plan_with_invalid_setting_returns_field_error(self):
         self.seed(PLATES[:2])
         s = Settings().to_dict()
-        s['template']['shapes_per'] = 0
+        s['blank']['shapes_per'] = 0
         (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200)
-        self.assertEqual(plan['settings_error']['field'], 'template.shapes_per')
+        self.assertEqual(plan['settings_error']['field'], 'blank.shapes_per')
         self.assertTrue(plan['settings_error']['message'])
         self.assertEqual(plan['panels'], [])
         self.assertNoTrace(plan)
@@ -265,7 +317,10 @@ class ServerTests(unittest.TestCase):
         self.seed(PLATES[:1])
         s = Settings().to_dict()
         s['router']['diameter'] = 200          # cannot follow the outline
-        s['template']['mode'] = 'none'
+        s['blank']['fix_inset'] = 300          # (keeps the fixing holes clear of the shape)
+        s['blank']['margin_end'] = s['blank']['margin_side'] = 460
+        s['machine']['frame_y'] = 1200
+        s['panel']['length'], s['panel']['width'] = 3000, 3000
         (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200)
@@ -274,21 +329,11 @@ class ServerTests(unittest.TestCase):
         self.assertIsNone(plan['settings_error'])
         self.assertNoTrace(plan)
 
-    def test_plan_shows_cutter_outside_panel_warning(self):
+    def test_plan_has_no_cutter_outside_blank_warning_by_default(self):
         self.seed(PLATES[:2])
         status, plan = self.call('GET', '/api/plan')
-        warnings = [w for p in plan['panels'][0]['programs'] for w in p['warnings']]
+        warnings = [w for b in plan['blanks'] for p in b['programs'] for w in p['warnings']]
         self.assertFalse(any('cutter reaches' in w for w in warnings), warnings)
-        s = Settings().to_dict()
-        s['panel']['edge'] = 0
-        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
-        status, plan = self.call('GET', '/api/plan')
-        self.assertEqual(status, 200)
-        self.assertEqual(plan['problems'], [])
-        cut = next(p for p in plan['panels'][0]['programs'] if p['kind'] == 'cut')
-        self.assertTrue(any(w.startswith(f"{cut['name']}: cutter reaches X-8.0..")
-                            and 'outside the panel 0..2440 x 0..1220' in w
-                            for w in cut['warnings']), cut['warnings'])
 
     def test_plan_with_unreadable_dxf_in_shapes_is_a_problem(self):
         self.seed(PLATES[:1])
@@ -309,12 +354,12 @@ class ServerTests(unittest.TestCase):
 
     def test_program_text_is_the_emitted_program(self):
         self.seed(PLATES[:2])
-        status, text = self.call('GET', '/api/program?name=N1C')
+        status, text = self.call('GET', '/api/program?name=B01C')
         self.assertEqual(status, 200)
         status, _ = self.call('POST', '/api/generate')
         out = next((self.dir / 'out').iterdir())
-        self.assertEqual(text.encode('ascii'), (out / 'N1C').read_bytes())
-        status, body = self.call('GET', '/api/program?name=N9Z')
+        self.assertEqual(text.encode('ascii'), (out / 'B01C').read_bytes())
+        status, body = self.call('GET', '/api/program?name=B99Z')
         self.assertEqual(status, 404)
 
     def test_generate_creates_new_folder_each_time(self):
@@ -329,7 +374,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(folder.parent, self.dir / 'out')
             self.assertRegex(folder.name, r'^\d{8}-\d{6}(-\d+)?$')
             self.assertEqual(sorted(res['files']), sorted(p.name for p in folder.iterdir()))
-            for n in ('N1F', 'N3C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
+            for n in ('B01F', 'B06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
                 self.assertIn(n, res['files'])
         self.assertEqual(len(list((self.dir / 'out').iterdir())), 2)
 
@@ -405,19 +450,21 @@ class ServerTests(unittest.TestCase):
     def test_z_values_match_the_program_text(self):
         self.seed(PLATES[:2])
         _, proj = self.call('GET', '/api/project')
-        proj['settings']['heights']['into_template'] = 0.05
-        proj['settings']['heights']['shape_thickness'] = 18.2
+        proj['settings']['heights']['into_scrap'] = 0.05
+        proj['settings']['panel']['thickness'] = 18.2
         proj['settings']['drill_screw']['depth'] = 8.2
         self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
         _, plan = self.call('GET', '/api/plan')
-        z = plan['panels'][0]['z']
+        z = plan['blanks'][0]['z']
         for v in z.values():
             self.assertEqual(v, round(v, 3))
-        self.assertEqual(z['shape_cut'], 18.25)
-        self.assertEqual(z['screw'], 26.4)          # 54.2 - (36 - 8.2)
-        _, cut = self.call('GET', '/api/program?name=N1C')
+        self.assertEqual(z['stack_top'], 36.2)      # scrap 18 + blank 18.2
+        self.assertEqual(z['shape_cut'], 18.25)     # through the blank + 0.05
+        self.assertEqual(z['screw'], 26.4)          # 18.2 + 8.2
+        _, cut = self.call('GET', '/api/program?name=B01C')
         self.assertIn('Z18.25', cut)
-        _, screw = self.call('GET', '/api/program?name=N1S')
+        self.assertRegex(cut.splitlines()[0], r'^G71X\d+Y\d+Z36.2T00')
+        _, screw = self.call('GET', '/api/program?name=B01S')
         self.assertIn('Z26.4\r', screw)
 
     def test_upper_case_extension_is_stored_as_lower_case(self):
@@ -525,7 +572,7 @@ class ServerTests(unittest.TestCase):
             self.assertIn(dia, line)
 
     def first_contour_min_x(self):
-        status, text = self.call('GET', '/api/program?name=N1C')
+        status, text = self.call('GET', '/api/program?name=B01C')
         self.assertEqual(status, 200, text)
         lines = text.splitlines()[2:]               # after G71 and G150()
         xs = []
@@ -541,13 +588,13 @@ class ServerTests(unittest.TestCase):
         # I4: any diameter can be typed; the contour is offset by half of it
         self.seed(PLATES[:1])
         _, proj = self.call('GET', '/api/project')
-        self.assertAlmostEqual(self.first_contour_min_x(), 10 + 45 - 4)
+        self.assertAlmostEqual(self.first_contour_min_x(), 45 - 4)      # blank coordinates
         proj['settings']['router']['diameter'] = 7.8
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, body)
         self.assertEqual((body['settings']['router']['tool'], body['settings']['router']['diameter']),
                          (66, 7.8))
-        self.assertAlmostEqual(self.first_contour_min_x(), 10 + 45 - 3.9)
+        self.assertAlmostEqual(self.first_contour_min_x(), 45 - 3.9)
         proj['settings']['router']['diameter'] = 0
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual((status, body['field']), (400, 'router.diameter'))
@@ -571,7 +618,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, res)
         folder = Path(res['folder'])
         self.assertEqual(folder.parent, self.dir / 'out')
-        names = [f'N{n}{k}' for n in (1, 2, 3) for k in 'FSC']
+        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'FSC']
         self.assertEqual(res['programs'], names)
         for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])
@@ -581,7 +628,7 @@ class ServerTests(unittest.TestCase):
                             *map(str, programs)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         # depth per pass must not be ignored: each cut contour is cut in several passes
-        text = next(f for f in programs if f.name == 'N1C').read_text(encoding='ascii')
+        text = next(f for f in programs if f.name == 'B01C').read_text(encoding='ascii')
         starts = re.findall(r'^G88\S*?(X-?[\d.]+Y-?[\d.]+)Z(-?[\d.]+)$', text, re.M)
         self.assertTrue(starts, text)
         first_zs = [z for xy, z in starts if xy == starts[0][0]]

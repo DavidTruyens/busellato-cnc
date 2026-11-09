@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -93,11 +94,16 @@ class OutputTests(unittest.TestCase):
             self.assertIn(p.name, html)
         data = preview_data(self.plan, self.progs, self.s)
         for panel in data['panels']:
-            for t in panel['templates']:
-                for sh in t['shapes']:
+            self.assertIn(f'Panel {panel["id"]}', html)
+            for b in panel['blanks']:
+                for sh in b['shapes']:
                     self.assertIn(sh['name'], html)
-                    self.assertIn(sh['path'], html)
-            for v in panel['z'].values():
+                    self.assertIn(sh['path'], html)       # drawn on the panel ...
+        for b in data['blanks']:
+            self.assertIn(f'Blank {b["id"]} (from panel {b["panel"]})', html)
+            for sh in b['shapes']:
+                self.assertIn(sh['path'], html)           # ... and on its own blank page
+            for v in b['z'].values():
                 self.assertIn(f'{v:g}', html)
         self.assertIn('<svg', html)
         self.assertNotIn('http://', html.replace('http://www.w3.org/2000/svg', ''))
@@ -105,18 +111,45 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn('job <b>', html)
         self.assertIn('job &lt;b&gt;&amp;', html)
 
+    def test_runsheet_has_the_saw_cut_list_per_panel(self):
+        html = self._sheet(self.s, self.progs)
+        for pan in self.plan.panels:
+            section = html.split(f'<h2>Panel {pan.id}:')[1].split('</section>')[0]
+            rows = re.findall(r'<tr><td class="num">(\d+)</td><td class="num">(\d)</td>'
+                              r'<td>[^<]*</td><td>([XY]) = ([\d.]+)</td>', section)
+            self.assertEqual([(int(n), int(st), float(at)) for n, st, _, at in rows],
+                             [(c.n, c.stage, round(c.at, 1)) for c in pan.cuts])
+            for c, row in zip(pan.cuts, rows):
+                self.assertEqual(row[2], 'Y' if c.axis == 'x' else 'X')
+            for b in pan.blanks:
+                self.assertIn(f'<td>{b.id}</td><td>{b.width:g} x {b.height:g}</td>', section)
+
+    def test_runsheet_has_no_template_wording(self):
+        html = self._sheet(self.s, self.progs).lower()
+        self.assertNotIn('template', html)
+        self.assertNotIn('outline: cut last', html)
+        self.assertIn('frame is not cut', html)
+        self.assertIn('placeholder', html)
+
+    def test_runsheet_blank_steps_in_order(self):
+        html = self._sheet(self.s, self.progs)
+        section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
+        order = [section.index(x) for x in ('origin corner', 'B01F', 'Screw the blank', 'B01S',
+                                            'Screw each shape', 'B01C')]
+        self.assertEqual(order, sorted(order))
+
     def test_runsheet_says_screw_holes_merged(self):
         html = self._sheet(self.s, self.progs)
         self.assertNotIn('merged into', html)
-        self.assertIn('N1S', html)
+        self.assertIn('B01S', html)
         m = Settings()
         m.drill_screw.tool, m.drill_screw.diameter = m.drill_fix.tool, m.drill_fix.diameter
         plan = build_plan(self.entries, m)
         progs = plan_programs(plan, m)
         self.assertFalse(any(p.name.endswith('S') for p in progs))
         html = self._sheet(m, progs, plan)
-        self.assertIn('merged into N1F', html)
-        self.assertNotIn('Drill <b>N1S', html)
+        self.assertIn('merged into B01F', html)
+        self.assertNotIn('Drill <b>B01S', html)
 
     def _sheet(self, settings, progs, plan=None):
         out = Path(self.tmp.name) / f'sheet{len(list(Path(self.tmp.name).iterdir()))}'

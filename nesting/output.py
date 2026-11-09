@@ -13,94 +13,154 @@ from pathlib import Path
 from .backends import BACKENDS
 from .layout import Plan
 from .preview import preview_data
-from .program import Program, _panel_number
+from .program import Program
 from .settings import Settings
 
 LOADER = Path(__file__).resolve().parent.parent / 'tools' / 'make-loader.py'
 
-Z_LABELS = [('stack_top', 'Stack height (top of the stack above the cups)'),
+Z_LABELS = [('stack_top', 'Stack height (scrap plate + blank, above the cups)'),
             ('fixing', 'Fixing holes: drill depth below the top of the stack'),
             ('screw', 'Screw holes: drill depth below the top of the stack'),
-            ('shape_cut', 'Shapes: cut depth below the top of the stack'),
-            ('template_cut', 'Templates: cut depth below the top of the stack')]
+            ('shape_cut', 'Shapes: cut depth below the top of the stack')]
 
 CSS = """body{font-family:Arial,sans-serif;margin:12mm;color:#000}
-h1{font-size:18pt;margin:0 0 4mm}h2{font-size:14pt;margin:0 0 3mm}
+h1{font-size:18pt;margin:0 0 4mm}h2{font-size:14pt;margin:0 0 3mm}h3{font-size:12pt;margin:4mm 0 2mm}
 .warn{border:2px solid #b00;padding:3mm;margin:0 0 6mm;font-weight:bold}
-section.panel{page-break-after:always;margin-bottom:10mm}
+section{page-break-after:always;margin-bottom:10mm}
 svg{width:100%;height:auto;border:1px solid #000;background:#fff}
-.tpl{fill:#eef;stroke:#339;stroke-width:2}.shape{fill:#fd9;stroke:#640;stroke-width:1.5}
+.blank{fill:#eef;stroke:#339;stroke-width:2}.shape{fill:#fd9;stroke:#640;stroke-width:1.5}
+.kerf{fill:#c00}.cutn{font-size:40px;font-weight:bold;fill:#c00}.org{fill:#000}
 .fix{fill:none;stroke:#c00;stroke-width:2}.screw{fill:none;stroke:#060;stroke-width:2}
-.lbl{font-size:28px;text-anchor:middle;fill:#000}.tid{font-size:24px;fill:#339}
-ol li{margin:1.5mm 0}table{border-collapse:collapse}td,th{border:1px solid #000;padding:1mm 3mm;text-align:left}
+.lbl{font-size:28px;text-anchor:middle;fill:#000}.bid{font-size:40px;fill:#339;font-weight:bold}
+ol li{margin:1.5mm 0}table{border-collapse:collapse;margin:2mm 0}td,th{border:1px solid #000;padding:1mm 3mm;text-align:left}
+td.num{text-align:right}
 @media print{body{margin:8mm}}"""
+
+AXIS = {'x': 'along the length (X)', 'y': 'along the width (Y)'}
+FREES = {'offcut': 'offcut (trim)', 'strip': 'strip', 'rough': 'blank, still to trim',
+         'blank': 'blank'}
 
 
 def _g(v: float) -> str:
-    return f'{v:g}' if isinstance(v, (int, float)) else str(v)
+    return f'{round(v, 1):g}' if isinstance(v, (int, float)) else str(v)
 
 
-def _svg(data: dict, panel: dict) -> str:
+def _panel_svg(data: dict, panel: dict) -> str:
     L, W = data['panel']['length'], data['panel']['width']
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_g(L)} {_g(W)}">',
-           f'<rect x="0" y="0" width="{_g(L)}" height="{_g(W)}" fill="none" stroke="#000" stroke-width="3"/>']
-    for t in panel['templates']:
-        out.append(f'<rect class="tpl" x="{_g(t["x"])}" y="{_g(t["y"])}" width="{_g(t["w"])}" '
-                   f'height="{_g(t["h"])}"/>')
-        out.append(f'<text class="tid" x="{_g(t["x"] + 6)}" y="{_g(t["y"] + 26)}">{escape(t["id"])}</text>')
-        for s in t['shapes']:
+           f'<rect x="0" y="0" width="{_g(L)}" height="{_g(W)}" fill="none" stroke="#000" stroke-width="3"/>',
+           f'<circle class="org" cx="0" cy="{_g(W)}" r="14"/>']
+    for b in panel['blanks']:
+        out.append(f'<rect class="blank" x="{_g(b["x"])}" y="{_g(b["y"])}" width="{_g(b["w"])}" '
+                   f'height="{_g(b["h"])}"/>')
+        for s in b['shapes']:
             out.append(f'<path class="shape" d="{escape(s["path"])}"/>')
-            out.append(f'<text class="lbl" x="{_g(s["cx"])}" y="{_g(s["cy"])}">{escape(s["name"])}</text>')
-        for h in t['fix']:
-            out.append(f'<circle class="fix" cx="{_g(h["x"])}" cy="{_g(h["y"])}" r="8"/>')
-        for h in t['screw']:
-            out.append(f'<circle class="screw" cx="{_g(h["x"])}" cy="{_g(h["y"])}" r="5"/>')
+        out.append(f'<text class="bid" x="{_g(b["x"] + b["w"] / 2)}" y="{_g(b["y"] + b["h"] / 2 + 14)}" '
+                   f'text-anchor="middle">{escape(b["id"])}</text>')
+    for c in panel['cuts']:
+        x, y, w, h = c['rect']
+        out.append(f'<rect class="kerf" x="{_g(x)}" y="{_g(y)}" width="{_g(w)}" height="{_g(h)}"/>')
+        out.append(f'<text class="cutn" x="{_g(x + 8)}" y="{_g(y + 40 if c["axis"] == "y" else y - 6)}">{c["n"]}</text>')
     out.append('</svg>')
     return '\n'.join(out)
 
 
-def _steps(n: str, names: set[str]) -> list[str]:
-    f, s, c = f'N{n}F', f'N{n}S', f'N{n}C'
-    steps = []
+def _blank_svg(b: dict) -> str:
+    L, W = b['width'], b['height']
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 {_g(L + 40)} {_g(W + 40)}">',
+           f'<rect class="blank" x="0" y="0" width="{_g(L)}" height="{_g(W)}"/>',
+           f'<circle class="org" cx="0" cy="{_g(W)}" r="12"/>']
+    for s in b['shapes']:
+        out.append(f'<path class="shape" d="{escape(s["path"])}"/>')
+        out.append(f'<text class="lbl" x="{_g(s["cx"])}" y="{_g(s["cy"])}">{escape(s["name"])}</text>')
+    for h in b['fix']:
+        out.append(f'<circle class="fix" cx="{_g(h["x"])}" cy="{_g(h["y"])}" r="8"/>')
+    for h in b['screw']:
+        out.append(f'<circle class="screw" cx="{_g(h["x"])}" cy="{_g(h["y"])}" r="5"/>')
+    out.append('</svg>')
+    return '\n'.join(out)
+
+
+def _cut_table(panel: dict) -> str:
+    rows = ['<table><tr><th>Cut</th><th>Stage</th><th>Runs</th><th>At (mm from the origin corner)</th>'
+            '<th>From .. to (mm)</th><th>Frees</th><th>Piece size (X x Y, mm)</th></tr>']
+    for c in panel['cuts']:
+        across = 'Y' if c['axis'] == 'x' else 'X'
+        what = FREES[c['frees']] + (' ' + ', '.join(c['blanks']) if c['blanks'] else '')
+        size = f'{_g(c["size"][0])} x {_g(c["size"][1])}' if c['size'] else ''
+        rows.append(f'<tr><td class="num">{c["n"]}</td><td class="num">{c["stage"]}</td>'
+                    f'<td>{AXIS[c["axis"]]}</td><td>{across} = {_g(c["at"])}</td>'
+                    f'<td>{_g(c["start"])} .. {_g(c["end"])}</td><td>{escape(what)}</td>'
+                    f'<td>{size}</td></tr>')
+    rows.append('</table>')
+    return ''.join(rows)
+
+
+def _steps(bid: str, names: set[str]) -> list[str]:
+    f, s, c = f'{bid}F', f'{bid}S', f'{bid}C'
+    steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot) '
+             'against the X and Y pins, long side along machine X. Clamp it.']
     if f in names:
-        steps.append(f'Drill <b>{escape(f)}</b> (fixing holes).')
-        steps.append('Screw the panel to the scrap plate through the fixing holes.')
-    steps.append('Place the shapes as drawn (red circles: fixing holes, green circles: screw holes).')
+        steps.append(f'Drill <b>{escape(f)}</b> (fixing holes, through the blank into the scrap).')
+        steps.append('Screw the blank to the scrap plate through the fixing holes; take the clamps off.')
     if s in names:
-        steps.append(f'Drill <b>{escape(s)}</b> (screw holes).')
+        steps.append(f'Drill <b>{escape(s)}</b> (screw holes at the shapes\' holes, into the scrap).')
     elif f in names:
         steps.append(f'Screw holes: no separate program, merged into {escape(f)}.')
-    steps.append('Screw the shapes down.')
+    steps.append('Screw each shape down through its screw holes.')
     if c in names:
-        steps.append(f'Run <b>{escape(c)}</b> (cut).')
+        steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
+                     'blank\'s frame is not cut).')
+    steps.append('Unscrew the shapes and the frame; the frame is left over.')
     return steps
 
 
-def _runsheet(data: dict, project: dict, plan: Plan) -> str:
+def _runsheet(data: dict, project: dict) -> str:
     title = str(project.get('name') or 'Run sheet')
+    fr = data['frame']
     parts = ['<!DOCTYPE html>', '<html lang="en"><head><meta charset="utf-8">',
              f'<title>{escape(title)}</title>', f'<style>{CSS}</style></head><body>',
              f'<h1>{escape(title)}</h1>',
              '<div class="warn">These programs have not yet run on the machine. '
-             'Check every program in the simulator and run the first panel without material '
-             'before cutting.</div>']
+             'Check every program in the simulator and run the first blank without material '
+             f'before cutting. The machine work frame ({_g(fr["x"])} x {_g(fr["y"])} mm) is a '
+             'placeholder, not yet verified on the machine.</div>']
     for p in data['problems']:
         parts.append(f'<p class="warn">{escape(p)}</p>')
-    for panel, pp in zip(data['panels'], plan.panels):
-        n = _panel_number(pp)
-        names = {p['name'] for p in panel['programs']}
-        parts.append(f'<section class="panel"><h2>Panel {escape(panel["id"])}</h2>')
-        parts.append(_svg(data, panel))
-        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(n, names)) + '</ol>')
+    pn = data['panel']
+    for panel in data['panels']:
+        ids = ', '.join(b['id'] for b in panel['blanks'])
+        parts.append(f'<section><h2>Panel {escape(panel["id"])}: saw into blanks {escape(ids)}</h2>')
+        parts.append(f'<p>Panel {_g(pn["length"])} x {_g(pn["width"])} x {_g(pn["thickness"])} mm, '
+                     f'saw kerf {_g(pn["kerf"])} mm, edge trim {_g(pn["edge"])} mm. Origin corner: '
+                     'black dot (bottom left). Waste '
+                     f'{panel["waste"] / 1e6:.2f} m² ({panel["waste_pct"]:.0f}%). Cut in this order; '
+                     'stage 1 cuts go right across the panel, stage 2 across a strip, stage 3 trims '
+                     'one piece.</p>')
+        parts.append(_panel_svg(data, panel))
+        parts.append(_cut_table(panel))
+        parts.append('<table><tr><th>Blank</th><th>Size (mm)</th><th>On the panel</th><th>Shapes</th></tr>')
+        for b in panel['blanks']:
+            shapes = ', '.join(s['name'] for s in b['shapes'])
+            parts.append(f'<tr><td>{escape(b["id"])}</td><td>{_g(b["width"])} x {_g(b["height"])}</td>'
+                         f'<td>{"turned 90°" if b["rotated"] else "long side along the panel length"}</td>'
+                         f'<td>{escape(shapes)}</td></tr>')
+        parts.append('</table></section>')
+    for b in data['blanks']:
+        names = {p['name'] for p in b['programs']}
+        parts.append(f'<section><h2>Blank {escape(b["id"])} (from panel {escape(b["panel"])}), '
+                     f'{_g(b["width"])} x {_g(b["height"])} mm</h2>')
+        parts.append(_blank_svg(b))
+        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names)) + '</ol>')
         parts.append('<table><tr><th>Program</th><th>Tool</th><th>Description</th></tr>')
-        for p in panel['programs']:
+        for p in b['programs']:
             parts.append(f'<tr><td>{escape(p["name"])}</td><td>T{p["tool"]}</td>'
                          f'<td>{escape(p["description"])}</td></tr>')
         parts.append('</table>')
         parts.append('<p><b>Heights (mm)</b></p><table>')
         for key, label in Z_LABELS:
-            if key in panel['z']:
-                parts.append(f'<tr><td>{escape(label)}</td><td>{_g(panel["z"][key])}</td></tr>')
+            if key in b['z']:
+                parts.append(f'<tr><td>{escape(label)}</td><td>{b["z"][key]:g}</td></tr>')
         parts.append('</table></section>')
     parts.append('</body></html>')
     return '\n'.join(parts)
@@ -129,7 +189,7 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
         (stage / 'PROJECT.json').write_text(
             json.dumps({'settings': settings.to_dict(), 'project': project}, indent=2), encoding='utf-8')
         data = preview_data(plan, programs, settings)
-        (stage / 'RUNSHEET.html').write_text(_runsheet(data, project, plan), encoding='utf-8')
+        (stage / 'RUNSHEET.html').write_text(_runsheet(data, project), encoding='utf-8')
         if out_dir.exists():
             raise FileExistsError(f'{out_dir} already exists; choose a new folder')
         os.rename(stage, out_dir)

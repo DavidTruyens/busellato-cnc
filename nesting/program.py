@@ -1,8 +1,8 @@
-"""Turn a layout plan into CNC programs: drill and cut operations with Z depths.
+"""Turn a layout plan into CNC programs: drill and cut operations with Z depths, per blank.
 
-Heights are worked out above the cup top and converted to depths measured down
-from the top of the stack (scrap + template stock + thickest shape).
-No G-code text is written here.
+The machine runs one blank at a time: programs are written in blank coordinates (origin at the
+blank's corner, X along its long side). The stack on the cups is scrap + blank; depths are
+measured down from the top of the stack. No G-code text is written here.
 """
 from __future__ import annotations
 
@@ -10,12 +10,14 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from .geometry import (Arc, Line, OffsetError, Seg, bbox, offset_outline, set_direction,
+from .geometry import (OffsetError, Seg, bbox, offset_outline, set_direction,
                        split_large_arcs, translate)
-from .layout import PanelPlan, PlacedTemplate, Plan, to_panel
+from .layout import Blank, Plan
 from .settings import Settings
 
 LINE_WARNING = 250
+KINDS = ('F', 'S', 'C')         # fixing holes, screw holes, cut
+NAME = re.compile(r'[A-Z0-9_-]{1,8}')
 
 
 @dataclass
@@ -45,6 +47,7 @@ class Program:
     plunge_feed: float = 0.0
     cut_feed: float = 0.0
     warnings: list[str] = field(default_factory=list)
+    blank: str = ''                 # id of the blank this program is for
 
 
 class ProgramError(ValueError):
@@ -63,15 +66,9 @@ def check_depths(p: Program) -> None:
                                f'nothing is generated')
 
 
-def _template_stock(settings: Settings) -> float:
-    """Without a template layer (mode 'none') the shapes sit straight on the scrap."""
-    return 0.0 if settings.template.mode == 'none' else settings.heights.template_stock
-
-
-def stack_top(settings: Settings, panel: PanelPlan) -> float:
-    h = settings.heights
-    thick = [s.thickness for t in panel.templates for s in t.shapes]
-    return h.scrap + _template_stock(settings) + (max(thick) if thick else h.shape_thickness)
+def stack_top(settings: Settings) -> float:
+    """Scrap plate + blank: the stock Z of every program."""
+    return settings.stack
 
 
 def pass_count(total: float, per_pass: float) -> int:
@@ -84,14 +81,6 @@ def pass_depths(total: float, per_pass: float) -> list[float]:
     return [total * (i + 1) / n for i in range(n)]
 
 
-def _map_seg(s: Seg, t: PlacedTemplate) -> Seg:
-    if isinstance(s, Line):
-        return Line(to_panel(t, *s.a), to_panel(t, *s.b))
-    # a quarter turn keeps the winding, so ccw is unchanged
-    return Arc(to_panel(t, *s.a), to_panel(t, *s.b), to_panel(t, *s.center),
-               s.radius, s.ccw)
-
-
 def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
     r = settings.router
     ccw = r.direction == 'ccw'
@@ -99,30 +88,29 @@ def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
     return split_large_arcs(set_direction(out, ccw))
 
 
-def _panel_number(panel: PanelPlan) -> str:
-    digits = ''.join(c for c in panel.id if c.isdigit())
-    return digits or panel.id.upper()
+def program_name(blank_id: str, kind: str) -> str:
+    """B<nn><F|S|C>: the first character B is the machine folder SRG\\B."""
+    return f'{blank_id}{kind}'
 
 
-def _outside_panel(p: Program, settings: Settings) -> str | None:
-    """A warning when the cutter edge (tool centre path widened by the radius) leaves the panel."""
+def _outside_blank(p: Program, blank: Blank, settings: Settings) -> str | None:
+    """A warning when the cutter edge (tool centre path widened by the radius) leaves the blank."""
     segs = [s for op in p.ops if isinstance(op, ContourOp) for s in op.segs]
     if not segs:
         return None
     r = settings.router.diameter / 2
     x0, y0, x1, y1 = bbox(segs)
     x0, y0, x1, y1 = x0 - r, y0 - r, x1 + r, y1 + r
-    length, width = settings.panel.length, settings.panel.width
     eps = 1e-6
-    if x0 >= -eps and y0 >= -eps and x1 <= length + eps and y1 <= width + eps:
+    if x0 >= -eps and y0 >= -eps and x1 <= blank.width + eps and y1 <= blank.height + eps:
         return None
     return (f'{p.name}: cutter reaches X{x0:.1f}..{x1:.1f}, Y{y0:.1f}..{y1:.1f}, '
-            f'outside the panel 0..{length:g} x 0..{width:g}')
+            f'outside the blank 0..{blank.width:g} x 0..{blank.height:g}')
 
 
-def _finish(p: Program, settings: Settings) -> Program:
+def _finish(p: Program, blank: Blank, settings: Settings) -> Program:
     check_depths(p)
-    outside = _outside_panel(p, settings)
+    outside = _outside_blank(p, blank, settings)
     if outside:
         p.warnings.append(outside)
     from .backends import BACKENDS      # late: the backends import this module
@@ -145,66 +133,53 @@ def _pass_ops(segs: list[Seg], label: str, start: float, material: float,
             for k in range(1, n + 1)]
 
 
-def _rect_segs(t: PlacedTemplate) -> list[Seg]:
-    w, h = (t.height, t.width) if t.rotated else (t.width, t.height)
-    pts = [(t.x, t.y), (t.x + w, t.y), (t.x + w, t.y + h), (t.x, t.y + h)]
-    return [Line(pts[i], pts[(i + 1) % 4]) for i in range(4)]
-
-
-def _panel_programs(panel: PanelPlan, settings: Settings) -> list[Program]:
+def blank_programs(blank: Blank, settings: Settings) -> list[Program]:
+    """Drill and cut programs of one blank, in blank coordinates."""
     h, r = settings.heights, settings.router
     fix, screw = settings.drill_fix, settings.drill_screw
-    top = stack_top(settings, panel)
-    stock = (settings.panel.length, settings.panel.width, top)
-    n = _panel_number(panel)
+    thick = settings.panel.thickness
+    top = stack_top(settings)
+    stock = (blank.width, blank.height, top)
 
-    fix_depth = top - (h.scrap - h.fix_into_scrap)
-    ts = _template_stock(settings)
-    screw_depth = top - (h.scrap + ts - screw.depth)
-    # with a template the cut ends just into it; without, just into the scrap
-    shape_into = h.into_template if ts else h.into_scrap     # how far a shape cut goes below its bottom
-
-    fix_ops: list[DrillOp] = []
-    screw_ops: list[DrillOp] = []
+    fix_depth = thick + h.fix_into_scrap          # through the blank, into the scrap
+    screw_depth = thick + screw.depth
+    fix_ops = [DrillOp(o.x, o.y, fix_depth, o.diameter) for o in blank.fix_holes]
+    screw_ops = [DrillOp(o.x, o.y, screw_depth, o.diameter) for o in blank.screw_holes]
     cuts: list[ContourOp] = []
-    outlines: list[ContourOp] = []
-    for t in panel.templates:
-        for hole in t.fix_holes:
-            x, y = to_panel(t, hole.x, hole.y)
-            fix_ops.append(DrillOp(x, y, fix_depth, hole.diameter))
-        for hole in t.screw_holes:
-            x, y = to_panel(t, hole.x, hole.y)
-            screw_ops.append(DrillOp(x, y, screw_depth, hole.diameter))
-        for ps in t.shapes:
-            moved = translate(ps.shape.outline, ps.x, ps.y)
-            label = f'{t.id} {ps.name} #{ps.copy}'
-            try:
-                segs = _contour([_map_seg(s, t) for s in moved], settings)
-            except OffsetError as e:
-                raise OffsetError(f'{label}: {e}') from e
-            t0 = top - (h.scrap + ts + ps.thickness)
-            cuts += _pass_ops(segs, label, t0, ps.thickness + shape_into, settings)
-        if ts:    # no template layer, no template outline
-            outlines += _pass_ops(_contour(_rect_segs(t), settings), f'{t.id} outline',
-                                  top - (h.scrap + ts), ts + h.into_scrap, settings)
+    for ps in blank.shapes:
+        label = f'{blank.id} {ps.name} #{ps.copy}'
+        try:
+            segs = _contour(translate(ps.shape.outline, ps.x, ps.y), settings)
+        except OffsetError as e:
+            raise OffsetError(f'{label}: {e}') from e
+        # through the blank from its top, just into the scrap
+        cuts += _pass_ops(segs, label, 0.0, thick + h.into_scrap, settings)
 
     progs: list[Program] = []
 
-    def drill(name, tool, ops, desc, feed):
+    def drill(kind, tool, ops, desc, feed):
         if ops:
-            progs.append(Program(name, tool, 'drill', desc, stock, ops, None, feed, feed))
+            progs.append(Program(program_name(blank.id, kind), tool, 'drill', desc, stock, ops,
+                                 None, feed, feed, blank=blank.id))
 
     if fix.tool == screw.tool and fix.diameter == screw.diameter:
-        drill(f'N{n}F', fix.tool, fix_ops + screw_ops, 'Fixing and screw holes', fix.feed)
+        drill('F', fix.tool, fix_ops + screw_ops, 'Fixing and screw holes', fix.feed)
     else:
-        drill(f'N{n}F', fix.tool, fix_ops, 'Fixing holes', fix.feed)
-        drill(f'N{n}S', screw.tool, screw_ops, 'Screw holes', screw.feed)
-    if cuts or outlines:
-        progs.append(Program(f'N{n}C', r.tool, 'cut', 'Shapes and template outlines',
-                             stock, cuts + outlines, int(r.spindle_rpm),
-                             r.plunge_feed, r.cut_feed))
-    return [_finish(p, settings) for p in progs]
+        drill('F', fix.tool, fix_ops, 'Fixing holes', fix.feed)
+        drill('S', screw.tool, screw_ops, 'Screw holes', screw.feed)
+    if cuts:
+        progs.append(Program(program_name(blank.id, 'C'), r.tool, 'cut', 'Shape outlines',
+                             stock, cuts, int(r.spindle_rpm), r.plunge_feed, r.cut_feed,
+                             blank=blank.id))
+    return [_finish(p, blank, settings) for p in progs]
 
 
 def plan_programs(plan: Plan, settings: Settings) -> list[Program]:
-    return [p for panel in plan.panels for p in _panel_programs(panel, settings)]
+    progs = [p for b in plan.blanks for p in blank_programs(b, settings)]
+    names = [p.name for p in progs]
+    if len(names) != len(set(names)):       # cannot happen with unique blank ids
+        raise ProgramError('two programs would get the same name')
+    for name in names:
+        if not NAME.fullmatch(name):
+            raise ProgramError(f'{name}: not a valid program name (1-8 characters A-Z 0-9 _ -)')
+    return progs
