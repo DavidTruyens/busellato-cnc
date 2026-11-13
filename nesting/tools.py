@@ -36,7 +36,7 @@ def _build_heads() -> dict:
     heads = {}
     for n in (65, 66):
         heads[n] = Head(n, "big spindle", ('router',))
-    for n in range(1, 31):
+    for n in range(1, 15):     # 14 vertical drills: T1 to T14 (see VERTICAL_DRILLS below)
         heads[n] = Head(n, "drill cross, vertical", ('drill',))
     for n in (53, 56):
         heads[n] = Head(n, "drill cross, horizontal", ('drill',))
@@ -48,7 +48,10 @@ def _build_heads() -> dict:
 HEADS = _build_heads()
 # The heads the programs use (R1); the other heads can hold a bit but no operation may name them.
 ROUTER_HEADS = (65, 66)
-DRILL_HEADS = tuple(range(1, 31))
+# 14 vertical drills, T1 to T14: the drill head has 14 spindles, and the 2,978 programs on the
+# backups (disks/, hdd/) call T1 to T14 and no vertical drill above 14. Which spindle is which
+# number is not checked on the machine (post/machine-tests/ZZT4D).
+DRILL_HEADS = tuple(range(1, 15))
 
 BIT_TYPES = ('router', 'drill', 'blade')
 REQUIRED = {
@@ -235,7 +238,7 @@ class ToolTable:
         if head not in HEADS:
             fail(f"T{head} is not a machine head")
         allowed, rule = ((ROUTER_HEADS, "router uses T65 or T66") if kind == 'router'
-                         else (DRILL_HEADS, "drills use T1 to T30"))
+                         else (DRILL_HEADS, "drills use T1 to T14"))
         if head not in allowed:
             if head in (53, 56, 60, 61):
                 fail(f"head T{head}: programs do not use T{head}")

@@ -71,8 +71,8 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | router | tool 66 | Head the contour is cut with (T65 or T66). Diameter, spindle speed, feeds and depth per pass come from the bit in that head (see "Tools"). The contour is offset outward by half that diameter. Passes are counted over the material (panel thickness + `into_scrap`) and are equal steps. |
 | | clearance 4 | Extra space between neighbours; the gap between shapes is the bit's diameter + clearance. |
 | | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise), as seen from above in the drawing with the operator at the bottom, whatever `machine.y_toward` is. With Y toward the front that sense is clockwise in the program's numbers, so the corner arcs come out as G2 (they were G3 with Y toward the back). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
-| drill_fix | tool 1 | Head of the 4 fixing holes per blank, in its margin, through the blank into the scrap (T1 to T30). The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. |
-| drill_screw | tool 2, depth 8 | Head of the screw holes at each shape's own holes, through the blank (T1 to T30); `depth` is how far below the blank, into the scrap. The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. Fixing and screw holes always go into the same drill program (`BnnD`), also with different heads. |
+| drill_fix | tool 1 | Head of the 4 fixing holes per blank, in its margin, through the blank into the scrap (T1 to T14). The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. |
+| drill_screw | tool 2, depth 8 | Head of the screw holes at each shape's own holes, through the blank (T1 to T14); `depth` is how far below the blank, into the scrap. The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. Fixing and screw holes always go into the same drill program (`BnnD`), also with different heads. |
 | blank | shapes_per 2, group_by length | How many shapes share a blank, and how they are grouped (`length` or `order`). A group whose blank does not fit the work frame or the panel is split, down to one shape; a blank never takes more shapes than `shapes_per`. |
 | | margin_end 45, margin_side 45 | Blank margin around the group. The blank size is rounded up to whole mm (the extra goes to the far margins). |
 | | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least the router bit's diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
@@ -105,17 +105,20 @@ follows. The Tools page of the tool (next to Plan) edits the table. Spec:
 **Nothing here has run on the machine.** The programs are format-checked and tested. The bit
 numbers (diameters, speeds, feeds) are placeholders for the shop to measure and enter.
 
-**Heads** (fixed in code, `nesting/tools.py`; names taken from the machine's tool table, not
-verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads.
+**Heads** (fixed in code, `nesting/tools.py`). The big spindles, horizontal drills and X/Y heads
+are named in the machine's tool table (`TESTINE.PAR`). The drill head has 14 vertical spindles,
+and the 2,978 programs on the backups call T1 to T14 and no vertical drill above 14; which
+spindle is which number is not checked on the machine (test program `ZZT4D`, see
+`post/machine-tests/RUN-SHEET.md`). Each head holds one bit or nothing; a bit may sit in several heads.
 
 | Heads | Where | Bit types allowed |
 |---|---|---|
 | T65, T66 | big spindle | router |
-| T1 to T30 | drill cross, vertical | drill |
+| T1 to T14 | drill cross, vertical | drill |
 | T53, T56 | drill cross, horizontal | drill |
 | T60, T61 | blade/drill in X, in Y | drill or blade |
 
-Programs use only T65 and T66 (router and pockets) and T1 to T30 (fixing and screw drills). T53,
+Programs use only T65 and T66 (router and pockets) and T1 to T14 (fixing and screw drills). T53,
 T56, T60 and T61 can hold a bit, but an operation that names one is refused ("programs do not
 use T53"). Adding a head is a code change.
 

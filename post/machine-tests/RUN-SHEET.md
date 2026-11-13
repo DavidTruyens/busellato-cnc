@@ -57,3 +57,43 @@ ZZT3A-D) from the shuttle diskette, one COPY each, then compile each one in CNC9
 
 After the visit: set the post settings from the results (mirror Y, feed unit,
 origin, line warning) and record them in post/README.md.
+
+## Drill head check: ZZT4D (which spindle is which tool number)
+
+The drill head has 14 vertical spindles, and the machine's own programs call T1 to T14. Which
+spindle carries which number is not known. `ZZT4D` drills one hole per tool, T1 to T14 in that
+order, each at its own X (T1 at X200, T2 at X300, ... T14 at X1500, all at Y200), 2 mm deep in
+air: stock height 60 in `G71`, so the bit stays about 58 mm above the table, like ZZT1AD.
+Nothing is clamped or cut.
+
+There is no wait between the holes: no program on the backups uses a dwell code, so a 5 s pause
+cannot be written in a way that is known to work. Run it in single-block mode if the control has
+one (one line per start press), otherwise at minimum feed override, and watch which spindle
+comes down at each X.
+
+Copy and compile it like the others (check the name is free first):
+
+    DIR C:\CNC90\MOD1\SORG\SRG\Z\ZT4D
+    COPY A:\ZZT4D   C:\CNC90\MOD1\SORG\SRG\Z\ZT4D
+
+Hand on the emergency stop. STOP if a bit goes lower than about 58 mm above the table, or if the
+head runs towards an end of its travel.
+
+| Tool | X | Which spindle came down (row of 5 / column, position from the end) | Bit seen (type, Ø) |
+|---|---|---|---|
+| T1 | 200 | | |
+| T2 | 300 | | |
+| T3 | 400 | | |
+| T4 | 500 | | |
+| T5 | 600 | | |
+| T6 | 700 | | |
+| T7 | 800 | | |
+| T8 | 900 | | |
+| T9 | 1000 | | |
+| T10 | 1100 | | |
+| T11 | 1200 | | |
+| T12 | 1300 | | |
+| T13 | 1400 | | |
+| T14 | 1500 | | |
+
+Afterwards: enter the bits found in the nesting tool's Tools page (one bit per head).

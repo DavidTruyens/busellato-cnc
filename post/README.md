@@ -36,7 +36,7 @@ to the machine and compiled there separately, then run one after the other.
 | Merge tolerance | 0.05 mm | collinear moves merged; also merges linearized arc chords (on R91 the chords come out ~6 mm, so set 0 to keep a short segment length) |
 | Warn above N lines | 250 | largest known program ~250 lines |
 | Max depth below stock | 5 mm | protects the spoilboard |
-| Allowed tool numbers | 1-30,65,66 | extend when more tools are mapped |
+| Allowed tool numbers | 1-14,65,66 | 14 vertical drills (T1-T14: the drill head has 14 spindles and the backup programs use no vertical drill above T14) and the two routers; extend when more tools are mapped |
 
 ## Getting a program onto the machine
 1. Post in Fusion; copy the file to the shuttle diskette (Mac: format first, see `hdd/COPY-PLAN.md`).

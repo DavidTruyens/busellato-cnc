@@ -286,7 +286,7 @@ const NOTE_DIA = 'not written to the program (the tool number picks the drill); 
 // [key, label, unit or choices, step, kind, (unused), note under the field]
 // the heads the programs use (the server refuses any other); the rest are listed only
 const ROUTER_HEADS = [65, 66];
-const DRILL_HEADS = Array.from({length: 30}, (_, i) => i + 1);
+const DRILL_HEADS = Array.from({length: 14}, (_, i) => i + 1);
 const NOTE_FRAME = "placeholder: to verify on the machine's axis parameter screens";
 const NOTE_Y = "Where X0 Y0 is and which way Y grows in the drill and cut programs. Front is the user's statement, not yet verified on the machine: check it, and the arc direction (G2/G3), with an air cut first.";
 const FIELDS = {
@@ -757,7 +757,7 @@ function addBit(){
   renderTools(); changed();
 }
 
-const usesHead = n => n === 65 || n === 66 || (n >= 1 && n <= 30);
+const usesHead = n => n === 65 || n === 66 || (n >= 1 && n <= 14);
 function renderHeads(ok){
   const tbl = $('headsTable');
   headRows = [];

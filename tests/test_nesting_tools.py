@@ -19,12 +19,12 @@ def field_of(test, d):
 
 class Heads(unittest.TestCase):
     def test_heads_list(self):
-        self.assertEqual(sorted(HEADS), list(range(1, 31)) + [53, 56, 60, 61, 65, 66])
+        self.assertEqual(sorted(HEADS), list(range(1, 15)) + [53, 56, 60, 61, 65, 66])
         self.assertEqual(HEADS[66].allows, ('router',))
         self.assertEqual(HEADS[1].allows, ('drill',))
         self.assertEqual(HEADS[60].allows, ('drill', 'blade'))
         self.assertEqual(ROUTER_HEADS, (65, 66))
-        self.assertEqual(DRILL_HEADS, tuple(range(1, 31)))
+        self.assertEqual(DRILL_HEADS, tuple(range(1, 15)))
 
 
 class Table(unittest.TestCase):
@@ -159,9 +159,14 @@ class Table(unittest.TestCase):
         with self.assertRaises(HeadError) as cm:
             t.resolve(40, 'fixing drill', 'drill_fix.tool', 'drill')
         self.assertIn('T40 is not a machine head', cm.exception.message)
+        # 14 vertical drills: T14 is the last one, T15 does not exist
+        self.assertNotIn(15, HEADS)
+        with self.assertRaises(HeadError) as cm:
+            t.resolve(15, 'fixing drill', 'drill_fix.tool', 'drill')
+        self.assertIn('T15 is not a machine head', cm.exception.message)
         with self.assertRaises(HeadError) as cm:
             t.resolve(65, 'fixing drill', 'drill_fix.tool', 'drill')
-        self.assertIn('drills use T1 to T30', cm.exception.message)
+        self.assertIn('drills use T1 to T14', cm.exception.message)
         self.assertTrue(cm.exception.message.startswith('fixing drill: '))
         self.assertEqual(t.resolve(2, 'screw drill', 'drill_screw.tool', 'drill').id, 'b3')
 
