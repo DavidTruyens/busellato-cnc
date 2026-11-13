@@ -187,14 +187,14 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 <div id="result"><div class="box">
   <h3 id="rtitle">Programs written</h3>
   <p class="note" id="rfolder"></p>
+  <p class="note" id="rdisk"></p>
   <div id="files"></div>
   <div id="rsteps">
     <h3 style="margin-top:12px">At the machine</h3>
     <ol>
       <li>Print <code>RUNSHEET.html</code> from the folder: saw cut list per panel, then per blank its drawing, steps and depths.</li>
-      <li>Copy everything in the folder to the root of the diskette.</li>
-      <li>DOS: run <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites, says what it did).</li>
-      <li>CNC90 file management: register each program, then open and save it once in the editor.</li>
+      <li>Write the folder's <code>DISKETTE</code> folder to an empty diskette (Windows: <code>copy-to-diskette.bat</code>).</li>
+      <li>CNC90 file management: Programma Kopie from the diskette (the <code>SORG</code> tree registers the programs). If they do not appear in the compiler list: DOS <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites), then register each program, open and save it once in the editor.</li>
       <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
       <li>Saw each panel into blanks as the cut list says.</li>
       <li>Per blank: lay it on the scrap, its origin corner (black dot on the run sheet) against the pins, clamp it → run <code>BnnD</code> (all holes, still clamped) → screw the blank down through the fixing holes and each shape through its screw holes → take the clamps off → run <code>BnnC</code> (cut the shapes out) → unscrew.</li>
@@ -656,7 +656,7 @@ function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel()
 // ---- generate --------------------------------------------------------------------------------
 const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, never overwrites',
   'L1.BAT': 'helper for LOAD.BAT', 'COLLECT.BAT': 'after compiling: copies the compiler output to A:\\OUT\\',
-  'C1.BAT': 'helper for COLLECT.BAT', 'PROJECT.json': 'all settings and shapes of this job', 'RUNSHEET.html': 'printable run sheet'};
+  'C1.BAT': 'helper for COLLECT.BAT', 'DISKETTE': 'exactly what goes on the diskette', 'PROJECT.json': 'all settings and shapes of this job', 'RUNSHEET.html': 'printable run sheet'};
 $('gen').addEventListener('click', async () => {
   const btn = $('gen');
   btn.disabled = true;
@@ -665,6 +665,7 @@ $('gen').addEventListener('click', async () => {
     const files = $('files');
     files.replaceChildren();
     $('rfolder').textContent = '';
+    $('rdisk').textContent = '';
     if (saveError){
       showResult(false, `Settings not saved (${saveError.field} ${saveError.message}): fix that first.`);
       return;
@@ -674,6 +675,8 @@ $('gen').addEventListener('click', async () => {
     if (!r.ok){ showResult(false, b.error || 'generate failed', b.problems); return; }
     const progs = Object.fromEntries((plan ? plan.blanks : []).flatMap(b => b.programs).map(g => [g.name, g]));
     $('rfolder').textContent = 'Folder: ' + b.folder;
+    $('rdisk').textContent = `Diskette: ${b.diskette}. Windows: double-click copy-to-diskette.bat in the tool's folder (or py -3 -m nesting.diskette "${b.folder}" A:).`;
+    if (b.diskette_warning) files.append(el('p', {className: 'err'}, b.diskette_warning));
     const body = el('tbody');
     b.files.forEach(n => {
       const g = progs[n];

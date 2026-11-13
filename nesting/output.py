@@ -1,6 +1,7 @@
 """Write the job folder: program files, loader batch files, PROJECT.json and the printable run sheet."""
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ from html import escape
 from pathlib import Path
 
 from .backends import BACKENDS
+from .importdisk import NAME as DISKETTE, write_diskette
 from .layout import Plan
 from .preview import preview_data
 from .program import Program
@@ -205,7 +207,10 @@ def _runsheet(data: dict, project: dict) -> str:
 
 
 def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: Settings,
-                 project: dict, backend: str = 'cnc90') -> list[Path]:
+                 project: dict, backend: str = 'cnc90',
+                 today: datetime.date | None = None) -> list[Path]:
+    """Write the job folder `out_dir` (all or nothing). Returns its entries: the program files,
+    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py)."""
     out_dir = Path(out_dir)
     if out_dir.exists():
         raise FileExistsError(f'{out_dir} already exists; choose a new folder')
@@ -224,6 +229,7 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
                                capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
+        write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
         (stage / 'PROJECT.json').write_text(
             json.dumps({'settings': settings.to_dict(), 'project': project}, indent=2), encoding='utf-8')
         data = preview_data(plan, programs, settings)

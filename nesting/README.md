@@ -17,7 +17,7 @@ and generated programs pass `tools/check_cnc90.py`. See "Safety" before the firs
 ## Start it
 
 ```
-python -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
+python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open]
 ```
 
 Run it from the busellato-cnc folder (the repo folder that holds `nesting/` and `plates/`).
@@ -30,11 +30,26 @@ be missing, use `python3` in its place.
 - `--port N` defaults to 8765. The server listens on 127.0.0.1 only.
 - `--seed-plates` copies the 12 `plates/*.dxf` into the project's `shapes/`, but only when `shapes/`
   is empty; otherwise it copies nothing and says so.
+- `--open` opens the page in the default browser once the server listens.
 
 It prints the project folder and the URL (`http://127.0.0.1:8765/`). Open it in a browser, add
 shapes, set quantities and settings, check the preview (it shows the same numbers that are
 written), then Generate. Each Generate writes a new folder `out/<YYYYMMDD-HHMMSS>/`; an existing
 folder is never overwritten and a failed run leaves nothing behind.
+
+## Windows
+
+`WINDOWS.md` (repo root) is the step-by-step for a Windows PC: `start.bat` updates from GitHub,
+starts the tool on port 8800 with project `%USERPROFILE%\nesting-project` and opens the page;
+`copy-to-diskette.bat` writes the newest job's `DISKETTE` folder to the diskette
+(`python -m nesting.diskette [JOB_OR_PROJECT] [A:] [--keep]`: removable drives only, nothing
+larger than a diskette, asks `YES` before erasing, reads every file back). Not tested on Windows.
+
+Every job folder has a `DISKETTE` folder holding exactly what goes on the diskette: the loader
+(`LOAD.BAT`, `L1.BAT`, `COLLECT.BAT`, `C1.BAT`) and the programs flat in its root, and
+`SORG\INDICE.PRG` plus `SORG\SRG\<first char>\<rest of name>`, the import format CNC90 file
+management writes itself (for Programma Kopie, which registers the programs;
+`nesting/importdisk.py`). Generate warns when it would not fit a 1.44 MB diskette.
 
 ## Settings
 
@@ -134,10 +149,12 @@ inside one program has not been tried. The first character `B` is the machine fo
 then get the same width, for example `B100C`). Every blank gets its own programs, even when two
 blanks have the same shapes in the same layout (sharing them is possible but not done).
 
-1. Copy the generated folder's contents to the diskette. In the control, run `A:LOAD`; it copies
-   each program to its folder without overwriting.
-2. Register each program in file management, open it in the editor and save it once, then
-   compile.
+1. Write the job's `DISKETTE` folder to the diskette (`copy-to-diskette.bat`, or
+   `python -m nesting.diskette JOB TARGET`). In CNC90 file management, Programma Kopie from the
+   diskette. If the programs do not appear in the compiler list: in DOS run `A:LOAD` (copies
+   each program to its folder without overwriting), then register each program in file
+   management, open it in the editor and save it once.
+2. Compile.
 3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
    cut list and which blank is which, then a page per blank).
 4. Lay a blank on the scrap against the pins and clamp it; run the drill program (`BnnD`): all
