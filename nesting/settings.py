@@ -184,7 +184,8 @@ class Settings:
                 or shapes_per < 1):
             raise SettingsError("blank.shapes_per",
                                 "must be a whole number, 1 or more")
-        for path in ("router.tool", "drill_fix.tool", "drill_screw.tool", "pockets.tool"):
+        for path in ("router.tool", "drill_fix.tool", "drill_screw.tool",
+                     "pockets.tool"):
             v = self._get(path)
             if not isinstance(v, int) or isinstance(v, bool) or v < 1:
                 raise SettingsError(path, "must be a whole tool number, 1 or more")
@@ -214,6 +215,7 @@ class Settings:
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
+        # relies on the positive-number loop above having run: stepover_pct is a number > 0 here
         if not self.pockets.stepover_pct <= 100:
             raise SettingsError("pockets.stepover_pct", "must be a number from above 0 up to 100")
         self._validate_sizes()

@@ -202,10 +202,6 @@ class CupDepthTests(unittest.TestCase):
         s.validate()
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class PocketSettingsTests(unittest.TestCase):
     def test_pockets_defaults_present(self):
         s = Settings.default()
@@ -269,3 +265,14 @@ class PocketSettingsTests(unittest.TestCase):
         with self.assertRaises(SettingsError) as cm:
             s.validate()
         self.assertEqual(cm.exception.field, "pockets.direction")
+
+    def test_partial_pockets_section_keeps_other_defaults(self):
+        s = Settings.from_dict({"pockets": {"tool": 5}})
+        self.assertEqual(s.pockets.tool, 5)
+        d = Settings.default().pockets
+        self.assertEqual(s.pockets.diameter, d.diameter)
+        self.assertEqual(s.pockets.stepover_pct, d.stepover_pct)
+
+
+if __name__ == "__main__":
+    unittest.main()
