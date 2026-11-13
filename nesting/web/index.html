@@ -521,18 +521,30 @@ function setOverride(key, name, value){
   if (Object.keys(o).length) project.pockets[key] = o; else delete project.pockets[key];
   changed();
 }
+function blankGroupIds(){
+  // ids of the pocket groups that have a pocket on the selected blank; null while there is no
+  // plan or blank (then the counts over the switched-on shapes decide)
+  const b = blankAt();
+  if (!b) return null;
+  const ids = new Set();
+  b.shapes.forEach(s => (s.pockets || []).forEach(pk => ids.add(pk.group)));
+  return ids;
+}
 function renderGroups(){
   const host = $('pocketGroups');
-  // only groups with a pocket on a switched-on shape; a group with an error stays visible so
-  // its message and field can be found. The ids and colours stay those of the whole project.
-  const shown = groups.filter(g => g.count || g.error);
+  // only groups with a pocket on the selected blank; a group with an error stays visible so
+  // its message and field can be found. The ids and colours stay those of the whole project,
+  // and the defaults above apply to every group, shown or not.
+  const onBlank = blankGroupIds();
+  const shown = groups.filter(g => g.error || (onBlank ? onBlank.has(g.id) : g.count));
   const sig = shown.map(g => g.id + '|' + g.key).join('\n');
   if (host.dataset.sig !== sig || !host.childElementCount){
     host.dataset.sig = sig;
     groupRefs = {};
     host.replaceChildren();
     if (!shown.length) host.append(el('p', {className: 'note'},
-      groups.length ? 'No pockets in the switched-on shapes.' : 'No pockets in the shapes.'));
+      !groups.length ? 'No pockets in the shapes.'
+        : onBlank ? 'No pockets on this blank.' : 'No pockets in the switched-on shapes.'));
     shown.forEach(g => host.append(buildGroup(g)));
   }
   updateGroups();
@@ -1074,7 +1086,7 @@ function renderProblems(){
 function syncView(){ document.querySelectorAll('#views span').forEach(e => e.classList.toggle('on', e.dataset.v === view)); }
 document.querySelectorAll('#views span').forEach(e => e.addEventListener('click', () => { view = e.dataset.v; syncView(); renderTabs(); renderPanel(); }));
 
-function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); }
+function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); if (project) renderGroups(); }
 
 // ---- generate --------------------------------------------------------------------------------
 const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, never overwrites',
