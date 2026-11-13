@@ -331,6 +331,64 @@ class PocketTests(unittest.TestCase):
         pb = {(round(a.length - s.a[0], 6), round(s.a[1], 6)) for s in b.outline}
         self.assertEqual(pa, pb)
 
+    def test_pocket_starting_inside_but_crossing_outline_is_an_error(self):
+        p = self.write("cross.dxf", dxf(rect(0, 0, 200, 100),
+                                        rect(150, 40, 250, 60, "POCKET")))
+        with self.assertRaises(DxfError) as cm:
+            read_dxf(p)
+        self.assertIn("cross.dxf", str(cm.exception))
+
+    def test_inner_loop_without_pocket_layer_crossing_outline_is_an_error(self):
+        p = self.write("c2.dxf", dxf(rect(0, 0, 200, 100), rect(150, 40, 250, 60, "SLOT")))
+        with self.assertRaises(DxfError):
+            read_dxf(p)
+
+    def test_loop_outside_outline_without_pocket_layer_is_ignored(self):
+        p = self.write("o.dxf", dxf(rect(0, 0, 200, 100), rect(300, 40, 350, 60, "SLOT")))
+        self.assertEqual(read_dxf(p).pockets, [])
+
+    def test_pocket_circle_outside_plate_is_an_error(self):
+        p = self.write("pc.dxf", dxf(rect(0, 0, 200, 100), circle(400, 50, 3, "POCKET")))
+        with self.assertRaises(DxfError) as cm:
+            read_dxf(p)
+        self.assertIn("pc.dxf", str(cm.exception))
+
+    def test_pocket_circle_on_pocket_layer_is_a_round_pocket(self):
+        p = self.write("pc.dxf", dxf(rect(0, 0, 200, 100), circle(100, 50, 3, "POCKET")))
+        shape = read_dxf(p)
+        self.assertEqual((len(shape.holes), len(shape.pockets)), (0, 1))
+        self.assertTrue(shape.pockets[0].from_circle)
+
+    def test_diameter_just_over_minimum_within_tolerance_stays_a_hole(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100), circle(50, 50, 4.00000000005)))
+        shape = read_dxf(p)
+        self.assertEqual((len(shape.holes), len(shape.pockets)), (1, 0))
+
+    def test_holes_layer_circle_over_minimum_becomes_round_pocket(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100), circle(50, 50, 6, "HOLES")))
+        shape = read_dxf(p)
+        self.assertEqual((len(shape.holes), len(shape.pockets)), (0, 1))
+
+    def test_circle_inside_a_pocket_stays_a_hole(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100), rect(50, 30, 150, 70, "POCKET"),
+                                    circle(100, 50, 3)))
+        shape = read_dxf(p)
+        self.assertEqual((len(shape.holes), len(shape.pockets)), (1, 1))
+
+    def test_pocket_from_lwpolyline_with_bulges(self):
+        # slot 100 long, 20 wide: two lines and two half-circle bulges (bulge 1 = 180 degrees)
+        poly = ("0\nLWPOLYLINE\n8\nPOCKET\n90\n4\n70\n1\n"
+                "10\n60\n20\n40\n42\n0\n10\n140\n20\n40\n42\n1\n"
+                "10\n140\n20\n60\n42\n0\n10\n60\n20\n60\n42\n1\n")
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100), poly))
+        shape = read_dxf(p)
+        self.assertEqual(len(shape.pockets), 1)
+        outline = shape.pockets[0].outline
+        self.assertEqual(sum(isinstance(s, Arc) for s in outline), 2)
+        x0, y0, x1, y1 = bbox(outline)
+        self.assertAlmostEqual(y1 - y0, 20)
+        self.assertAlmostEqual(x1 - x0, 100, delta=0.01)
+
 
 if __name__ == "__main__":
     unittest.main()

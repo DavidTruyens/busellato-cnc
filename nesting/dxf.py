@@ -248,6 +248,31 @@ def _inside(poly: list[Pt], x: float, y: float) -> bool:
     return inside
 
 
+def _crossing(p: Pt, q: Pt, r: Pt, t: Pt) -> bool:
+    """True when segments pq and rt properly cross."""
+    def orient(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    d1, d2 = orient(p, q, r), orient(p, q, t)
+    d3, d4 = orient(r, t, p), orient(r, t, q)
+    return d1 * d2 < -1e-9 and d3 * d4 < -1e-9
+
+
+def _relation(poly: list[Pt], loop: list[Seg]) -> str:
+    """'inside', 'outside' or 'cross': where a closed loop lies relative to the sampled outline."""
+    pts = _sample(loop)
+    n, m = len(pts), len(poly)
+    for i in range(n):
+        for j in range(m):
+            if _crossing(pts[i], pts[(i + 1) % n], poly[j], poly[(j + 1) % m]):
+                return "cross"
+    flags = {_inside(poly, x, y) for x, y in pts}
+    if flags == {True}:
+        return "inside"
+    if flags == {False}:
+        return "outside"
+    return "cross"
+
+
 def _round_pocket(cx: float, cy: float, r: float) -> Pocket:
     right, left = (cx + r, cy), (cx - r, cy)
     return Pocket([Arc(right, left, (cx, cy), r, True), Arc(left, right, (cx, cy), r, True)],
@@ -291,29 +316,39 @@ def read_dxf(path: str | Path, min_pocket_circle: float = 8.0) -> Shape:
     holes: list[Hole] = []
     pockets: list[Pocket] = []
     for _, cx, cy, r in chosen:
-        if 2 * r > min_pocket_circle:
+        if 2 * r > min_pocket_circle + 1e-6:
             pockets.append(_round_pocket(cx - x0, cy - y0, r))
         else:
             holes.append(Hole(cx - x0, cy - y0, 2 * r))
     # a circle on layer POCKET is a round pocket whatever its size
     for layer, cx, cy, r in circles:
         if layer == "POCKET":
+            if _relation(poly, _round_pocket(cx, cy, r).outline) != "inside":
+                raise DxfError(path, "pocket circle on layer POCKET is not inside the outline")
             pockets.append(_round_pocket(cx - x0, cy - y0, r))
 
     pocket_segs = [s for layer, s in segs if layer == "POCKET"]
+    loops: list[list[Seg]] = []
     if pocket_segs:
-        loops = _chains(pocket_segs)
-        for c in loops:
+        for c in _chains(pocket_segs):
             if not _closed(c):
                 raise DxfError(path, "pocket outline on layer POCKET is open (endpoints do not join)")
-            if not _inside(poly, c[0].a[0], c[0].a[1]):
-                raise DxfError(path, "pocket on layer POCKET lies outside the outline")
+            if _relation(poly, c) != "inside":
+                raise DxfError(path, "pocket on layer POCKET crosses or lies outside the outline")
+            loops.append(c)
     else:
         if contour:
             others = _chains([s for layer, s in segs if layer != "CONTOUR"])
         else:
             others = [c for c in chains if c is not outline]
-        loops = [c for c in others if _closed(c) and _inside(poly, c[0].a[0], c[0].a[1])]
+        for c in others:
+            if not _closed(c):
+                continue
+            rel = _relation(poly, c)
+            if rel == "cross":
+                raise DxfError(path, "an inner loop crosses the outline")
+            if rel == "inside":
+                loops.append(c)
     for c in loops:
         pockets.append(Pocket(translate(c, -x0, -y0)))
     return Shape(path.stem, translate(outline, -x0, -y0), holes, pockets)
