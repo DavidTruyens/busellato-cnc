@@ -184,7 +184,7 @@ class ProgramFrameTests(unittest.TestCase):
             fillet = [sg for sg in op.segs if isinstance(sg, Arc)
                       and math.dist(sg.center, want) < 1e-6]
             self.assertEqual(len(fillet), 1)
-            self.assertAlmostEqual(fillet[0].radius, R_FILLET + s.router.diameter / 2)
+            self.assertAlmostEqual(fillet[0].radius, R_FILLET + s.router_bit.diameter / 2)
             # ccw from above = clockwise in Y-down numbers = G2
             self.assertEqual(fillet[0].ccw, direction == 'cw')
 
@@ -205,7 +205,7 @@ class ProgramFrameTests(unittest.TestCase):
         p = progs(s)['B01C']
         pts = polygon(moves(BACKENDS['cnc90'](p, s)))
         outline = segs_to_program(blank(), s, translate(rounded().outline, SX, SY))
-        r = s.router.diameter / 2
+        r = s.router_bit.diameter / 2
         for q in pts:
             self.assertAlmostEqual(distance_to_chain(q, outline), r, delta=0.01)
         self.assertTrue(inside((SX + 300, H - (SY + 100)), pts))         # shape centre
@@ -278,7 +278,7 @@ class ProgramFrameTests(unittest.TestCase):
 class CutterOutsideBlankFrontTests(unittest.TestCase):
     def test_shape_near_the_front_edge_warns_with_program_y_near_the_blank_height(self):
         s = settings('front')
-        d = s.router.diameter
+        d = s.router_bit.diameter
         pr = progs(s, blank(y=3))           # 3 mm from the front edge (layout y = 3)
         ws = [w for w in pr['B01C'].warnings if 'cutter reaches' in w]
         self.assertEqual(len(ws), 1, ws)

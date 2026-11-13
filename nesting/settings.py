@@ -4,17 +4,9 @@ import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
 
-# Smallest stepover, % of the tool diameter: a tiny one gives thousands of rings (a plan that
-# never ends); 10 % already gives 10 rings per tool diameter of pocket width.
-MIN_STEPOVER_PCT = 10
-STEPOVER_MESSAGE = "must be between 10 and 100 (percent of the tool diameter)"
-
-
-class SettingsError(ValueError):
-    def __init__(self, field: str, message: str):
-        super().__init__(f"{field}: {message}")
-        self.field = field
-        self.message = message
+# SettingsError and the stepover limits live in tools.py (which must not import this module).
+from .tools import SettingsError, MIN_STEPOVER_PCT, STEPOVER_MESSAGE  # noqa: F401
+from .tools import ROUTER_HEADS, Bit, HeadError, ToolTable
 
 
 @dataclass
@@ -46,31 +38,24 @@ class Heights:
     fix_into_scrap: float = 1
 
 
+# The router and the drills name a head; the bit in that head (Settings.tools) gives the
+# diameter, speeds and feeds.
 @dataclass
 class Router:
-    tool: int = 66  # 66 = diameter 8 (post/README.md)
-    diameter: float = 8
-    spindle_rpm: float = 18000
-    plunge_feed: float = 1
-    cut_feed: float = 3
-    depth_per_pass: float = 9
+    tool: int = 66  # head; the default table holds Router 8 there (post/README.md)
     clearance: float = 4
     direction: str = "ccw"
 
 
 @dataclass
 class DrillFix:
-    tool: int = 1  # placeholder tool number
-    diameter: float = 6
-    feed: float = 1
+    tool: int = 1  # placeholder head
 
 
 @dataclass
 class DrillScrew:
-    tool: int = 2  # placeholder tool number
-    diameter: float = 3
+    tool: int = 2  # placeholder head
     depth: float = 8    # below the blank, into the scrap
-    feed: float = 1
 
 
 @dataclass
@@ -78,14 +63,9 @@ class Pockets:
     # All PLACEHOLDERS, to verify on the machine.
     min_circle_diameter: float = 8   # smallest circle that counts as a pocket
     min_floor: float = 2             # material left under a pocket
-    tool: int = 66
-    diameter: float = 8
+    tool: int = 66                   # default head; its bit gives diameter, speeds, feeds,
+                                     # depth per pass and stepover
     depth: float = 8
-    depth_per_pass: float = 4
-    plunge_feed: float = 1
-    cut_feed: float = 3
-    spindle_rpm: float = 18000
-    stepover_pct: float = 40         # of the tool diameter, 10 to 100
     direction: str = "cw"            # turning sense seen from above for pocket walls;
                                      # climb vs conventional is unverified
 
@@ -106,7 +86,7 @@ def _build(cls, data):
     base = cls()
     kwargs = {}
     for f in fields(cls):
-        if f.name not in data:
+        if f.name not in data or f.name == 'tools':    # the table is passed apart
             continue
         default = getattr(base, f.name)
         if is_dataclass(default):
@@ -143,21 +123,43 @@ class Settings:
     blank: Blank = field(default_factory=Blank)
     pockets: Pockets = field(default_factory=Pockets)
     origin: str = "G54"
+    # The project's tool table; not part of to_dict (project.json stores it apart).
+    tools: ToolTable = field(default_factory=ToolTable.default)
 
     @classmethod
     def default(cls) -> "Settings":
         return cls()
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        del d['tools']
+        return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Settings":
-        return _build(cls, _migrate(d))
+    def from_dict(cls, d: dict, tools: ToolTable | None = None) -> "Settings":
+        """Settings from a dict (unknown keys, such as the old router diameter, ignored) and
+        a tool table (None: the default table)."""
+        s = _build(cls, _migrate(d))
+        s.tools = ToolTable.default() if tools is None else tools
+        return s
+
+    @property
+    def router_bit(self) -> Bit:
+        return self.tools.resolve(self.router.tool, 'router', 'router.tool', 'router')
+
+    @property
+    def fix_bit(self) -> Bit:
+        return self.tools.resolve(self.drill_fix.tool, 'fixing drill', 'drill_fix.tool',
+                                  'drill')
+
+    @property
+    def screw_bit(self) -> Bit:
+        return self.tools.resolve(self.drill_screw.tool, 'screw drill', 'drill_screw.tool',
+                                  'drill')
 
     @property
     def gap(self) -> float:
-        return self.router.diameter + self.router.clearance
+        return self.router_bit.diameter + self.router.clearance
 
     @property
     def stack(self) -> float:
@@ -175,15 +177,9 @@ class Settings:
             "panel.length", "panel.width", "panel.thickness",
             "machine.frame_x", "machine.frame_y",
             "heights.scrap",
-            "router.tool", "router.diameter", "router.spindle_rpm",
-            "router.plunge_feed", "router.cut_feed", "router.depth_per_pass",
-            "drill_fix.tool", "drill_fix.diameter", "drill_fix.feed",
-            "drill_screw.tool", "drill_screw.diameter", "drill_screw.depth",
-            "drill_screw.feed",
+            "router.tool", "drill_fix.tool", "drill_screw.tool", "drill_screw.depth",
             "blank.head_dia",
-            "pockets.min_circle_diameter", "pockets.min_floor", "pockets.diameter",
-            "pockets.depth", "pockets.depth_per_pass", "pockets.plunge_feed",
-            "pockets.cut_feed", "pockets.spindle_rpm", "pockets.stepover_pct",
+            "pockets.min_circle_diameter", "pockets.min_floor", "pockets.depth",
         ]
         shapes_per = self.blank.shapes_per
         if (not isinstance(shapes_per, int) or isinstance(shapes_per, bool)
@@ -221,12 +217,21 @@ class Settings:
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
-        # relies on the positive-number loop above having run: stepover_pct is a number > 0 here
-        if not MIN_STEPOVER_PCT <= self.pockets.stepover_pct <= 100:
-            raise SettingsError("pockets.stepover_pct", STEPOVER_MESSAGE)
+        self._validate_heads()
         self._validate_sizes()
         self._validate_depths()
         self._validate_pocket_depth()
+
+    def _validate_heads(self) -> None:
+        """The table itself, then each operation's head (a HeadError names operation and head).
+        The pocket default head is only checked to be a router head here (R2): that it holds
+        a router bit matters only for a pocket group that uses it."""
+        self.tools.validate()
+        self.router_bit, self.fix_bit, self.screw_bit   # noqa: B018 -- resolve raises
+        t = self.pockets.tool
+        if t not in ROUTER_HEADS:
+            raise HeadError("pockets.tool", f"pocket default: head T{t} cannot be used here; "
+                                            f"the router uses T65 or T66")
 
     def _validate_sizes(self) -> None:
         """Cross-field checks: the trim, the kerf and the margins must leave room for a shape."""

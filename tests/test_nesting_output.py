@@ -14,6 +14,7 @@ from nesting.output import write_output
 from nesting.preview import pocket_groups_data, preview_data
 from nesting.program import plan_programs
 from nesting.settings import Settings
+from helpers import put_bit
 from test_nesting_program import pocket_shape, rect, rect_loop
 
 repo = Path(__file__).resolve().parent.parent
@@ -161,23 +162,41 @@ class OutputTests(unittest.TestCase):
 
     def test_runsheet_lists_each_drill_tool_with_diameter_and_feed(self):
         m = Settings()
-        m.drill_fix.tool, m.drill_fix.diameter, m.drill_fix.feed = 10, 6, 2.5
-        m.drill_screw.tool, m.drill_screw.diameter, m.drill_screw.feed = 2, 3, 0.75
+        put_bit(m, 10, diameter=6, plunge_feed=2.5)
+        put_bit(m, 2, diameter=3, plunge_feed=0.75)
+        m.drill_fix.tool, m.drill_screw.tool = 10, 2
         plan = build_plan(self.entries, m)
         progs = plan_programs(plan, m)
         html = self._sheet(m, progs, plan)
         section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
-        self.assertIn('<tr><td>B01D</td><td>T10, T2</td><td>Fixing and screw holes</td></tr>', section)
-        self.assertIn('<tr><td>B01C</td><td>T66</td>', section)
+        self.assertIn('<tr><td>B01D</td><td>T10 Drill 6, T2 Drill 3</td><td>Fixing and screw holes</td></tr>', section)
+        self.assertIn('<tr><td>B01C</td><td>T66 Router 8</td>', section)
         self.assertIn('Feed (m/min, not written)', section)
-        self.assertRegex(section, r'<tr><td>fixing</td><td class="num">4</td><td>T10</td>'
+        self.assertRegex(section, r'<tr><td>fixing</td><td class="num">4</td><td>T10 Drill 6</td>'
                                   r'<td class="num">6</td><td class="num">2.5</td><td class="num">19</td></tr>')
-        self.assertRegex(section, r'<tr><td>screw</td><td class="num">\d+</td><td>T2</td>'
+        self.assertRegex(section, r'<tr><td>screw</td><td class="num">\d+</td><td>T2 Drill 3</td>'
                                   r'<td class="num">3</td><td class="num">0.75</td><td class="num">26</td></tr>')
+
+    def test_runsheet_names_the_bit(self):
+        html = self._sheet(self.s, self.progs, self.plan)
+        self.assertIn('T66 Router 8', html)
+        self.assertIn('T1 Drill 6', html)
+        self.assertIn("diameter and feed are the bit's, not written to the program: the control "
+                      "uses each tool's own feed; check the bit in the head really has that "
+                      "diameter", html.replace('&#x27;', "'"))
+
+    def test_runsheet_escapes_bit_names(self):
+        m = Settings()
+        b = put_bit(m, 66)
+        b.name = 'A<b> & C'
+        plan = build_plan(self.entries, m)
+        html = self._sheet(m, plan_programs(plan, m), plan)
+        self.assertIn('T66 A&lt;b&gt; &amp; C', html)
+        self.assertNotIn('A<b>', html)
 
     def test_runsheet_has_no_separate_fixing_or_screw_programs(self):
         same = Settings()
-        same.drill_screw.tool, same.drill_screw.diameter = same.drill_fix.tool, same.drill_fix.diameter
+        same.drill_screw.tool = same.drill_fix.tool
         for st in (self.s, same):
             plan = build_plan(self.entries, st)
             progs = plan_programs(plan, st)
@@ -229,7 +248,7 @@ class OutputTests(unittest.TestCase):
         g = data['pocket_groups'][0]
         self.assertIn(f'<td>{g["id"]}</td><td><span class="sw" style="background:{g["color"]}">', html)
         self.assertIn('<th>Tool</th><th>Tool Ø (mm)</th><th>Depth (mm)</th>', html)
-        self.assertIn(f'<td>T{g["tool"]}</td><td class="num">{g["diameter"]:g}</td>', html)
+        self.assertIn(f'<td>{g["head_label"]}</td><td class="num">{g["diameter"]:g}</td>', html)
         self.assertIn(f'<path class="pocket" fill="{g["color"]}"', html)
 
     def test_runsheet_without_pockets_has_no_pocket_table(self):
@@ -266,6 +285,11 @@ class OutputTests(unittest.TestCase):
         self.assertEqual(data['pocket_groups'][0]['depth'], 5)
         self.write()
         self.assertEqual(json.loads((self.out / 'PROJECT.json').read_text())['pockets'], {})
+
+    def test_project_json_has_tools(self):
+        self.write()
+        data = json.loads((self.out / 'PROJECT.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['tools'], self.s.tools.to_dict())
 
     def test_loader_and_diskette_include_pocket_programs(self):
         self.write()

@@ -11,8 +11,9 @@ import nesting.pockets as pockets
 from nesting.pockets import PocketError, find_groups, memo_pocket_rings, pocket_rings
 from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, blank_programs,
                              check_depths, group_by_tool, pass_depths, plan_programs, stack_top,
-                             tool_diameter_conflict)
+                             check_pocket_heads)
 from nesting.settings import Settings
+from helpers import put_bit
 
 repo = Path(__file__).resolve().parent.parent
 FOLDER = set('79ABCDEFGHIJKLMNOP' + 'RSTVWXYZ')      # tools/make-loader.py FOLDERS
@@ -145,7 +146,7 @@ class CutterOutsideBlankTests(unittest.TestCase):
         self.assertEqual(m.group(1), 'B01C')
         self.assertIn(ws[0], progs['B01C'].warnings)
         # independent: the centre line runs r outside the shape, the cutter edge 2r
-        d = s.router.diameter
+        d = s.router_bit.diameter
         self.assertEqual([float(g) for g in m.group(2, 3, 4, 5)],
                          [round(3 - d, 1), round(603 + d, 1), round(45 - d, 1), round(245 + d, 1)])
         self.assertEqual((m.group(6), m.group(7)), ('690', '290'))
@@ -191,8 +192,8 @@ class ProgramTests(unittest.TestCase):
 
     def test_one_tool_is_one_group_fixing_holes_first(self):
         s = Settings()
-        # same tool (so the same diameter: one tool number has one diameter): still one group
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        # same head (so the same bit): still one group
+        s.drill_screw.tool = s.drill_fix.tool
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertEqual(sorted(progs), ['B01C', 'B01D'])
@@ -223,7 +224,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_equal_drills_merge(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertEqual(sorted(progs), ['B01C', 'B01D'])
@@ -297,7 +298,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_cuts_stay_inside_the_blank(self):
         plan, s = real_plan()
-        r = s.router.diameter / 2
+        r = s.router_bit.diameter / 2
         for p in plan_programs(plan, s):
             b = next(b for b in plan.blanks if b.id == p.blank)
             for op in p.ops:
@@ -378,7 +379,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_line_warning(self):
         s = Settings()
-        s.router.depth_per_pass = 1       # many passes -> many lines
+        put_bit(s, 66, depth_per_pass=1)  # many passes -> many lines
         plan, _ = plan_for(rect('a', 1000, 230), rect('b', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertTrue(progs['B01C'].warnings)
@@ -407,7 +408,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_large_depth_per_pass_gives_one_pass(self):
         s = Settings()
-        s.router.depth_per_pass = 100
+        put_bit(s, 66, depth_per_pass=100)
         plan, _ = real_plan(s)
         cut = by_name(plan_programs(plan, s))['B01C']
         self.assertEqual(len(cut.ops), 2)
@@ -483,11 +484,11 @@ class PocketProgramTests(unittest.TestCase):
 
     def test_pocket_passes_and_depths(self):
         s = Settings()
-        s.pockets.depth, s.pockets.depth_per_pass = 8, 4
+        bit = put_bit(s, 65, depth_per_pass=4)
+        s.pockets.depth, s.pockets.tool = 8, 65
         plan, _ = plan_for(pocket_shape('p', [rect_loop(100, 50, 40, 30)]), settings=s)
         pk = by_name(plan_programs(plan, s))['B01P']
-        n = len(pocket_rings(rect_loop(100, 50, 40, 30), s.pockets.diameter,
-                             s.pockets.stepover_pct))
+        n = len(pocket_rings(rect_loop(100, 50, 40, 30), bit.diameter, bit.stepover_pct))
         self.assertGreater(n, 1)
         self.assertEqual(len(pk.ops), 2 * n)
         self.assertEqual([o.depth for o in pk.ops], [4.0] * n + [8.0] * n)
@@ -503,21 +504,19 @@ class PocketProgramTests(unittest.TestCase):
         sh = pocket_shape('p', [rect_loop(100, 50, 40, 30), slot_loop(300, 60, 120, 20)])
         plan, _ = plan_for(sh, settings=s)
         groups = find_groups([sh])
-        ov = {groups[1].key: {'tool': 7, 'spindle_rpm': 12000, 'plunge_feed': 2,
-                              'cut_feed': 5, 'diameter': 12}}
+        put_bit(s, 65, spindle_rpm=12000, plunge_feed=2, cut_feed=5, diameter=12)
+        ov = {groups[1].key: {'tool': 65}}
         pk = by_name(plan_programs(plan, s, ov))['B01P']
         g1 = [o for o in pk.ops if ' G1 ' in o.label]
         g2 = [o for o in pk.ops if ' G2 ' in o.label]
         self.assertTrue(g1 and g2)
         self.assertEqual({(o.tool, o.spindle_rpm, o.plunge_feed, o.cut_feed) for o in g1},
-                         {(s.pockets.tool, int(s.pockets.spindle_rpm), s.pockets.plunge_feed,
-                           s.pockets.cut_feed)})
+                         {(66, 18000, 1, 3)})            # the default table's bit in T66
         self.assertEqual({(o.tool, o.spindle_rpm, o.plunge_feed, o.cut_feed) for o in g2},
-                         {(7, 12000, 2, 5)})
-        self.assertEqual(pk.tools, [s.pockets.tool, 7])
+                         {(65, 12000, 2, 5)})
+        self.assertEqual(pk.tools, [66, 65])
         self.assertEqual((pk.tool, pk.spindle_rpm, pk.plunge_feed, pk.cut_feed),
-                         (s.pockets.tool, int(s.pockets.spindle_rpm), s.pockets.plunge_feed,
-                          s.pockets.cut_feed))
+                         (66, 18000, 1, 3))
         # grouped by tool: every G1 op before every G2 op
         self.assertEqual(pk.ops, g1 + g2)
 
@@ -527,7 +526,8 @@ class PocketProgramTests(unittest.TestCase):
                                 rect_loop(450, 50, 40, 40)])
         plan, _ = plan_for(sh, settings=s)
         g = find_groups([sh])
-        ov = {g[1].key: {'tool': 7}}
+        put_bit(s, 65)
+        ov = {g[1].key: {'tool': 65}}
         pk = by_name(plan_programs(plan, s, ov))['B01P']
         order = []
         for o in pk.ops:
@@ -570,7 +570,8 @@ class PocketProgramTests(unittest.TestCase):
                 ps = b.shapes[0]
                 self.assertEqual((ps.x, ps.y, b.height), (45, 45, 290))
                 pk = by_name(plan_programs(plan, s))['B01P']
-                self.assertEqual(len(pk.ops), 2 * len(rings))
+                # depth 8 in one pass: the default bit cuts 9 mm per pass (R4)
+                self.assertEqual(len(pk.ops), len(rings))
                 for op, ring in zip(pk.ops, rings):
                     # cw seen from above, in the layout frame
                     lay = split_large_arcs(set_direction(translate(ring, 45, 45), False))
@@ -661,7 +662,8 @@ class PocketProgramTests(unittest.TestCase):
 
     def test_line_count_warning_for_pocket_program(self):
         s = Settings()
-        s.pockets.depth_per_pass = 0.5
+        put_bit(s, 65, depth_per_pass=0.5)
+        s.pockets.tool = 65
         plan, _ = real_plan(s)
         progs = by_name(plan_programs(plan, s))
         self.assertTrue(any('over 250' in w for w in progs['B01P'].warnings),
@@ -675,7 +677,7 @@ class PocketProgramTests(unittest.TestCase):
         circle = [Arc((204, 100), (196, 100), c, 4, True), Arc((196, 100), (204, 100), c, 4, True)]
         plan, _ = plan_for(pocket_shape('p', [circle]), settings=s)
         pk = by_name(plan_programs(plan, s))['B01P']
-        self.assertEqual(len(pk.ops), 2)            # one per pass
+        self.assertEqual(len(pk.ops), 1)            # one per pass: 8 deep, 9 per pass (R4)
         for o in pk.ops:
             self.assertEqual(o.segs, [Line((245, 145), (245, 145))])
 
@@ -694,8 +696,9 @@ class PocketProgramTests(unittest.TestCase):
 
 
 
-class ToolDiameterTests(unittest.TestCase):
-    """One tool number has one diameter over router, drills and switched-on pocket groups."""
+class PocketHeadTests(unittest.TestCase):
+    """A pocket group names a head; its bit gives the diameter, speeds and feeds. A program is
+    never written with numbers from a bit other than the one in the head it names."""
 
     def setUp(self):
         self.s = Settings()
@@ -703,63 +706,93 @@ class ToolDiameterTests(unittest.TestCase):
         self.plan, _ = plan_for(self.sh, settings=self.s)
         self.key = find_groups([self.sh])[0].key
 
-    def refused(self, ov, *needles, settings=None):
-        s = settings or self.s
-        plan = self.plan if settings is None else plan_for(self.sh, settings=s)[0]
+    def test_group_head_errors_only_when_enabled(self):
+        # T65 is empty in the default table
         with self.assertRaises(ProgramError) as cm:
-            plan_programs(plan, s, ov)
-        msg = str(cm.exception)
-        for n in needles + ('one tool number must have one diameter',):
-            self.assertIn(n, msg)
-        return msg
+            plan_programs(self.plan, self.s, {self.key: {'tool': 65}})
+        self.assertEqual(str(cm.exception), 'pocket group G1: head T65 holds no bit')
+        progs = by_name(plan_programs(self.plan, self.s, {self.key: {'tool': 65,
+                                                                     'enabled': False}}))
+        self.assertNotIn('B01P', progs)
+        self.assertIn('B01C', progs)
 
-    def test_group_override_diameter_against_router(self):
-        msg = self.refused({self.key: {'diameter': 6}}, 'T66', '8 and 6 mm', 'router',
-                           'pocket group G1')
-        self.assertEqual(msg, 'tool T66 is used with diameters 8 and 6 mm (router, pocket '
-                              'group G1); one tool number must have one diameter')
-        got = tool_diameter_conflict(self.s, {self.key: {'diameter': 6}}, find_groups([self.sh]),
-                                     [self.sh])
-        self.assertEqual(got[1], 'pockets.G1.diameter')
-
-    def test_pocket_default_diameter_against_router(self):
+    def test_check_pocket_heads_names_the_field_to_fix(self):
+        groups = find_groups([self.sh])
+        self.assertIsNone(check_pocket_heads(self.s, {}, groups, [self.sh]))
+        self.assertEqual(check_pocket_heads(self.s, {self.key: {'tool': 65}}, groups, [self.sh]),
+                         ('pocket group G1: head T65 holds no bit', 'pockets.G1.tool'))
         s = Settings()
-        s.pockets.diameter = 12                         # tool left at T66 (8 mm)
-        self.refused({}, 'T66', '8 and 12 mm', 'router', 'pocket group G1', settings=s)
-        got = tool_diameter_conflict(s, {}, find_groups([self.sh]), [self.sh])
-        self.assertEqual(got[1], 'pockets.diameter')
+        s.pockets.tool = 65                             # the default head, empty
+        self.assertEqual(check_pocket_heads(s, {}, groups, [self.sh]),
+                         ('pocket group G1: head T65 holds no bit', 'pockets.tool'))
+        # a group with no pocket on the shapes is not checked
+        self.assertIsNone(check_pocket_heads(s, {}, groups, [rect('a', 1000, 230)]))
+        msg, field = check_pocket_heads(self.s, {self.key: {'tool': 1}}, groups, [self.sh])
+        self.assertEqual(field, 'pockets.G1.tool')
+        self.assertIn('head T1 cannot be used here', msg)
 
-    def test_drill_against_pocket(self):
-        self.refused({self.key: {'tool': 1, 'diameter': 8}}, 'T1', '6 and 8 mm', 'fixing drill',
-                     'pocket group G1')
+    def test_empty_pocket_head_without_pockets_plans(self):
+        s = Settings()
+        put_bit(s, 65, diameter=8)
+        s.router.tool = 65
+        s.tools.heads.pop(66)
+        self.assertEqual(s.pockets.tool, 66)
+        s.validate()
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        self.assertEqual([p.name for p in plan_programs(plan, s)], ['B01D', 'B01C'])
 
-    def test_drills_against_each_other(self):
+    def test_pocket_ops_carry_the_bit(self):
+        s = Settings()
+        put_bit(s, 65, diameter=6, spindle_rpm=16000, plunge_feed=0.5, cut_feed=2)
+        s.pockets.tool = 65
+        plan, _ = plan_for(self.sh, settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        self.assertEqual({(o.tool, o.spindle_rpm, o.plunge_feed, o.cut_feed) for o in pk.ops},
+                         {(65, 16000, 0.5, 2)})
+        self.assertEqual((pk.tool, pk.spindle_rpm, pk.plunge_feed, pk.cut_feed),
+                         (65, 16000, 0.5, 2))
+        # the wall ring is offset by the 6 mm bit's radius: 40 x 30 pocket -> 34 x 24 ring
+        wall = pk.ops[len(pocket_rings(rect_loop(100, 50, 40, 30), 6, 40)) - 1]
+        xs = [c for sg in wall.segs for c in (sg.a[0], sg.b[0])]
+        ys = [c for sg in wall.segs for c in (sg.a[1], sg.b[1])]
+        self.assertEqual((round(max(xs) - min(xs), 6), round(max(ys) - min(ys), 6)), (34, 24))
+
+    def test_obsolete_group_numbers_are_ignored(self):
+        ov = {self.key: {'diameter': 6, 'spindle_rpm': 12000, 'stepover_pct': 50}}
+        self.assertEqual(plan_programs(self.plan, self.s, ov), plan_programs(self.plan, self.s))
+
+    def test_drills_on_one_head_share_its_bit(self):
         s = Settings()
         s.drill_screw.tool = s.drill_fix.tool
-        self.refused({}, 'T1', '6 and 3 mm', 'fixing drill', 'screw drill', settings=s)
+        plan = plan_for(self.sh, settings=s)[0]
+        d = by_name(plan_programs(plan, s))['B01D']
+        self.assertEqual({(o.tool, o.diameter) for o in d.ops}, {(1, 6)})
 
-    def test_same_tool_same_diameter_is_fine(self):
-        for ov in ({}, {self.key: {'tool': 66, 'diameter': 8}},
-                   {self.key: {'tool': 1, 'diameter': 6}}, {self.key: {'tool': 7, 'diameter': 6}}):
-            with self.subTest(ov=ov):
-                self.assertIn('B01P', by_name(plan_programs(self.plan, self.s, ov)))
-
-    def test_switched_off_group_is_ignored(self):
-        progs = by_name(plan_programs(self.plan, self.s,
-                                      {self.key: {'enabled': False, 'diameter': 6}}))
-        self.assertNotIn('B01P', progs)
-
-    def test_pocket_defaults_unused_without_pockets(self):
+    def test_router_numbers_come_from_its_head(self):
         s = Settings()
-        s.pockets.diameter = 12
+        put_bit(s, 66, spindle_rpm=12000, plunge_feed=2, cut_feed=5)
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
-        self.assertIn('B01C', by_name(plan_programs(plan, s)))
+        blank = plan.blanks[0]
+        cut = next(p for p in blank_programs(blank, s) if p.kind == 'cut')
+        self.assertEqual((cut.tool, cut.spindle_rpm, cut.plunge_feed, cut.cut_feed),
+                         (66, 12000, 2, 5))
+        from nesting.backends.cnc90 import emit
+        self.assertIn('S12000', emit(cut, s))
+
+    def test_drill_diameter_comes_from_its_head(self):
+        s = Settings()
+        put_bit(s, 1, diameter=5)
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        d = next(p for p in blank_programs(plan.blanks[0], s) if p.kind == 'drill')
+        fixing = [o for o in d.ops if o.tool == s.drill_fix.tool]
+        self.assertTrue(fixing)
+        self.assertEqual({o.diameter for o in fixing}, {5})
 
 
 class RealPlatePocketTests(unittest.TestCase):
     """Plate 3-1 of the real plates, default settings: the slot's B..P lines pinned, derived
     from the DXF and the placement (8 mm tool, 40 % stepover: wall ring 6 mm from the slot's
-    centre line, inner ring 2.8 mm; depth 8 in two passes)."""
+    centre line, inner ring 2.8 mm; depth 8 in one pass: 9 mm per pass, R4)."""
 
     def test_plate_3_1_slot_rings(self):
         from nesting.backends.cnc90 import emit, fmt
@@ -778,9 +811,10 @@ class RealPlatePocketTests(unittest.TestCase):
                 self.assertEqual((blank.id, ps.x, ps.y, blank.height), ('B06', 45, 45, 560))
                 X0, X1, Y = lx + ps.x, rx + ps.x, cy + ps.y          # layout frame
                 self.assertEqual((X0, X1, Y), (85, 1540, 135))
-                r = s.pockets.diameter / 2
+                bit = s.tools.bit_in(s.pockets.tool)
+                r = bit.diameter / 2
                 wall = half - r
-                inner = wall - s.pockets.diameter * s.pockets.stepover_pct / 100
+                inner = wall - bit.diameter * bit.stepover_pct / 100
                 self.assertEqual((round(wall, 6), round(inner, 6)), (6, 2.8))
                 front = y_toward == 'front'
 
@@ -788,7 +822,7 @@ class RealPlatePocketTests(unittest.TestCase):
                     return blank.height - v if front else v
                 arc = 'G3' if front else 'G2'           # cw from above; mirrored with front
                 lines = []
-                for z in (4, 8):
+                for z in (8,):                  # one pass: the bit cuts 9 mm per pass (R4)
                     for u in (inner, wall):
                         top, bot = fmt(y(Y + u)), fmt(y(Y - u))
                         lines += [f'G88G90G54P5T0166S18000F1X{fmt(X0)}Y{top}Z{z}',
@@ -863,7 +897,8 @@ class RingMemoTests(unittest.TestCase):
             again = by_name(plan_programs(plan, s))
             self.assertEqual(again['B01P'].ops, first['B01P'].ops)
             s6 = Settings()
-            s6.pockets.tool, s6.pockets.diameter = 7, 6
+            put_bit(s6, 65, diameter=6)
+            s6.pockets.tool = 65
             with self.assertRaises(AssertionError):
                 plan_programs(plan, s6)
         other = by_name(plan_programs(plan, s6))

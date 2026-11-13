@@ -6,7 +6,10 @@ from nesting.dxf import Pocket, Shape, _inside, _round_pocket
 from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
 from nesting.pockets import (MAX_RINGS, MIN_ARC, PALETTE, PocketError, effective, find_groups, group_for, group_key,
                              is_convex, pocket_rings)
-from nesting.settings import Pockets
+from nesting.settings import Pockets, Settings
+from nesting.tools import HeadError
+
+from helpers import put_bit
 
 
 def rect_pocket(x0, y0, x1, y1):
@@ -113,48 +116,77 @@ class PaletteTests(unittest.TestCase):
 
 class EffectiveTests(unittest.TestCase):
     def test_merge_and_unknown_ignored(self):
-        d = Pockets()
-        s = effective("k", {"k": {"depth": 5, "enabled": False, "bogus": 1}, "other": {"depth": 1}}, d)
-        self.assertEqual(s.depth, 5)
-        self.assertFalse(s.enabled)
-        self.assertEqual(s.diameter, d.diameter)
-        self.assertEqual(s.direction, d.direction)
-        self.assertTrue(effective("none", {}, d).enabled)
+        s = Settings()
+        g = effective("k", {"k": {"depth": 5, "enabled": False, "bogus": 1}, "other": {"depth": 1}}, s)
+        self.assertEqual(g.depth, 5)
+        self.assertFalse(g.enabled)
+        self.assertEqual(g.diameter, s.tools.bit_in(66).diameter)
+        self.assertEqual(g.direction, s.pockets.direction)
+        self.assertTrue(effective("none", {}, s).enabled)
+
+    def test_effective_reads_the_bit(self):
+        s = Settings()
+        g = effective("k", {}, s)
+        self.assertEqual((g.diameter, g.depth_per_pass, g.stepover_pct), (8, 9, 40))
+        self.assertEqual((g.spindle_rpm, g.plunge_feed, g.cut_feed), (18000, 1, 3))
+        put_bit(s, 65, diameter=18)
+        self.assertEqual(effective("k", {"k": {"tool": 65}}, s).diameter, 18)
+        # the old per-group numbers are not applied any more
+        g = effective("k", {"k": {"diameter": 12, "stepover_pct": 50}}, s)
+        self.assertEqual((g.diameter, g.stepover_pct), (8, 40))
+
+    def test_enabled_group_with_bad_head_is_a_head_error(self):
+        s = Settings()                                  # T65 is empty
+        with self.assertRaises(HeadError) as cm:
+            effective("k", {"k": {"tool": 65}}, s, who="pocket group G1")
+        self.assertEqual(cm.exception.message, "pocket group G1: head T65 holds no bit")
+        with self.assertRaisesRegex(HeadError, "pocket group: head T7 cannot be used"):
+            effective("k", {"k": {"tool": 7}}, s)
+        # switched off: never an error; the bit when the head resolves, else None
+        empty = effective("k", {"k": {"tool": 65, "enabled": False}}, s)
+        self.assertIsNone(empty.bit)
+        self.assertIsNone(empty.diameter)
+        self.assertEqual(effective("k", {"k": {"enabled": False}}, s).bit, s.tools.bit_in(66))
 
     def test_invalid_value(self):
         with self.assertRaisesRegex(ValueError, "depth"):
-            effective("k", {"k": {"depth": "abc"}}, Pockets())
+            effective("k", {"k": {"depth": "abc"}}, Settings())
 
     def test_rejections_name_the_field(self):
         inf, nan = float("inf"), float("nan")
         cases = [("depth", nan), ("depth", inf), ("depth", -inf), ("depth", -1), ("depth", 0),
-                 ("diameter", 0), ("plunge_feed", -2), ("cut_feed", 0), ("spindle_rpm", -1),
-                 ("depth_per_pass", 0), ("stepover_pct", 0), ("stepover_pct", 100.5),
-                 ("stepover_pct", 1e-9), ("stepover_pct", 0.4), ("stepover_pct", 9.99),
-                 ("stepover_pct", nan), ("direction", "up"), ("direction", 1),
+                 ("direction", "up"), ("direction", 1),
                  ("depth", "5"), ("depth", True), ("depth", None), ("tool", 2.5), ("tool", 0),
                  ("tool", inf), ("tool", 10 ** 400), ("tool", "2"), ("tool", True),
                  ("enabled", 1), ("enabled", "yes")]
         for name, v in cases:
             with self.subTest(name=name, v=v):
                 with self.assertRaisesRegex(ValueError, name):
-                    effective("k", {"k": {name: v}}, Pockets())
+                    effective("k", {"k": {name: v}}, Settings())
+
+    def test_obsolete_fields_are_ignored_whatever_their_value(self):
+        s = Settings()
+        for name in ("diameter", "depth_per_pass", "plunge_feed", "cut_feed", "spindle_rpm",
+                     "stepover_pct"):
+            with self.subTest(name=name):
+                g = effective("k", {"k": {name: "bad"}}, s)
+                self.assertEqual(g.bit, s.tools.bit_in(66))
 
     def test_accepted_values(self):
-        s = effective("k", {"k": {"tool": 2.0, "stepover_pct": 100, "direction": "ccw",
-                                  "depth": 3, "enabled": False}}, Pockets())
-        self.assertEqual(s.tool, 2)
-        self.assertIsInstance(s.tool, int)
-        self.assertEqual(s.stepover_pct, 100)
-        self.assertEqual(s.direction, "ccw")
-        self.assertEqual(s.depth, 3)
+        s = Settings()
+        g = effective("k", {"k": {"tool": 66.0, "direction": "ccw", "depth": 3,
+                                  "enabled": False}}, s)
+        self.assertEqual(g.tool, 66)
+        self.assertIsInstance(g.tool, int)
+        self.assertEqual(g.direction, "ccw")
+        self.assertEqual(g.depth, 3)
 
     def test_missing_and_odd_overrides(self):
-        d = Pockets()
-        self.assertEqual(effective("k", {"k": None}, d).depth, d.depth)
-        self.assertEqual(effective("k", {"k": {}}, d).tool, d.tool)
+        s = Settings()
+        self.assertEqual(effective("k", {"k": None}, s).depth, s.pockets.depth)
+        self.assertEqual(effective("k", {"k": {}}, s).tool, s.pockets.tool)
         with self.assertRaises(ValueError):
-            effective("k", {"k": [1]}, d)
+            effective("k", {"k": [1]}, s)
 
 
 def slot_outline(x0, y0, length, width=20.0):

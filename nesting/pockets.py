@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import math
 import threading
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 
 from .dxf import Pocket, Shape, _inside
 from .geometry import (Arc, Line, OffsetError, Pt, Seg, bbox, distance_to_chain, offset_outline,
                        sample, split_large_arcs)
-from .settings import MIN_STEPOVER_PCT, Pockets
+from .settings import Pockets, Settings
+from .tools import Bit, HeadError
 
 # Distinct from the page colours (blank tan, shape blue, holes red, saw cut black, green/amber UI).
 PALETTE = ["#00897b", "#8e24aa", "#f57c00", "#d81b60", "#00bcd4",
@@ -114,38 +115,83 @@ def find_groups(shapes: list[Shape]) -> list[PocketGroup]:
     return groups
 
 
+# The fields a group's override may set; anything else (such as the old per-group diameter,
+# speeds and feeds, now on the bit) is ignored.
+GROUP_FIELDS = ("enabled", "tool", "depth", "direction")
+
+
 @dataclass
 class GroupSettings:
+    """A pocket group's settings: the head it cuts with and the bit in that head (None for a
+    switched-off group whose head does not resolve). Diameter, speeds and feeds are the bit's."""
     enabled: bool
     tool: int
-    diameter: float
     depth: float
-    depth_per_pass: float
-    plunge_feed: float
-    cut_feed: float
-    spindle_rpm: float
-    stepover_pct: float
     direction: str
+    bit: Bit | None
+
+    def _of_bit(self, name: str):
+        return None if self.bit is None else getattr(self.bit, name)
+
+    @property
+    def diameter(self):
+        return self._of_bit("diameter")
+
+    @property
+    def depth_per_pass(self):
+        return self._of_bit("depth_per_pass")
+
+    @property
+    def plunge_feed(self):
+        return self._of_bit("plunge_feed")
+
+    @property
+    def cut_feed(self):
+        return self._of_bit("cut_feed")
+
+    @property
+    def spindle_rpm(self):
+        return self._of_bit("spindle_rpm")
+
+    @property
+    def stepover_pct(self):
+        return self._of_bit("stepover_pct")
 
 
-def effective(group_key: str, overrides: dict, defaults: Pockets) -> GroupSettings:
-    """Defaults merged with overrides[group_key]; unknown fields ignored.
+def merged(group_key: str, overrides: dict, defaults: Pockets) -> dict:
+    """enabled, tool, depth and direction of a group: the defaults merged with
+    overrides[group_key]; other fields ignored. No head is resolved.
 
     Override values must be real numbers (no strings, no bool) except `enabled` (bool) and
     `direction` ('cw'/'ccw'); anything else raises ValueError naming the field.
     """
-    vals = {f.name: getattr(defaults, f.name) for f in fields(GroupSettings)
-            if hasattr(defaults, f.name)}
-    vals["enabled"] = True
+    vals = {"enabled": True, "tool": defaults.tool, "depth": defaults.depth,
+            "direction": defaults.direction}
     ov = overrides.get(group_key)
     if ov is None:
         ov = {}
     if not isinstance(ov, dict):
         raise ValueError(f"invalid overrides for group {group_key!r}")
     for name, v in ov.items():
-        if name in vals:
+        if name in GROUP_FIELDS:
             vals[name] = _coerce(name, v)
-    return GroupSettings(**vals)
+    return vals
+
+
+def effective(group_key: str, overrides: dict, settings: Settings,
+              who: str = "pocket group") -> GroupSettings:
+    """A group's settings (merged) and the bit in its head. An enabled group whose head does
+    not resolve to a router bit raises HeadError ("<who>: head T65 holds no bit"; field
+    pockets.tool); a switched-off group gets bit None instead, never an error. A bad override
+    value raises ValueError naming the field."""
+    vals = merged(group_key, overrides, settings.pockets)
+    try:
+        bit = settings.tools.resolve(vals["tool"], who, "pockets.tool", "router")
+    except HeadError:
+        if vals["enabled"]:
+            raise
+        bit = None
+    return GroupSettings(bit=bit, **vals)
 
 
 def _coerce(name: str, v):
@@ -167,8 +213,6 @@ def _coerce(name: str, v):
             if v != int(v):
                 raise bad
             return int(v)
-        if name == "stepover_pct" and not MIN_STEPOVER_PCT <= v <= 100:
-            raise bad
     except OverflowError:
         raise bad from None
     return float(v)

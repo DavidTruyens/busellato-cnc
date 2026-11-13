@@ -17,10 +17,11 @@ import re
 from .backends import BACKENDS
 from .geometry import Arc, Line, _sweep, bbox, translate
 from .layout import Blank, PanelPlan, Plan, SawCut, footprint, to_panel
-from .pockets import PocketGroup, effective, find_groups, group_for
+from .pockets import GroupSettings, PocketGroup, effective, find_groups, group_for, merged
 from .program import (LINE_WARNING, ContourOp, DrillOp, Program, base_label, plan_shapes,
                       segs_to_program, stack_top, to_program, y_flipped)
 from .settings import Settings
+from .tools import HeadError
 
 BACKEND = 'cnc90'
 TOL = 0.001
@@ -80,19 +81,20 @@ def _program_entry(p: Program, settings: Settings) -> dict:
     warnings = list(p.warnings)
     if lines > LINE_WARNING and not any('lines' in w for w in warnings):
         warnings.append(f'{lines} lines, more than {LINE_WARNING}')
-    return {'name': p.name, 'tool': p.tool, 'tools': p.tools, 'kind': p.kind,
+    return {'name': p.name, 'tool': p.tool, 'tools': p.tools,
+            'tool_labels': [settings.tools.label(t) for t in p.tools], 'kind': p.kind,
             'description': p.description, 'ops': len(p.ops), 'lines': lines, 'warnings': warnings}
 
 
 def _drill_tools(fix_ops, screw_ops, tool_of, settings: Settings) -> list[dict]:
     """Per hole kind of the blank's drill program: tool, diameter and feed (the last two from
-    the settings: the emitter writes neither), hole count and depth."""
+    the bit in the head: the emitter writes neither), hole count and depth."""
     out = []
-    for what, ops, cfg in (('fixing', fix_ops, settings.drill_fix),
-                           ('screw', screw_ops, settings.drill_screw)):
+    for what, ops, b in (('fixing', fix_ops, settings.fix_bit),
+                         ('screw', screw_ops, settings.screw_bit)):
         if ops:
             out.append({'holes': what, 'count': len(ops), 'tool': tool_of(ops[0]),
-                        'diameter': cfg.diameter, 'feed': cfg.feed, 'depth': ops[0].depth})
+                        'label': settings.tools.label(tool_of(ops[0])), 'diameter': b.diameter, 'feed': b.plunge_feed, 'depth': ops[0].depth})
     return out
 
 
@@ -117,9 +119,12 @@ def _pocket_rings(mine: list[Program], colors: dict, flip: float | None) -> list
 def pocket_groups_data(plan: Plan, settings: Settings,
                        pocket_overrides: dict | None = None,
                        groups: list[PocketGroup] | None = None) -> list[dict]:
-    """The plan's pocket groups with their effective settings (defaults + overrides), for the
-    UI and the run sheet. count is the number of pockets on the plan, copies included. A group
-    whose override is invalid gets enabled False, the default settings and an `error`.
+    """The plan's pocket groups with their effective settings (defaults + overrides) and the
+    bit in their head, for the UI and the run sheet. count is the number of pockets on the
+    plan, copies included. bit: {'id', 'name'} or None; head_label: 'T66 Router 8' or
+    'T65 (empty)'. A group whose override is invalid, or which is switched on and whose head
+    holds no router bit, gets enabled False, an `error` and no bit (diameter, speeds and feeds
+    None); an invalid override also falls back to the default head, depth and direction.
     groups: the project's groups (ids and colours over every shape of the project); only
     those with a pocket on the plan are listed. None: found over the plan's shapes."""
     given = groups is not None
@@ -137,17 +142,24 @@ def pocket_groups_data(plan: Plan, settings: Settings,
         if given and not counts[g.id]:
             continue
         error = None
+        overrides = pocket_overrides or {}
         try:
-            gs = effective(g.key, pocket_overrides or {}, settings.pockets)
+            gs = effective(g.key, overrides, settings, who=f'pocket group {g.id}')
+        except HeadError as e:
+            gs = GroupSettings(bit=None, **merged(g.key, overrides, settings.pockets))
+            error = e.message
         except ValueError as e:
-            gs = effective(g.key, {}, settings.pockets)
-            gs.enabled = False
+            gs = GroupSettings(bit=None, **merged(g.key, {}, settings.pockets))
             error = f'pocket group {g.id}: {e}'
+        if error:
+            gs.enabled = False
         d = {'id': g.id, 'key': g.key, 'width': g.width, 'height': g.height, 'kind': g.kind,
              'count': counts[g.id], 'color': g.color, 'enabled': gs.enabled, 'tool': gs.tool,
              'diameter': gs.diameter, 'depth': gs.depth, 'depth_per_pass': gs.depth_per_pass,
              'plunge_feed': gs.plunge_feed, 'cut_feed': gs.cut_feed,
-             'stepover_pct': gs.stepover_pct, 'direction': gs.direction}
+             'stepover_pct': gs.stepover_pct, 'direction': gs.direction,
+             'bit': None if gs.bit is None else {'id': gs.bit.id, 'name': gs.bit.name},
+             'head_label': settings.tools.label(gs.tool)}
         if error:
             d['error'] = error
         out.append(d)

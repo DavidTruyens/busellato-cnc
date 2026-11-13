@@ -1,6 +1,8 @@
 import unittest
 
+from helpers import put_bit
 from nesting.settings import Settings, SettingsError
+from nesting.tools import HeadError
 
 
 def _set(s, path, value):
@@ -17,17 +19,84 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(Settings.from_dict(s.to_dict()), s)
 
     def test_missing_keys_default(self):
-        s = Settings.from_dict({"router": {"diameter": 12}, "bogus": 1})
-        self.assertEqual(s.router.diameter, 12)
+        s = Settings.from_dict({"router": {"clearance": 5}, "bogus": 1})
+        self.assertEqual(s.router.clearance, 5)
         self.assertEqual(s.router.tool, 66)
         self.assertEqual(s.panel.length, 2440)
         self.assertEqual(Settings.from_dict({}), Settings.default())
 
-    def test_gap_is_diameter_plus_clearance(self):
+    def test_gap_follows_the_bit(self):
         s = Settings.default()
         self.assertEqual(s.gap, 12)
-        s.router.diameter = 12
+        put_bit(s, 66, diameter=12)
         self.assertEqual(s.gap, 16)
+
+    def test_settings_carry_the_default_table(self):
+        s = Settings()
+        self.assertEqual(s.router_bit.diameter, 8)
+        self.assertEqual(s.router_bit.depth_per_pass, 9)
+        self.assertEqual(s.fix_bit.diameter, 6)
+        self.assertEqual(s.screw_bit.diameter, 3)
+        d = Settings().to_dict()
+        self.assertNotIn("tools", d)
+        self.assertNotIn("diameter", d["router"])
+        for section in ("drill_fix", "drill_screw"):
+            self.assertNotIn("diameter", d[section])
+            self.assertNotIn("feed", d[section])
+
+    def test_from_dict_takes_a_table(self):
+        s = Settings()
+        put_bit(s, 66, diameter=10)
+        t = Settings.from_dict({"router": {"clearance": 2}}, s.tools)
+        self.assertEqual((t.router_bit.diameter, t.gap), (10, 12))
+        self.assertEqual(Settings.from_dict({}, None).router_bit.diameter, 8)
+
+    def test_old_router_fields_are_ignored(self):
+        s = Settings.from_dict({"router": {"diameter": 12, "tool": 66}})
+        self.assertEqual(s.router_bit.diameter, 8)     # the table, not the old field
+        s = Settings.from_dict({"tools": {"bits": [], "heads": {}}})
+        self.assertEqual(s.tools, Settings.default().tools)    # the table is passed apart
+
+    def test_router_head_errors(self):
+        s = Settings.default()
+        s.router.tool = 65
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "router.tool")
+        self.assertEqual(cm.exception.message, "router: head T65 holds no bit")
+        s = Settings.default()
+        s.drill_fix.tool = 60
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "drill_fix.tool")
+        self.assertIn("programs do not use T60", cm.exception.message)
+        self.assertIn("fixing drill", cm.exception.message)
+        s = Settings.default()
+        s.drill_screw.tool = 66
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "drill_screw.tool")
+        self.assertIn("screw drill", cm.exception.message)
+        s = Settings.default()
+        s.pockets.tool = 1
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "pockets.tool")
+        self.assertIn("T1", cm.exception.message)
+        self.assertIn("T65 or T66", cm.exception.message)
+
+    def test_empty_pocket_default_head_is_not_an_error_here(self):
+        # R2: only the head number is checked; that it holds a bit counts when a pocket uses it
+        s = Settings.default()
+        s.pockets.tool = 65
+        s.validate()
+
+    def test_validate_checks_the_table(self):
+        s = Settings.default()
+        s.tools.bit("b1").diameter = 0
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "tools.bits.b1.diameter")
 
     def test_defaults_validate(self):
         Settings.default().validate()
@@ -53,14 +122,14 @@ class SettingsTests(unittest.TestCase):
                     with self.assertRaises(SettingsError) as cm:
                         s.validate()
                     self.assertEqual(cm.exception.field, field)
-            s = Settings.default()
-            _set(s, field, 7)
+            s = Settings.default()          # another whole number of an allowed head
+            head = 65 if field == "router.tool" else 7
+            put_bit(s, head)
+            _set(s, field, head)
             s.validate()
 
     def test_rejected(self):
         cases = [
-            ("router.depth_per_pass", 0),
-            ("router.diameter", 0),
             ("heights.scrap", -1),
             ("origin", "G56"),
             ("blank.group_by", "x"),
@@ -78,7 +147,7 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(cm.exception.field, field)
 
     def test_non_finite_numbers_rejected(self):
-        fields = ["router.cut_feed", "panel.length", "heights.into_scrap",
+        fields = ["panel.length", "heights.into_scrap",
                   "drill_screw.depth", "router.clearance", "machine.frame_x",
                   "machine.frame_y", "panel.kerf", "panel.edge", "panel.thickness"]
         for field in fields:
@@ -206,11 +275,15 @@ class PocketSettingsTests(unittest.TestCase):
     def test_pockets_defaults_present(self):
         s = Settings.default()
         p = s.pockets
-        self.assertEqual((p.min_circle_diameter, p.min_floor, p.tool, p.diameter),
-                         (8, 2, 66, 8))
-        self.assertEqual((p.depth, p.depth_per_pass, p.plunge_feed, p.cut_feed),
-                         (8, 4, 1, 3))
-        self.assertEqual((p.spindle_rpm, p.stepover_pct, p.direction), (18000, 40, "cw"))
+        self.assertEqual((p.min_circle_diameter, p.min_floor, p.tool, p.depth, p.direction),
+                         (8, 2, 66, 8, "cw"))
+        self.assertEqual(set(s.to_dict()["pockets"]),
+                         {"min_circle_diameter", "min_floor", "tool", "depth", "direction"})
+        # diameter, speeds, feeds, depth per pass and stepover are the bit's in T66 (R4: the
+        # router's 9 mm per pass, not the old pocket default's 4)
+        b = s.tools.bit_in(p.tool)
+        self.assertEqual((b.diameter, b.depth_per_pass, b.plunge_feed, b.cut_feed,
+                          b.spindle_rpm, b.stepover_pct), (8, 9, 1, 3, 18000, 40))
         self.assertEqual(s.to_dict()["pockets"]["tool"], 66)
         self.assertEqual(Settings.from_dict(s.to_dict()), s)
         s.validate()
@@ -230,21 +303,23 @@ class PocketSettingsTests(unittest.TestCase):
         s.validate()
 
     def test_stepover_out_of_range(self):
+        # the stepover is the bit's: checked with the tool table
         for value in (0, -5, 100.5, float("nan"), "40", True, 1e-9, 0.4, 9.99):
             with self.subTest(value=value):
                 s = Settings.default()
-                s.pockets.stepover_pct = value
+                bit = s.tools.bit_in(s.pockets.tool)
+                bit.stepover_pct = value
                 with self.assertRaises(SettingsError) as cm:
                     s.validate()
-                self.assertEqual(cm.exception.field, "pockets.stepover_pct")
+                self.assertEqual(cm.exception.field, f"tools.bits.{bit.id}.stepover_pct")
         for value in (10, 100):
             s = Settings.default()
-            s.pockets.stepover_pct = value
+            s.tools.bit_in(s.pockets.tool).stepover_pct = value
             s.validate()
 
     def test_stepover_message_names_the_range(self):
         s = Settings.default()
-        s.pockets.stepover_pct = 0.4
+        s.tools.bit_in(s.pockets.tool).stepover_pct = 0.4
         with self.assertRaises(SettingsError) as cm:
             s.validate()
         self.assertIn("between 10 and 100", cm.exception.message)
@@ -259,8 +334,7 @@ class PocketSettingsTests(unittest.TestCase):
                 self.assertEqual(cm.exception.field, "pockets.tool")
 
     def test_pocket_numbers_and_direction_checked(self):
-        for field in ("min_circle_diameter", "diameter", "depth", "depth_per_pass",
-                      "plunge_feed", "cut_feed", "spindle_rpm", "min_floor"):
+        for field in ("min_circle_diameter", "depth", "min_floor"):
             for value in (0, -1, float("inf"), "8"):
                 with self.subTest(field=field, value=value):
                     s = Settings.default()
@@ -278,8 +352,15 @@ class PocketSettingsTests(unittest.TestCase):
         s = Settings.from_dict({"pockets": {"tool": 5}})
         self.assertEqual(s.pockets.tool, 5)
         d = Settings.default().pockets
-        self.assertEqual(s.pockets.diameter, d.diameter)
-        self.assertEqual(s.pockets.stepover_pct, d.stepover_pct)
+        self.assertEqual((s.pockets.depth, s.pockets.direction), (d.depth, d.direction))
+
+    def test_old_pocket_numbers_are_ignored(self):
+        old = {"pockets": {"diameter": 12, "depth_per_pass": 4, "plunge_feed": 2, "cut_feed": 5,
+                           "spindle_rpm": 12000, "stepover_pct": 0.4}}
+        s = Settings.from_dict(old)
+        self.assertEqual(s.pockets, Settings.default().pockets)
+        self.assertNotIn("diameter", s.to_dict()["pockets"])
+        s.validate()
 
 
 if __name__ == "__main__":

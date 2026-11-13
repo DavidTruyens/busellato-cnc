@@ -8,6 +8,7 @@ from nesting.layout import PanelPlan, Plan, footprint, to_panel
 from nesting.preview import _path, pocket_groups_data, preview_data
 from nesting.program import DrillOp, plan_programs
 from nesting.settings import Settings
+from helpers import put_bit
 from test_nesting_program import (by_name, hand_blank, plan_for, pocket_shape, rect, rect_loop,
                                   slot_loop)
 
@@ -52,6 +53,14 @@ def close(tc, a, b, ordered=False):
 
 
 class PreviewTests(unittest.TestCase):
+    def test_program_entries_name_the_bit(self):
+        plan, progs, s, data = build(rect('a', 1000, 230))
+        (b,) = data['blanks']
+        by = {p['name']: p for p in b['programs']}
+        self.assertEqual(by['B01C']['tool_labels'], ['T66 Router 8'])
+        self.assertEqual(by['B01D']['tool_labels'], ['T1 Drill 6', 'T2 Drill 3'])
+        self.assertEqual([t['label'] for t in b['drill_tools']], ['T1 Drill 6', 'T2 Drill 3'])
+
     def test_blank_holes_equal_drill_ops(self):
         # default y_toward 'front': the SVG numbers of the job view are the program numbers
         plan, progs, s, data = build(rect('a', 1000, 230), rect('b', 900, 200))
@@ -102,7 +111,7 @@ class PreviewTests(unittest.TestCase):
 
     def merged(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, progs, s, _ = build(rect('a', 1000, 230), settings=s)
         return plan, progs, s
 
@@ -281,15 +290,16 @@ class PreviewTests(unittest.TestCase):
 
     def test_drill_tools_per_hole_kind(self):
         s = Settings()
-        s.drill_fix.feed, s.drill_screw.feed = 2.5, 0.75
+        put_bit(s, 1, plunge_feed=2.5)
+        put_bit(s, 2, plunge_feed=0.75)
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         self.assertEqual(data['blanks'][0]['drill_tools'], [
-            {'holes': 'fixing', 'count': 4, 'tool': 1, 'diameter': 6, 'feed': 2.5, 'depth': 19},
-            {'holes': 'screw', 'count': 2, 'tool': 2, 'diameter': 3, 'feed': 0.75, 'depth': 26}])
+            {'holes': 'fixing', 'count': 4, 'tool': 1, 'label': 'T1 Drill 6', 'diameter': 6, 'feed': 2.5, 'depth': 19},
+            {'holes': 'screw', 'count': 2, 'tool': 2, 'label': 'T2 Drill 3', 'diameter': 3, 'feed': 0.75, 'depth': 26}])
 
     def test_one_drill_program_shows_both_hole_kinds_with_one_tool(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         b = data['blanks'][0]
         self.assertEqual([p['name'] for p in b['programs']], ['B01D', 'B01C'])
@@ -327,7 +337,15 @@ class PocketPreviewTests(unittest.TestCase):
         self.assertEqual((g1['id'], g1['width'], g1['height']), ('G1', 40, 30))
         self.assertEqual(set(g1), {'id', 'key', 'width', 'height', 'kind', 'count', 'color',
                                    'enabled', 'tool', 'diameter', 'depth', 'depth_per_pass',
-                                   'plunge_feed', 'cut_feed', 'stepover_pct', 'direction'})
+                                   'plunge_feed', 'cut_feed', 'stepover_pct', 'direction',
+                                   'bit', 'head_label'})
+        bit = s.tools.bit_in(s.pockets.tool)
+        self.assertEqual((g1['bit'], g1['head_label']),
+                         ({'id': bit.id, 'name': bit.name}, f'T{s.pockets.tool} {bit.name}'))
+        self.assertEqual((g1['diameter'], g1['depth_per_pass'], g1['plunge_feed'],
+                          g1['cut_feed'], g1['stepover_pct']),
+                         (bit.diameter, bit.depth_per_pass, bit.plunge_feed, bit.cut_feed,
+                          bit.stepover_pct))
         self.assertEqual([p['name'] for p in data['blanks'][0]['programs']],
                          ['B01D', 'B01P', 'B01C'])
         self.assertEqual(data['blanks'][0]['programs'][1]['tools'], [s.pockets.tool])
@@ -350,6 +368,13 @@ class PocketPreviewTests(unittest.TestCase):
         key = pocket_groups_data(plan, s)[0]['key']
         g = pocket_groups_data(plan, s, {key: {'depth': 5, 'tool': 9, 'enabled': False}})[0]
         self.assertEqual((g['count'], g['depth'], g['tool'], g['enabled']), (3, 5, 9, False))
+        # switched off on a head that cannot hold a router bit: no bit, no numbers, no error
+        self.assertEqual((g['bit'], g['diameter'], g['head_label']), (None, None, 'T9 (empty)'))
+        self.assertNotIn('error', g)
+        bit = put_bit(s, 65, diameter=12)
+        g = pocket_groups_data(plan, s, {key: {'tool': 65}})[0]
+        self.assertEqual((g['bit'], g['diameter'], g['head_label'], g['enabled']),
+                         ({'id': bit.id, 'name': 'Router 12'}, 12, 'T65 Router 12', True))
 
     def test_bad_override_does_not_crash(self):
         plan, s = self.pocket_plan()
@@ -359,9 +384,20 @@ class PocketPreviewTests(unittest.TestCase):
         g = data['pocket_groups'][0]
         self.assertFalse(g['enabled'])
         self.assertEqual(g['depth'], s.pockets.depth)
+        self.assertEqual((g['bit'], g['diameter'], g['stepover_pct']), (None, None, None))
         self.assertIn('depth', g['error'])
+        self.assertTrue(g['error'].startswith('pocket group G1: '), g['error'])
         self.assertIn(g['error'], data['problems'])
         self.assertNotIn('error', data['pocket_groups'][1])
+
+    def test_enabled_group_on_an_empty_head_is_switched_off_with_an_error(self):
+        plan, s = self.pocket_plan()
+        key = pocket_groups_data(plan, s)[0]['key']
+        g = pocket_groups_data(plan, s, {key: {'tool': 65}})[0]
+        self.assertFalse(g['enabled'])
+        self.assertEqual(g['error'], 'pocket group G1: head T65 holds no bit')
+        self.assertEqual((g['tool'], g['bit'], g['diameter'], g['head_label']),
+                         (65, None, None, 'T65 (empty)'))
 
     def test_no_pockets(self):
         plan, progs, s, data = build(rect('a', 1000, 230))

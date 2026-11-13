@@ -30,6 +30,7 @@ from .layout import Blank, Plan
 from .pockets import (PocketError, PocketGroup, effective, find_groups, group_for,
                       memo_pocket_rings)
 from .settings import Settings
+from .tools import HeadError
 
 LINE_WARNING = 250
 KINDS = ('D', 'P', 'C')         # drill (fixing + screw holes, any tools), pockets, cut
@@ -139,9 +140,9 @@ def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
     """Tool-centre path of a layout-frame outline, still in the layout frame. The direction
     setting is the sense seen from above, which is the mathematical sense in the y-up layout
     frame; the offset is outward there."""
-    r = settings.router
-    ccw = r.direction == 'ccw'
-    out = offset_outline(set_direction(segs, ccw), r.diameter / 2, outward=True)
+    ccw = settings.router.direction == 'ccw'
+    out = offset_outline(set_direction(segs, ccw), settings.router_bit.diameter / 2,
+                         outward=True)
     return split_large_arcs(set_direction(out, ccw))
 
 
@@ -179,7 +180,7 @@ def _finish(p: Program, blank: Blank, settings: Settings, radius: float | None =
     """Depth check (hard), cutter-outside-blank and line-count warnings. `radius` is the
     largest cutter radius of the program's contours (default: the outline router's)."""
     check_depths(p)
-    r = settings.router.diameter / 2 if radius is None else radius
+    r = settings.router_bit.diameter / 2 if radius is None else radius
     outside = _outside_blank(p, blank, r)
     if outside:
         p.warnings.append(outside)
@@ -198,7 +199,7 @@ def base_label(label: str) -> str:
 def _pass_ops(segs: list[Seg], label: str, start: float, material: float,
               settings: Settings) -> list[ContourOp]:
     """One ContourOp per pass; passes are counted over the material only."""
-    n = pass_count(material, settings.router.depth_per_pass)
+    n = pass_count(material, settings.router_bit.depth_per_pass)
     return [ContourOp(segs, start + material * k / n, f'{label} pass {k}/{n}')
             for k in range(1, n + 1)]
 
@@ -283,7 +284,9 @@ def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
                                    f'(internal error: groups not computed over this shape)')
             if g.id not in found:
                 try:
-                    gs = effective(g.key, overrides, settings.pockets)
+                    gs = effective(g.key, overrides, settings, who=f'pocket group {g.id}')
+                except HeadError as e:
+                    raise ProgramError(e.message) from e
                 except ValueError as e:
                     raise ValueError(f'pocket group {g.id}: {e}') from e
                 found[g.id] = (g, gs, [])
@@ -362,24 +365,26 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
                    _rings: dict | None = None) -> list[Program]:
     """Drill, pocket and cut programs of one blank, in the program frame (see the module doc).
 
-    pocket_overrides: per pocket group key, the settings that differ from settings.pockets.
+    pocket_overrides: per pocket group key, the settings that differ from settings.pockets
+    (enabled, tool, depth, direction; the rest come from the bit in the group's head).
     groups: the plan's or the project's pocket groups (plan_programs passes them, so a group
     has one id and key over the whole plan); None computes them from this blank's shapes alone.
     _rings: a cache of pocket rings that plan_programs shares between the blanks.
     """
-    h, r = settings.heights, settings.router
+    h, r, rbit = settings.heights, settings.router, settings.router_bit
     fix, screw = settings.drill_fix, settings.drill_screw
+    fix_bit, screw_bit = settings.fix_bit, settings.screw_bit
     thick = settings.panel.thickness
     top = stack_top(settings)
     stock = (blank.width, blank.height, top)
 
     fix_depth = thick + h.fix_into_scrap          # through the blank, into the scrap
     screw_depth = thick + screw.depth
-    def drill_op(o, depth, d):
-        return DrillOp(*to_program(blank, settings, o.x, o.y), depth, d.diameter, d.tool)
+    def drill_op(o, depth, d, bit):
+        return DrillOp(*to_program(blank, settings, o.x, o.y), depth, bit.diameter, d.tool)
 
-    fix_ops = [drill_op(o, fix_depth, fix) for o in blank.fix_holes]
-    screw_ops = [drill_op(o, screw_depth, screw) for o in blank.screw_holes]
+    fix_ops = [drill_op(o, fix_depth, fix, fix_bit) for o in blank.fix_holes]
+    screw_ops = [drill_op(o, screw_depth, screw, screw_bit) for o in blank.screw_holes]
     cuts: list[ContourOp] = []
     for ps in blank.shapes:
         label = f'{blank.id} {ps.name} #{ps.copy}'
@@ -406,56 +411,36 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
         # own tool, like many of the machine's own programs. Feeds are not written (the
         # control uses each tool's own feed); plunge/cut feed only fill the record.
         progs.append(Program(program_name(blank.id, 'D'), drills[0].tool, 'drill', desc, stock,
-                             drills, None, fix.feed, fix.feed, blank=blank.id))
+                             drills, None, fix_bit.plunge_feed, fix_bit.plunge_feed,
+                             blank=blank.id))
     if pocket:
         progs.append(pocket[0])
         radius[pocket[0].name] = pocket[1]
     if cuts:
         progs.append(Program(program_name(blank.id, 'C'), r.tool, 'cut', 'Shape outlines',
-                             stock, cuts, int(r.spindle_rpm), r.plunge_feed, r.cut_feed,
-                             blank=blank.id))
+                             stock, cuts, int(rbit.spindle_rpm), rbit.plunge_feed,
+                             rbit.cut_feed, blank=blank.id))
     return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
-def tool_diameter_conflict(settings: Settings, overrides: dict, groups: list[PocketGroup],
-                           shapes: list[Shape]) -> tuple[str, str] | None:
-    """(message, settings field) when one tool number is given two diameters, else None.
-
-    A physical tool has one diameter: the router, both drills and every switched-on pocket
-    group that has a pocket on `shapes` (with its effective tool and diameter, so the pocket
-    defaults count only when a group uses them) must agree. The field is the one to fix: the
-    second user's diameter (a group's own, or the pocket default when the group has no tool or
-    diameter of its own). A bad override raises ValueError naming the group.
-    """
-    users: list[tuple[int, float, str, str]] = [
-        (settings.router.tool, settings.router.diameter, 'router', 'router.diameter'),
-        (settings.drill_fix.tool, settings.drill_fix.diameter, 'fixing drill',
-         'drill_fix.diameter'),
-        (settings.drill_screw.tool, settings.drill_screw.diameter, 'screw drill',
-         'drill_screw.diameter')]
+def check_pocket_heads(settings: Settings, overrides: dict, groups: list[PocketGroup],
+                       shapes: list[Shape]) -> tuple[str, str] | None:
+    """(message, settings field) for the first switched-on pocket group with a pocket on
+    `shapes` whose head does not hold a router bit, else None. The field is the one to fix:
+    pockets.<id>.tool when the group names its own head, else pockets.tool (the default head).
+    A group with no pocket on `shapes`, or switched off, is not checked (R2). A bad override
+    raises ValueError naming the group."""
     used = {g.id for sh in shapes for pk in sh.pockets if (g := group_for(pk, groups))}
     for g in groups:
         if g.id not in used:
             continue
         try:
-            gs = effective(g.key, overrides, settings.pockets)
+            effective(g.key, overrides, settings, who=f'pocket group {g.id}')
+        except HeadError as e:
+            own = overrides.get(g.key) or {}
+            return e.message, (f'pockets.{g.id}.tool' if 'tool' in own else 'pockets.tool')
         except ValueError as e:
             raise ValueError(f'pocket group {g.id}: {e}') from e
-        if not gs.enabled:
-            continue
-        own = overrides.get(g.key) or {}
-        field = (f'pockets.{g.id}.diameter' if 'tool' in own or 'diameter' in own
-                 else 'pockets.diameter')
-        users.append((gs.tool, gs.diameter, f'pocket group {g.id}', field))
-    first: dict[int, tuple[float, str]] = {}
-    for tool, dia, who, field in users:
-        if tool not in first:
-            first[tool] = (dia, who)
-            continue
-        dia0, who0 = first[tool]
-        if abs(dia - dia0) > 1e-9:
-            return (f'tool T{tool} is used with diameters {dia0:g} and {dia:g} mm ({who0}, '
-                    f'{who}); one tool number must have one diameter', field)
     return None
 
 
@@ -464,14 +449,15 @@ def plan_programs(plan: Plan, settings: Settings,
                   groups: list[PocketGroup] | None = None) -> list[Program]:
     """Every blank's programs. groups: the project's pocket groups (ids and colours over
     every shape of the project, switched off too, so they do not change when a shape is
-    switched off); None finds them once over every shape of the plan. One tool number with
-    two diameters (tool_diameter_conflict) is a ProgramError: nothing is planned."""
+    switched off); None finds them once over every shape of the plan. A switched-on pocket
+    group whose head holds no router bit (check_pocket_heads) is a ProgramError: nothing is
+    planned."""
     shapes = plan_shapes(plan)
     if groups is None:
         groups = find_groups(shapes)
-    conflict = tool_diameter_conflict(settings, pocket_overrides or {}, groups, shapes)
-    if conflict:
-        raise ProgramError(conflict[0])
+    bad = check_pocket_heads(settings, pocket_overrides or {}, groups, shapes)
+    if bad:
+        raise ProgramError(bad[0])
     rings: dict = {}
     progs = [p for b in plan.blanks
              for p in blank_programs(b, settings, pocket_overrides, groups, rings)]
