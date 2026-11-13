@@ -267,10 +267,6 @@ class ServerAutoStopTests(unittest.TestCase):
                 server.server_close()
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 class PingTests(unittest.TestCase):
     def serve(self, server):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -342,3 +338,33 @@ class PingTests(unittest.TestCase):
                     contextlib.redirect_stdout(out):
                 self.assertEqual(code, ping.main(['ping', '7']))
             self.assertEqual(text + '\n', out.getvalue())
+
+    def test_main_bad_port_exits_other(self):
+        for arg in ('abc', '99999', '0', '-1'):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                self.assertEqual(ping.OTHER, ping.main(['ping', arg]))
+            self.assertIn('usage', err.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ping.OTHER, ping.main(['ping']))
+
+    def test_main_crash_exits_other(self):
+        with mock.patch.object(ping, 'probe', side_effect=RuntimeError('x')), \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ping.OTHER, ping.main(['ping', '7']))
+
+    def test_probe_out_of_range_is_other(self):
+        self.assertEqual(ping.OTHER, ping.probe(99999))
+
+    def test_silent_listener_is_other(self):
+        s = socket.socket()
+        self.addCleanup(s.close)
+        s.bind(('127.0.0.1', 0))
+        s.listen(1)
+        start = time.monotonic()
+        self.assertEqual(ping.OTHER, ping.probe(s.getsockname()[1], 0.5))
+        self.assertLess(time.monotonic() - start, 2)
+
+
+if __name__ == '__main__':
+    unittest.main()
