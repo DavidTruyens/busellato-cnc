@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import threading
 from dataclasses import dataclass, field, fields
 
 from .dxf import Pocket, Shape, _inside
@@ -276,6 +277,43 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     raise PocketError("pocket cannot be cleared with this tool: material would be left "
                       "standing, for example where its inner offsets break into separate "
                       "islands")
+
+
+# Process-wide memo of pocket_rings results: the server plans again on every /api/plan, and
+# rings of a long pocket take about half a second. The key holds the exact numbers (no
+# tolerance), so a memo hit returns what pocket_rings would return for that very outline.
+RING_MEMO_SIZE = 256
+_RING_MEMO: dict[tuple, tuple] = {}
+_RING_MEMO_LOCK = threading.Lock()
+
+
+def _outline_key(outline: list[Seg]) -> tuple:
+    return tuple((type(s).__name__, _seg_nums(s), getattr(s, "ccw", None)) for s in outline)
+
+
+def memo_pocket_rings(outline: list[Seg], tool_diameter: float,
+                      stepover_pct: float) -> list[list[Seg]]:
+    """pocket_rings, remembered per (exact outline numbers, tool diameter, stepover).
+
+    Returns new lists on every call (the segments are immutable), so callers may change
+    them. At most RING_MEMO_SIZE entries, the oldest dropped first. PocketError is not
+    remembered. Thread safe; two threads missing at once may both compute the same rings.
+    """
+    key = (_outline_key(outline), float(tool_diameter), float(stepover_pct))
+    with _RING_MEMO_LOCK:
+        hit = _RING_MEMO.get(key)
+    if hit is None:
+        hit = tuple(tuple(r) for r in pocket_rings(outline, tool_diameter, stepover_pct))
+        with _RING_MEMO_LOCK:
+            _RING_MEMO[key] = hit
+            while len(_RING_MEMO) > RING_MEMO_SIZE:
+                del _RING_MEMO[next(iter(_RING_MEMO))]
+    return [list(r) for r in hit]
+
+
+def clear_ring_memo() -> None:
+    with _RING_MEMO_LOCK:
+        _RING_MEMO.clear()
 
 
 def _concave_rings(outline: list[Seg], wall: list[Seg], r: float, step: float,

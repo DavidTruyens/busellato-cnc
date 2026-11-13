@@ -28,7 +28,7 @@ from .geometry import (Arc, Line, OffsetError, Pt, Seg, bbox, distance_to_chain,
                        offset_outline, sample, set_direction, split_large_arcs, translate)
 from .layout import Blank, Plan
 from .pockets import (PocketError, PocketGroup, effective, find_groups, group_for,
-                      pocket_rings)
+                      memo_pocket_rings)
 from .settings import Settings
 
 LINE_WARNING = 250
@@ -306,14 +306,15 @@ def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
                                f'leaves less than the minimum floor {floor:g} mm of the '
                                f'{thick:g} mm blank (deepest allowed {thick - floor:g} mm)')
         # pocket_rings is slow on long pockets: computed once per group, tool diameter and
-        # stepover (rings_of is shared by the blanks of a plan). The group's pockets match its
+        # stepover (rings_of is shared by the blanks of a plan; memo_pocket_rings also
+        # remembers them between plans). The group's pockets match its
         # representative within 0.05 mm in their own shape's frame, so the representative's
         # rings, moved to each placed shape, serve every pocket of the group.
         key = (g.key, g.id, gs.diameter, gs.stepover_pct)
         if key not in rings_of:
             try:
-                rings_of[key] = pocket_rings(g.representative.outline, gs.diameter,
-                                             gs.stepover_pct)
+                rings_of[key] = memo_pocket_rings(g.representative.outline, gs.diameter,
+                                                  gs.stepover_pct)
             except PocketError as e:
                 raise PocketError(f'{blank.id} {ps0.name} {g.id} ({g.width:g} x {g.height:g} '
                                   f'pocket): {e}') from e

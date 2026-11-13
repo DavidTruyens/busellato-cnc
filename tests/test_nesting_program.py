@@ -2,11 +2,13 @@ import json
 import re
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from nesting.dxf import Hole, Pocket, Shape, read_dxf
 from nesting.geometry import Arc, Line, OffsetError, bbox, set_direction, split_large_arcs, translate
 from nesting.layout import Blank, PanelPlan, PlacedShape, Plan, ShapeEntry, build_plan
-from nesting.pockets import PocketError, find_groups, pocket_rings
+import nesting.pockets as pockets
+from nesting.pockets import PocketError, find_groups, memo_pocket_rings, pocket_rings
 from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, blank_programs,
                              check_depths, group_by_tool, pass_depths, plan_programs, stack_top)
 from nesting.settings import Settings
@@ -662,6 +664,65 @@ class PocketProgramTests(unittest.TestCase):
         labels = {o.label.split()[1]: o.label.split()[3]
                   for p in plan_programs(plan, s) if p.kind == 'pocket' for o in p.ops}
         self.assertEqual(labels, {'a': 'G1', 'b': 'G1', 'c': 'G2'})
+
+
+
+class RingMemoTests(unittest.TestCase):
+    """Process-wide memo of pocket rings: keyed on the exact segment numbers, tool diameter
+    and stepover, so a repeated plan (every /api/plan) does not recompute them."""
+
+    def setUp(self):
+        pockets.clear_ring_memo()
+        self.addCleanup(pockets.clear_ring_memo)
+
+    def test_same_numbers_give_the_same_rings(self):
+        outline = slot_loop(10, 10, 300, 20)
+        a = memo_pocket_rings(outline, 8, 40)
+        self.assertEqual(a, pocket_rings(outline, 8, 40))
+        a[0].clear()                                 # the caller's copy, not the memo's
+        with mock.patch.object(pockets, 'pocket_rings', side_effect=AssertionError('missed')):
+            # a new outline with the same numbers is a hit; the test's own name for
+            # pocket_rings is the real function, not the patched module attribute
+            self.assertEqual(memo_pocket_rings(slot_loop(10, 10, 300, 20), 8, 40),
+                             pocket_rings(outline, 8, 40))
+            for args in ((outline, 10, 40), (outline, 8, 30),
+                         (slot_loop(10, 10, 300 + 1e-9, 20), 8, 40)):   # exact: no tolerance
+                with self.assertRaises(AssertionError):
+                    memo_pocket_rings(*args)
+        self.assertNotEqual(memo_pocket_rings(outline, 10, 40), pocket_rings(outline, 8, 40))
+
+    def test_memo_is_bounded_oldest_first(self):
+        with mock.patch.object(pockets, 'RING_MEMO_SIZE', 3):
+            loops = [rect_loop(0, 0, 40 + i, 30) for i in range(4)]
+            for lp in loops:
+                memo_pocket_rings(lp, 8, 40)
+            self.assertEqual(len(pockets._RING_MEMO), 3)
+            with mock.patch.object(pockets, 'pocket_rings', side_effect=AssertionError('missed')):
+                for lp in loops[1:]:
+                    memo_pocket_rings(lp, 8, 40)
+                with self.assertRaises(AssertionError):      # the oldest was dropped
+                    memo_pocket_rings(loops[0], 8, 40)
+            self.assertEqual(len(pockets._RING_MEMO), 3)
+
+    def test_errors_are_not_memoised(self):
+        outline = rect_loop(0, 0, 5, 5)              # narrower than the tool
+        for _ in range(2):
+            with self.assertRaises(PocketError):
+                memo_pocket_rings(outline, 8, 40)
+        self.assertEqual(len(pockets._RING_MEMO), 0)
+
+    def test_second_plan_does_not_recompute_rings_and_diameter_still_counts(self):
+        plan, s = real_plan()
+        first = by_name(plan_programs(plan, s))
+        with mock.patch.object(pockets, 'pocket_rings', side_effect=AssertionError('recomputed')):
+            again = by_name(plan_programs(plan, s))
+            self.assertEqual(again['B01P'].ops, first['B01P'].ops)
+            s6 = Settings()
+            s6.pockets.diameter = 6
+            with self.assertRaises(AssertionError):
+                plan_programs(plan, s6)
+        other = by_name(plan_programs(plan, s6))
+        self.assertNotEqual(other['B01P'].ops, first['B01P'].ops)
 
 
 if __name__ == '__main__':
