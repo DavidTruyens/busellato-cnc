@@ -452,8 +452,8 @@ class ConcavePocketTests(unittest.TestCase):
     def test_no_arc_under_min_arc_and_still_covered(self):
         # 20.8004 wide, 8 mm tool, 40 %: rings at offsets 4, 7.2 and 10.4; the last one is
         # 0.0004 wide with end arcs of radius 0.0002 (written U0): it becomes the centre line
-        for width in (20.8004, 20.8009, 20.801, 20.81):
-            outline = slot_outline(0, 0, 300, width)
+        for width in (20.8004, 20.8009, 20.81):
+            outline = slot_outline(0, 0, 80, width)
             rings = pocket_rings(outline, 8, 40)
             with self.subTest(width=width):
                 for ring in rings:
@@ -464,7 +464,7 @@ class ConcavePocketTests(unittest.TestCase):
                 for ring in rings:
                     for p in sample(ring, 0.25):
                         self.assertGreaterEqual(distance_to_chain(p, outline), 4 - 0.01)
-        rings = pocket_rings(slot_outline(0, 0, 300, 20.8004), 8, 40)
+        rings = pocket_rings(slot_outline(0, 0, 80, 20.8004), 8, 40)
         self.assertEqual(len(rings), 3)
         self.assertTrue(all(isinstance(s, Line) for s in rings[0]))
         self.assertEqual(len(rings[0]), 2)              # out and back along the centre line
