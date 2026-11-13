@@ -1,0 +1,2 @@
+# Windows batch files in the repo root: CRLF in a Windows checkout (cmd.exe needs it).
+/*.bat text eol=crlf

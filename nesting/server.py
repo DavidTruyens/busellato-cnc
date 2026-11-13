@@ -1,6 +1,6 @@
 """Local web server: the page plus a small JSON API over one project folder.
 
-  python -m nesting [PROJECT_DIR] [--port N] [--seed-plates]
+  python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open]
 
 Run it from the busellato-cnc folder (on Windows `py -m nesting` also works).
 
@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -26,6 +27,7 @@ from urllib.parse import parse_qs, urlsplit
 from .backends import BACKENDS
 from .dxf import DxfError, Shape, read_dxf
 from .geometry import OffsetError
+from .importdisk import NAME as DISKETTE, size_warning
 from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
 from .preview import preview_data
@@ -284,8 +286,10 @@ class Project:
                 files = write_output(folder, plan, programs, settings, project)
             except FileExistsError:
                 continue
+            disk = folder / DISKETTE
             return {'folder': str(folder), 'files': [p.name for p in files],
-                    'programs': [p.name for p in programs], 'problems': problems}
+                    'programs': [p.name for p in programs], 'problems': problems,
+                    'diskette': str(disk), 'diskette_warning': size_warning(disk)}
         raise ApiError(500, {'error': f'no free output folder for {stamp}'})
 
 
@@ -407,6 +411,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument('--port', type=int, default=8765, help='port (default 8765)')
     ap.add_argument('--seed-plates', action='store_true',
                     help="copy plates/*.dxf into the project's shapes/ if that is empty")
+    ap.add_argument('--open', action='store_true',
+                    help='open the page in the default browser once the server listens')
     args = ap.parse_args(argv[1:])
     folder = Path(args.project_dir).resolve()
     (folder / 'shapes').mkdir(parents=True, exist_ok=True)
@@ -418,8 +424,10 @@ def main(argv: list[str]) -> int:
     except (OverflowError, OSError) as e:
         print(f'Cannot use port {args.port}: {e}', file=sys.stderr)
         return 1
-    print(f'Project {folder}\nOpen http://{HOST}:{server.server_address[1]}/  (Ctrl+C to stop)',
-          flush=True)
+    url = f'http://{HOST}:{server.server_address[1]}/'
+    print(f'Project {folder}\nOpen {url}  (Ctrl+C to stop)', flush=True)
+    if args.open:          # the socket is bound and listening: the request waits for serve_forever
+        threading.Timer(0.3, webbrowser.open, [url]).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
