@@ -1,9 +1,10 @@
 import math
+import time
 import unittest
 
 from nesting.dxf import Pocket, Shape, _inside, _round_pocket
 from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
-from nesting.pockets import (PALETTE, PocketError, effective, find_groups, group_for, group_key,
+from nesting.pockets import (MAX_RINGS, PALETTE, PocketError, effective, find_groups, group_for, group_key,
                              is_convex, pocket_rings)
 from nesting.settings import Pockets
 
@@ -129,6 +130,7 @@ class EffectiveTests(unittest.TestCase):
         cases = [("depth", nan), ("depth", inf), ("depth", -inf), ("depth", -1), ("depth", 0),
                  ("diameter", 0), ("plunge_feed", -2), ("cut_feed", 0), ("spindle_rpm", -1),
                  ("depth_per_pass", 0), ("stepover_pct", 0), ("stepover_pct", 100.5),
+                 ("stepover_pct", 1e-9), ("stepover_pct", 0.4), ("stepover_pct", 9.99),
                  ("stepover_pct", nan), ("direction", "up"), ("direction", 1),
                  ("depth", "5"), ("depth", True), ("depth", None), ("tool", 2.5), ("tool", 0),
                  ("tool", inf), ("tool", 10 ** 400), ("tool", "2"), ("tool", True),
@@ -446,6 +448,19 @@ class ConcavePocketTests(unittest.TestCase):
                     for p in sample(ring, 0.25):
                         self.assertGreaterEqual(distance_to_chain(p, outline), 4 - 0.01)
         self.assertGreater(returned, 0)  # some concave pockets are cleared, not all refused
+
+    def test_ring_count_is_capped(self):
+        # 10 % of a 1 mm tool is 0.1 mm: a 60 mm wide pocket would need about 300 rings
+        outline = rect_outline(0, 0, 200, 60)
+        t0 = time.monotonic()
+        with self.assertRaisesRegex(PocketError, f"more than {MAX_RINGS} rings"):
+            pocket_rings(outline, 1, 10)
+        with self.assertRaisesRegex(PocketError, f"more than {MAX_RINGS} rings"):
+            pocket_rings(_round_pocket(100, 100, 80).outline, 1, 10)
+        with self.assertRaisesRegex(PocketError, f"more than {MAX_RINGS} rings"):
+            pocket_rings(slot_outline(0, 0, 900, 20), 8, 1e-9)
+        self.assertLess(time.monotonic() - t0, 30)
+        self.assertEqual(MAX_RINGS, 200)
 
     def test_finger_narrower_than_tool_message(self):
         outline = poly_pocket([(0, 0), (100, 0), (100, 50), (52.5, 50), (52.5, 80),

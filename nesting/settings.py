@@ -4,6 +4,12 @@ import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
 
+# Smallest stepover, % of the tool diameter: a tiny one gives thousands of rings (a plan that
+# never ends); 10 % already gives 10 rings per tool diameter of pocket width.
+MIN_STEPOVER_PCT = 10
+STEPOVER_MESSAGE = "must be between 10 and 100 (percent of the tool diameter)"
+
+
 class SettingsError(ValueError):
     def __init__(self, field: str, message: str):
         super().__init__(f"{field}: {message}")
@@ -79,7 +85,7 @@ class Pockets:
     plunge_feed: float = 1
     cut_feed: float = 3
     spindle_rpm: float = 18000
-    stepover_pct: float = 40         # of the tool diameter, in (0, 100]
+    stepover_pct: float = 40         # of the tool diameter, 10 to 100
     direction: str = "cw"            # turning sense seen from above for pocket walls;
                                      # climb vs conventional is unverified
 
@@ -216,8 +222,8 @@ class Settings:
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
         # relies on the positive-number loop above having run: stepover_pct is a number > 0 here
-        if not self.pockets.stepover_pct <= 100:
-            raise SettingsError("pockets.stepover_pct", "must be a number from above 0 up to 100")
+        if not MIN_STEPOVER_PCT <= self.pockets.stepover_pct <= 100:
+            raise SettingsError("pockets.stepover_pct", STEPOVER_MESSAGE)
         self._validate_sizes()
         self._validate_depths()
         self._validate_pocket_depth()

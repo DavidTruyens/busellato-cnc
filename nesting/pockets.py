@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, fields
 from .dxf import Pocket, Shape, _inside
 from .geometry import (Arc, Line, OffsetError, Pt, Seg, bbox, distance_to_chain, offset_outline,
                        sample, split_large_arcs)
-from .settings import Pockets
+from .settings import MIN_STEPOVER_PCT, Pockets
 
 # Distinct from the page colours (blank tan, shape blue, holes red, saw cut black, green/amber UI).
 PALETTE = ["#00897b", "#8e24aa", "#f57c00", "#d81b60", "#00bcd4",
@@ -167,7 +167,7 @@ def _coerce(name: str, v):
             if v != int(v):
                 raise bad
             return int(v)
-        if name == "stepover_pct" and v > 100:
+        if name == "stepover_pct" and not MIN_STEPOVER_PCT <= v <= 100:
             raise bad
     except OverflowError:
         raise bad from None
@@ -183,10 +183,18 @@ _BISECT = 0.01     # mm: precision of the search for the deepest offset
 _MAX_STEP_PCT = 70  # stepover cap, % of the tool diameter (see pocket_rings)
 _SHRINK = 0.8      # backstop: stepover factor per retry when the check finds material left
 _RETRIES = 10
+MAX_RINGS = 200    # rings of one pocket; more is refused (a tiny stepover would never end)
 
 
 class PocketError(ValueError):
     """The pocket cannot be cleared with this tool."""
+
+
+def _check_ring_count(n: int, step: float, tool_diameter: float) -> None:
+    if n > MAX_RINGS:
+        raise PocketError(f"pocket needs more than {MAX_RINGS} rings with a {step:.3g} mm "
+                          f"stepover and the {tool_diameter:g} mm tool; raise the stepover or "
+                          f"use a larger tool")
 
 
 def pocket_rings(outline: list[Seg], tool_diameter: float,
@@ -233,7 +241,8 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     diameter gives [Line(c, c), Line(c, c)] with c the centre: two zero-length lines, a plunge
     at the centre with no horizontal move (callers must not ask such a line for a direction).
     A pocket narrower than the tool raises PocketError ("narrower than the tool"); one about
-    as wide as the tool that is not a straight slot raises PocketError as well.
+    as wide as the tool that is not a straight slot raises PocketError as well, and so does a
+    pocket that would need more than MAX_RINGS rings (a guard against a tiny stepover).
     """
     if not (math.isfinite(tool_diameter) and tool_diameter > 0):
         raise PocketError(f"invalid tool diameter {tool_diameter!r}")
@@ -264,6 +273,7 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
         while (ring := _offset(outline, levels[-1] + step)) is not None:
             levels.append(levels[-1] + step)
             rings.append(ring)
+            _check_ring_count(len(rings), step, tool_diameter)
         if step > r:
             # the middle may lie beyond the reach (r) of the innermost ring
             reach = levels[-1] + r
@@ -326,6 +336,7 @@ def _concave_rings(outline: list[Seg], wall: list[Seg], r: float, step: float,
     while (ring := _offset(outline, levels[-1] + step)) is not None:
         levels.append(levels[-1] + step)
         rings.append(ring)
+        _check_ring_count(len(rings), step, tool_diameter)
     probe = _offset(outline, levels[-1] + 2 * _BISECT)
     if probe is not None:
         level, ring = _deepest(outline, levels[-1] + 2 * _BISECT, probe, levels[-1] + step)
@@ -400,6 +411,7 @@ def _circle_rings(outline: list[Seg], circle: tuple[Pt, float, bool], r: float, 
     radii = [radius - r]
     while radii[-1] - step >= _MIN_RING / 2:
         radii.append(radii[-1] - step)
+        _check_ring_count(len(radii), step, tool_diameter)
     if radii[-1] > r:   # the centre is out of reach of the innermost ring
         radii.append(r)
     return [ring(rho) for rho in reversed(radii)]

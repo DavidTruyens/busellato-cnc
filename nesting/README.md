@@ -135,7 +135,7 @@ and dashed).
 | `tool` 66, `diameter` 8 | Pocket cutter number and diameter. |
 | `depth` 8, `depth_per_pass` 4 | Depth from the top face of the blank, in equal passes. |
 | `plunge_feed` 1, `cut_feed` 3, `spindle_rpm` 18000 | m/min, m/min, rpm. |
-| `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, in (0, 100]; **capped at 70** when used. |
+| `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, from 10 to 100; **capped at 70** when used. |
 | `direction` cw | Turning sense of the rings seen from above (`cw` or `ccw`). Climb or conventional is not verified: depends on the spindle direction, check at the machine. |
 
 Each group can override `enabled`, `tool`, `diameter`, `depth`, `depth_per_pass`, `plunge_feed`,

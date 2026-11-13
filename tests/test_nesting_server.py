@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -683,6 +684,8 @@ class ServerTests(unittest.TestCase):
                  ({key: {'depth': thick}}, 'pockets.G2.depth'),       # leaves no floor
                  ({key: {'tool': 66.5}}, 'pockets.G2.tool'),
                  ({key: {'stepover_pct': 120}}, 'pockets.G2.stepover_pct'),
+                 ({key: {'stepover_pct': 1e-9}}, 'pockets.G2.stepover_pct'),
+                 ({key: {'stepover_pct': 0.4}}, 'pockets.G2.stepover_pct'),
                  ({key: {'enabled': 'no'}}, 'pockets.G2.enabled'),
                  ({key: {'direction': 'up'}}, 'pockets.G2.direction'),
                  ({key: 5}, 'pockets.G2'),
@@ -696,6 +699,28 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(status, 400, body)
                 self.assertEqual(body['field'], field)
                 self.assertTrue(body['message'])
+        self.assertFalse((self.dir / 'project.json').exists())
+
+    def test_put_tiny_stepover_is_400_quickly(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        key = proj['pocket_groups'][0]['key']
+        for where, value in (('settings', 1e-9), ('settings', 0.4), ('group', 1e-9),
+                             ('group', 0.4)):
+            with self.subTest(where=where, value=value):
+                bad = json.loads(json.dumps(proj))
+                if where == 'settings':
+                    bad['settings']['pockets']['stepover_pct'] = value
+                    field = 'pockets.stepover_pct'
+                else:
+                    bad['pockets'] = {key: {'stepover_pct': value}}
+                    field = 'pockets.G1.stepover_pct'
+                t0 = time.monotonic()
+                status, body = self.call('PUT', '/api/project', bad)
+                self.assertLess(time.monotonic() - t0, 5)
+                self.assertEqual(status, 400, body)
+                self.assertEqual(body['field'], field)
+                self.assertIn('between 10 and 100', body['message'])
         self.assertFalse((self.dir / 'project.json').exists())
 
     def test_hand_edited_bad_pockets_is_a_problem_not_a_500(self):

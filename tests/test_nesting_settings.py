@@ -230,16 +230,24 @@ class PocketSettingsTests(unittest.TestCase):
         s.validate()
 
     def test_stepover_out_of_range(self):
-        for value in (0, -5, 100.5, float("nan"), "40", True):
+        for value in (0, -5, 100.5, float("nan"), "40", True, 1e-9, 0.4, 9.99):
             with self.subTest(value=value):
                 s = Settings.default()
                 s.pockets.stepover_pct = value
                 with self.assertRaises(SettingsError) as cm:
                     s.validate()
                 self.assertEqual(cm.exception.field, "pockets.stepover_pct")
+        for value in (10, 100):
+            s = Settings.default()
+            s.pockets.stepover_pct = value
+            s.validate()
+
+    def test_stepover_message_names_the_range(self):
         s = Settings.default()
-        s.pockets.stepover_pct = 100
-        s.validate()
+        s.pockets.stepover_pct = 0.4
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertIn("between 10 and 100", cm.exception.message)
 
     def test_pocket_tool_must_be_whole_number(self):
         for value in (66.5, True, "66", 0, -1, 2.0):

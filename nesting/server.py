@@ -35,7 +35,7 @@ from .output import write_output
 from .pockets import GroupSettings, PocketGroup, effective, find_groups, group_for
 from .preview import pocket_groups_data, preview_data
 from .program import plan_programs, plan_shapes
-from .settings import Pockets, Settings, SettingsError
+from .settings import STEPOVER_MESSAGE, Pockets, Settings, SettingsError
 
 HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
@@ -73,7 +73,7 @@ def validate(settings: Settings) -> None:
 _POCKET_MESSAGES = {'enabled': 'must be true or false',
                     'direction': 'must be one of cw, ccw',
                     'tool': 'must be a whole tool number, 1 or more',
-                    'stepover_pct': 'must be a number from above 0 up to 100'}
+                    'stepover_pct': STEPOVER_MESSAGE}
 _POCKET_FIELDS = {f.name for f in fields(GroupSettings)}
 
 
