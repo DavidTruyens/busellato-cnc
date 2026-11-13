@@ -111,12 +111,25 @@ and the 2,978 programs on the backups call T1 to T14 and no vertical drill above
 spindle is which number is not checked on the machine (test program `ZZT4D`, see
 `post/machine-tests/RUN-SHEET.md`). Each head holds one bit or nothing; a bit may sit in several heads.
 
+The Tools page draws the heads where they sit on the machine, from the control's spindle table
+`PARTEC1.PAR` (H03 backup; `python tools/spindle_offsets.py` prints it, mm from T1). It is drawn
+seen from above as you stand in front of the machine: left to right the drill cross, T65, T66 and
+the X blade, which is what the machine shows from the front (checked on a photo, 2026-11-13).
+The table's X runs the other way, so the drawing flips it; +X points right and +Y toward the
+front, as in the programs. That the table's Y also runs that way (routers toward the front of the
+cross) is not checked. T1 to T9 are a column on a 32 mm pitch, T10 to T14 a row branching off at
+T4. Blades are drawn at their diameter along their cut. T61 (Y blade) is in the control's table
+but no Y blade was seen on the machine; it is drawn faint. Each head shows its bit (fill by type,
+dashed when empty, a blue ring when a program uses it); clicking one goes to its row. The
+programs do not use these positions (the control applies its own table). Opening the page as
+`http://127.0.0.1:8765/#tools` shows the Tools page directly.
+
 | Heads | Where | Bit types allowed |
 |---|---|---|
 | T65, T66 | big spindle | router |
 | T1 to T14 | drill cross, vertical | drill |
 | T53, T56 | drill cross, horizontal | drill |
-| T60, T61 | blade/drill in X, in Y | drill or blade |
+| T60, T61 | blade/drill in X, in Y (T61: in the control's table, no Y blade seen on the machine) | drill or blade |
 
 Programs use only T65 and T66 (router and pockets) and T1 to T14 (fixing and screw drills). T53,
 T56, T60 and T61 can hold a bit, but an operation that names one is refused ("programs do not

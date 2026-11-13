@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from nesting.tools import (HEADS, ROUTER_HEADS, DRILL_HEADS, Bit, ToolTable, HeadError,
+from nesting.tools import (HEAD_XY, HEADS, ROUTER_HEADS, DRILL_HEADS, Bit, ToolTable, HeadError,
                            SettingsError, STEPOVER_MESSAGE, migrate, OBSOLETE_GROUP_FIELDS)
 
 
@@ -289,6 +289,30 @@ class Migrate(unittest.TestCase):
         a, b = migrate(copy.deepcopy(s), copy.deepcopy(p)), migrate(copy.deepcopy(s),
                                                                     copy.deepcopy(p))
         self.assertEqual(a, b)
+
+
+
+class HeadPositionTests(unittest.TestCase):
+    def test_positions_are_the_controls_spindle_table(self):
+        # HEAD_XY is the X, Y of PARTEC1.PAR on the H03 backup, read with tools/spindle_offsets.py
+        import os
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                        'tools'))
+        import spindle_offsets
+        table = spindle_offsets.read()
+        table.pop('offset')
+        self.assertEqual(sorted(table), sorted(HEADS))
+        for n, (x, y, _z) in table.items():
+            self.assertEqual((HEADS[n].x, HEADS[n].y), (x, y), f'T{n}')
+        self.assertEqual(set(HEAD_XY), set(HEADS))
+
+    def test_drill_cross_shape(self):
+        # column of 9 (T1 to T9) and row of 5 (T10 to T14) branching off at T4, 32 mm pitch
+        self.assertEqual([HEADS[n].y for n in range(1, 10)], [-32 * k for k in range(9)])
+        self.assertTrue(all(HEADS[n].x == 0 for n in range(1, 10)))
+        self.assertEqual([(HEADS[n].x, HEADS[n].y) for n in range(10, 15)],
+                         [(-32 * k, HEADS[4].y) for k in range(1, 6)])
 
 
 if __name__ == '__main__':
