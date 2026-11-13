@@ -27,7 +27,7 @@ not `python3` (on Windows that opens the Microsoft Store). On macOS or Linux, wh
 be missing, use `python3` in its place.
 
 - `PROJECT_DIR` defaults to `./nesting-project` and is created if missing. It holds `shapes/*.dxf`
-  (the parts), `project.json` (quantities, on/off flags, settings) and `out/` (generated jobs).
+  (the parts), `project.json` (quantities, on/off flags, settings, tool table) and `out/` (generated jobs).
 - `--port N` defaults to 8765. The server listens on 127.0.0.1 only.
 - `--seed-plates` copies the 12 `plates/*.dxf` into the project's `shapes/`, but only when `shapes/`
   is empty; otherwise it copies nothing and says so.
@@ -68,38 +68,124 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | heights | scrap 18 | Thickness of the scrap plate on the cups, under the blank. |
 | | into_scrap 0.5 | How far a shape cut goes below the blank into the scrap. |
 | | fix_into_scrap 1 | How far the fixing holes go into the scrap. |
-| router | tool 66, diameter 8 | Cutter tool number and diameter; the contour is offset outward by half the diameter. |
-| | spindle_rpm 18000, plunge_feed 1, cut_feed 3 | Spindle speed and feeds. |
-| | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (panel thickness + `into_scrap`) and are equal steps. |
-| | clearance 4 | Extra space between neighbours; the gap between shapes is diameter + clearance. |
+| router | tool 66 | Head the contour is cut with (T65 or T66). Diameter, spindle speed, feeds and depth per pass come from the bit in that head (see "Tools"). The contour is offset outward by half that diameter. Passes are counted over the material (panel thickness + `into_scrap`) and are equal steps. |
+| | clearance 4 | Extra space between neighbours; the gap between shapes is the bit's diameter + clearance. |
 | | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise), as seen from above in the drawing with the operator at the bottom, whatever `machine.y_toward` is. With Y toward the front that sense is clockwise in the program's numbers, so the corner arcs come out as G2 (they were G3 with Y toward the back). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
-| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per blank, in its margin, through the blank into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: not written to the program (the tool number picks the drill); listed per tool on the run sheet. |
-| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes at each shape's own holes, through the blank; `depth` is how far below the blank, into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: not written to the program (the tool number picks the drill); listed per tool on the run sheet. Fixing and screw holes always go into the same drill program (`BnnD`), also with different tools. |
+| drill_fix | tool 1 | Head of the 4 fixing holes per blank, in its margin, through the blank into the scrap (T1 to T30). The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. |
+| drill_screw | tool 2, depth 8 | Head of the screw holes at each shape's own holes, through the blank (T1 to T30); `depth` is how far below the blank, into the scrap. The bit's plunge feed is not written to the program (the control uses the tool's own feed). The bit's diameter is not written to the program (the tool number picks the drill); listed per tool on the run sheet. Fixing and screw holes always go into the same drill program (`BnnD`), also with different heads. |
 | blank | shapes_per 2, group_by length | How many shapes share a blank, and how they are grouped (`length` or `order`). A group whose blank does not fit the work frame or the panel is split, down to one shape; a blank never takes more shapes than `shapes_per`. |
 | | margin_end 45, margin_side 45 | Blank margin around the group. The blank size is rounded up to whole mm (the extra goes to the far margins). |
-| | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
+| | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least the router bit's diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
 | origin | G54 | Which origin the programs use, `G54` or `G55`. The post-processor's default is G54. Left = G54 / right = G55 is an assumption: which machine origin each one maps to has not been confirmed on the machine. Check which origin the machine uses before the first run. |
 
 The pocket settings (`pockets.*`) are in the "Pockets" section below.
 
-The tool numbers 1 and 2 for the drills are placeholders: set the real tool numbers.
+The heads 1 and 2 for the drills are placeholders: set the real tool numbers, and the bits in them on the Tools page.
 Quantities are capped at 500 per shape.
 
 A shape that does not fit a blank on its own (work frame, trimmed panel, or a clearance rule)
 is an error that names it: nothing is planned or generated until it is fixed.
 
 The shapes' own holes are not made at their drawn diameter: only a screw hole
-(`drill_screw.diameter`) is drilled at each hole centre, so the shape stays screwed down while it
+(the screw drill's bit diameter) is drilled at each hole centre, so the shape stays screwed down while it
 is cut free.
 
-Settings saved by the earlier template version are read with `template.*` as `blank.*` and
+Settings saved before the tool table lose their diameter, speed and feed fields: see "Tools,
+migration". Settings saved by the earlier template version are read with `template.*` as `blank.*` and
 `heights.shape_thickness` as `panel.thickness`; the template-only settings are dropped.
+
+## Tools
+
+The cutting bits are defined once, in a tool table, and the table says which bit sits in which
+machine head (T number). The router, the drills and the pocket groups only name a head; the
+bit in that head gives the diameter, speed and feeds. Change a bit once and every program
+follows. The Tools page of the tool (next to Plan) edits the table. Spec:
+`docs/superpowers/specs/2026-11-13-tool-table-design.md` ("As built").
+
+**Nothing here has run on the machine.** The programs are format-checked and tested. The bit
+numbers (diameters, speeds, feeds) are placeholders for the shop to measure and enter.
+
+**Heads** (fixed in code, `nesting/tools.py`; names taken from the machine's tool table, not
+verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads.
+
+| Heads | Where | Bit types allowed |
+|---|---|---|
+| T65, T66 | big spindle | router |
+| T1 to T30 | drill cross, vertical | drill |
+| T53, T56 | drill cross, horizontal | drill |
+| T60, T61 | blade/drill in X, in Y | drill or blade |
+
+Programs use only T65 and T66 (router and pockets) and T1 to T30 (fixing and screw drills). T53,
+T56, T60 and T61 can hold a bit, but an operation that names one is refused ("programs do not
+use T53"). Adding a head is a code change.
+
+**Bits.** Each bit has an id (`b1`, `b2`, ...), a name (1 to 40 characters), a type and numbers.
+All numbers must be greater than 0. Lengths in mm, feeds in m/min, spindle speed in rpm.
+
+| Type | Needed | Optional |
+|---|---|---|
+| `router` | `diameter`, `spindle_rpm`, `plunge_feed`, `cut_feed`, `depth_per_pass`, `stepover_pct` (10 to 100) | none |
+| `drill` | `diameter`, `plunge_feed` | `spindle_rpm` |
+| `blade` | `diameter` | `spindle_rpm`, `cut_feed` |
+
+A drill's one feed is its plunge feed. A drill's spindle speed is stored and shown but not
+written to any program. The router bit's depth per pass is used for the contour cut and for
+pockets. Depths, the direction and the clearance stay on the operation (see Settings).
+
+**Stored in** `project.json`, under a top-level `tools` key: `bits` (a list) and `heads` (`"T66"`
+to a bit id; an empty head is left out or null). The default table has Router 8 (router, 8 mm,
+18000 rpm, plunge 1, cut 3, depth per pass 9, stepover 40) in T66, Drill 6 in T1 and Drill 3 in
+T2, all placeholders. The run sheet, the programs table, `PROJECT.json` and the pocket group rows
+show the head with its bit (for example "T66 Router 8").
+
+**Errors.** Each one names the operation and the head, and nothing is planned until it is fixed.
+There is no silent default for an empty or wrong head.
+
+- A head with no bit ("router: head T66 holds no bit").
+- A bit of the wrong type for the operation (a drill bit in the router's head, a router bit in
+  a drill's head, a blade for anything).
+- A head number that is not in the list, or one the programs do not use.
+- A pocket group on an empty or wrong head is an error only while the group is switched on and
+  has a pocket on the plan. The pocket default head must be T65 or T66, but a project with no
+  pockets still plans when it is empty.
+- A hand-edited `tools` in `project.json` that breaks the rules (a head naming a missing bit, a
+  router bit in T1, an unknown head, `bits` not a list) is refused with the head or bit named.
+  A pocket narrower than its bit is an error, as before.
+- A bit that sits in a head cannot be deleted on the Tools page; the message names the head to
+  empty first.
+
+**Saving.** The page sends the table with every save. A save without a `tools` key (a page from
+before the upgrade still open) keeps the stored table. If `project.json` cannot be read, such a
+save is refused with a message to save with a tool table. If the stored table is bad,
+`GET /api/project` returns it as stored with `tools_error` (`field`, `message`); the page shows
+the error and a save writes the table shown on the Tools page ("Start an empty tool table" is
+offered when it cannot be shown).
+
+**Migration.** A project saved before the tool table has no `tools` key. On load a table is
+built from its old settings, and the page shows the notes (also first in the plan's problem list
+and as `tools_notes` of `GET /api/project`) until the first save, which writes the new form.
+Nothing is written on load.
+
+- The old settings are taken in this order: router, pocket default, fixing drill, screw drill.
+  One head gets one bit. When two of them name the same head with different numbers (the old
+  `router.diameter`, `pockets.diameter`, `drill_fix.feed` and so on), the first one wins and one
+  note per head says what was taken and what was dropped.
+- Consequence for pockets: the old router and pocket defaults disagreed about the depth per pass
+  of T66 (9 and 4 mm). The router's 9 is taken, so a project on the old default settings now cuts
+  its pockets in 9 mm passes, not 4.
+- An operation whose old head cannot hold its kind of bit (for example `pockets.tool` 7) gets
+  its bit created but not placed, plus a note; planning then stops with the head error until a
+  head is picked.
+- The old per-group pocket fields (diameter, depth per pass, feeds, spindle speed, stepover) are
+  not applied. Each one found gives a line saying it is ignored, and the first save removes them
+  from `project.json`. A group override that names a head (`tool`) is kept.
+- A project with no settings at all gets the default table.
 
 ## Pockets
 
 A pocket is a recess cut part-way into a shape from its top face (first case: the long slot for
 the curtain rail in the curtain planks). **Pocket programs are format-checked and simulated only:
-nothing here has run on the machine. Tool, diameter, depth, feeds, spindle speed and direction
+nothing here has run on the machine. The head, the bit's numbers, depth and direction
 are placeholders; the first run is an air cut.**
 
 **Detection** (`nesting/dxf.py`, no tags needed). The outline is layer `CONTOUR`. Inside it:
@@ -134,16 +220,16 @@ settings whose key matches no current group (a DXF edit or a rename changed the 
 |---|---|
 | `min_circle_diameter` 8 | Circles above this Ø are pockets. |
 | `min_floor` 2 | Material that must stay under a pocket: depth may not exceed panel thickness minus this (hard error). |
-| `tool` 66, `diameter` 8 | Pocket cutter number and diameter. One tool number has one diameter: the router, both drills and every switched-on pocket group with a pocket on the plan must agree, or saving and planning stop with an error naming the tool and both diameters. |
-| `depth` 8, `depth_per_pass` 4 | Depth from the top face of the blank, in equal passes. |
-| `plunge_feed` 1, `cut_feed` 3, `spindle_rpm` 18000 | m/min, m/min, rpm. |
-| `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, from 10 to 100; **capped at 70** when used. |
+| `tool` 66 | Default head of the pocket groups (T65 or T66). The bit in the head gives the cutter diameter, spindle speed, feeds, depth per pass and stepover. A group may pick another head. |
+| `depth` 8 | Depth from the top face of the blank, in equal passes of the bit's depth per pass. |
 | `direction` cw | Turning sense of the rings seen from above (`cw` or `ccw`). Climb or conventional is not verified: depends on the spindle direction, check at the machine. |
 
-The page's group rows offer `enabled`, `tool`, `diameter`, `depth`, `depth_per_pass`,
-`plunge_feed`, `cut_feed` and `stepover_pct`; the spindle speed and the direction come from the
-defaults. `project.json` (and the API) also accepts `spindle_rpm` and `direction` per group. The
-server checks the values and names the group and field that is wrong.
+The page's group rows offer `enabled`, `tool` (head) and `depth`; the direction comes from the
+default. `project.json` (and the API) also accepts `direction` per group. The server checks the
+values and names the group and field that is wrong. There are no per-group overrides of the
+diameter, speeds, feeds, depth per pass or stepover any more: they come from the bit in the
+group's head. The stepover is a maximum, from 10 to 100 % of the tool diameter, **capped at 70**
+when used.
 
 **How a pocket is cut** (`nesting/pockets.py`, `pocket_rings`). The tool path is the tool
 centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
@@ -163,10 +249,10 @@ centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
 - A pocket narrower than the tool, or with a part (finger, neck) narrower than it, is an error,
   as is one about as wide as the tool that is not a straight slot.
 - Depth: measured from the top face (the top of the stack), in equal passes of at most
-  `depth_per_pass`. Deeper than thickness minus `min_floor`, or reaching the vacuum cups, is an
+  the bit's depth per pass. Deeper than thickness minus `min_floor`, or reaching the vacuum cups, is an
   error.
 
-**Program `B<nn>P`.** One per blank that has an enabled pocket. Pockets are ordered by tool (first appearance), within a tool by group, and every operation
+**Program `B<nn>P`.** One per blank that has an enabled pocket. Pockets are ordered by head (first appearance), within a head by group, and every operation
 names its own tool, spindle speed and feeds (the file header takes the first). Run sequence per
 blank: drill `B<nn>D` -> screw the blank and shapes down -> pockets `B<nn>P` -> cut `B<nn>C`.
 The programs are in the job's folder and `DISKETTE`; the preview shows `B<nn>P` in its Cut view,
@@ -182,7 +268,7 @@ tool diameter; the cutter reaching outside the blank; more than 250 lines in a p
 ramps or helical entry (plunge), no flipping of a plate, no automatic tool choice.
 
 **The page.** The settings have a Pockets section (defaults for every group) and one row per
-group below it: colour swatch, number of pockets, on/off and the overrides (an empty field uses
+group below it: colour swatch, number of pockets, on/off, head and depth (an empty field uses
 the default). The drawings colour each pocket with its group's colour; the Cut view also draws
 the cutter path.
 
