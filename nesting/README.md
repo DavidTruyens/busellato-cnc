@@ -2,7 +2,8 @@
 
 A local tool (Python 3.11, standard library only) that takes part outlines (DXF), groups them
 into rectangular **blanks**, plans how a **panel saw** cuts those blanks from 1220 x 2440 panels,
-and writes, per blank, one CNC90 drill program and one cut program for the Busellato S.EASY. Design:
+and writes, per blank, one CNC90 drill program, one cut program and, when the shapes have pockets,
+one pocket program for the Busellato S.EASY. Design:
 `docs/superpowers/specs/2026-11-08-nesting-tool-design.md` (see its "Revision 2026-11-09").
 
 The machine's work frame is smaller than a panel, so a whole panel is never machined at once.
@@ -79,6 +80,8 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
 | origin | G54 | Which origin the programs use, `G54` or `G55`. The post-processor's default is G54. Left = G54 / right = G55 is an assumption: which machine origin each one maps to has not been confirmed on the machine. Check which origin the machine uses before the first run. |
 
+The pocket settings (`pockets.*`) are in the "Pockets" section below.
+
 The tool numbers 1 and 2 for the drills are placeholders: set the real tool numbers.
 Quantities are capped at 500 per shape.
 
@@ -91,6 +94,111 @@ is cut free.
 
 Settings saved by the earlier template version are read with `template.*` as `blank.*` and
 `heights.shape_thickness` as `panel.thickness`; the template-only settings are dropped.
+
+## Pockets
+
+A pocket is a recess cut part-way into a shape from its top face (first case: the long slot for
+the curtain rail in the curtain planks). **Pocket programs are format-checked and simulated only:
+nothing here has run on the machine. Tool, diameter, depth, feeds, spindle speed and direction
+are placeholders; the first run is an air cut.**
+
+**Detection** (`nesting/dxf.py`, no tags needed). The outline is layer `CONTOUR`. Inside it:
+
+- a closed loop of lines and arcs on layer `POCKET` is a pocket; when the file has a `POCKET`
+  layer only those loops count (a `POCKET` loop that is open, crosses or lies outside the outline
+  is an error);
+- with no `POCKET` layer, any other closed inner loop (a layer other than `CONTOUR`) is a pocket;
+  one that crosses the outline is an error;
+- a circle is a pocket when its diameter is **greater** than `pockets.min_circle_diameter`
+  (default 8 mm); at or under it, it stays a hole (screw hole). A circle on layer `POCKET` is a
+  pocket whatever its size. The page lists such a circle as a pocket: raise the minimum above its
+  diameter to make it a hole.
+
+Reading a DXF again after `pockets.min_circle_diameter` changes happens by itself.
+
+**Groups.** Pockets of the same shape at the same position in the plate's own frame (every
+coordinate within 0.05 mm, same segment kinds and turning sense; mirrored or moved pockets are a
+different group) share a group, a colour and an id `G1`, `G2`, ... Ids and colours are numbered
+over all shapes of the project (also those switched off) in first-seen order over the shapes
+sorted by name, so they do not depend on the order of the list. The palette has 15 colours,
+distinct from the page's blank, shape, hole and saw colours; the 12 plates have 10 groups; beyond 15
+groups the colours repeat. Each group has its settings in
+the page; they are stored in `project.json` under `pockets`, **keyed by the group key** (a text
+made from the pocket's position and vertices, not by `G<n>`), and only the fields that differ from
+the defaults in `settings.pockets` are kept. A group can be switched off (not cut, shown dimmed
+and dashed).
+
+| Setting (default) | Meaning |
+|---|---|
+| `min_circle_diameter` 8 | Circles above this Ø are pockets. |
+| `min_floor` 2 | Material that must stay under a pocket: depth may not exceed panel thickness minus this (hard error). |
+| `tool` 66, `diameter` 8 | Pocket cutter number and diameter. |
+| `depth` 8, `depth_per_pass` 4 | Depth from the top face of the blank, in equal passes. |
+| `plunge_feed` 1, `cut_feed` 3, `spindle_rpm` 18000 | m/min, m/min, rpm. |
+| `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, in (0, 100]; **capped at 70** when used. |
+| `direction` cw | Turning sense of the rings seen from above (`cw` or `ccw`). Climb or conventional is not verified: depends on the spindle direction, check at the machine. |
+
+Each group can override `enabled`, `tool`, `diameter`, `depth`, `depth_per_pass`, `plunge_feed`,
+`cut_feed`, `spindle_rpm`, `stepover_pct` and `direction`; the page checks the values and names
+the group and field that is wrong.
+
+**How a pocket is cut** (`nesting/pockets.py`, `pocket_rings`). The tool path is the tool
+centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
+
+- A pocket exactly as wide as the tool (within 0.01 mm): one pass along the centre line, out and
+  back.
+- Wider: closed rings from the inside out, the wall ring (the outline offset inward by the tool
+  radius) **last**. The stepover is a maximum, capped at 70 % of the tool diameter (a larger
+  stepover would leave material at sharp corners). For every depth pass all the group's pockets
+  of the blank are cut, each ring after the other.
+- Convex pockets (slots, rectangles, circles) are cleared by construction. A pocket that is not
+  convex is checked over its whole interior and **refused with an error** that names the blank,
+  shape and group when material would be left standing; clearing general concave pockets is out
+  of scope. Sharp convex corners are left rounded by the cutter, as always.
+- A pocket narrower than the tool, or with a part (finger, neck) narrower than it, is an error,
+  as is one about as wide as the tool that is not a straight slot.
+- Depth: measured from the top face (the top of the stack), in equal passes of at most
+  `depth_per_pass`. Deeper than thickness minus `min_floor`, or reaching the vacuum cups, is an
+  error.
+
+**Program `B<nn>P`.** One per blank that has an enabled pocket. Pockets are ordered by tool (first appearance), within a tool by group, and every operation
+names its own tool, spindle speed and feeds (the file header takes the first). Run sequence per
+blank: drill `B<nn>D` -> screw the blank and shapes down -> pockets `B<nn>P` -> cut `B<nn>C`.
+The programs are in the job's folder and `DISKETTE`; the preview shows `B<nn>P` in its Cut view,
+which also draws the pocket cutter path, and the run sheet (a pocket table per blank: group,
+colour, size, count, tool, depth, passes). The server remembers pocket rings between plans (a
+long pocket takes about half a second to compute).
+
+**Warnings** (a warning, not a stop): a screw or fixing hole whose centre is inside a pocket or
+closer than the screw-head clearance (`head_dia`/2 + 3) to its edge; two pockets closer than the
+tool diameter; the cutter reaching outside the blank; more than 250 lines in a program.
+
+**Limits.** No through-slots (a pocket never goes through), no islands inside a pocket, no
+ramps or helical entry (plunge), no flipping of a plate, no automatic tool choice.
+
+**The page.** The settings have a Pockets section (defaults for every group) and one row per
+group below it: colour swatch, number of pockets, on/off and the overrides (an empty field uses
+the default). The drawings colour each pocket with its group's colour; the Cut view also draws
+the cutter path.
+
+### Fusion export and the bottom face
+
+`fusion/export_plates.py` runs inside Fusion:
+
+```
+OUT_DIR = '<repo>/plates'; exec(open('<repo>/fusion/export_plates.py').read())
+```
+
+(optionally `FACE = 'top'` before the `exec`). It now exports each plate **from its bottom face**
+(`FACE = 'bottom'`, the default): the face whose normal points down, seen from below, is the face
+that ends up on top on the machine. The plate is turned over about its vertical axis (x becomes
+-x, y stays) and then shifted so the lower-left of the outline is at 0,0; `FACE = 'top'` gives the
+old behaviour (face normal up, seen from above, no mirroring). The outline goes on layer
+`CONTOUR`, circular inner loops on `HOLES` and every other closed inner loop (a slot) on layer
+`POCKET`. The 12 plates in `plates/` were re-exported this way and `plates/plates.json` has, per
+plate, `face` and `pocket_loops`. Hole and outline coordinates changed (mirrored) with it. The
+script is not run by tests, and the orientation on the machine is confirmed only after a real
+plate has been cut.
 
 ## Panel saw plan
 
@@ -138,7 +246,8 @@ The scrap plate lies on the vacuum cups, aligned by the machine's X and Y pins. 
 time goes on top of it, its origin corner (see "Program coordinates") against the pins, long side
 along machine X. That the origin sits at the pins is an assumption to check at the machine.
 
-Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole) and
+Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole),
+`BnnP` (the pockets; only when the blank's shapes have an enabled pocket) and
 `BnnC` (cut the shape outlines). `BnnD` holds both hole kinds even when they use different tools:
 every `G81` line names its own tool (`T01nn`), as in many of the machine's own programs (on the H05
 backup 203 of the 717 programs name more than one tool, 63 of them in `G81` drill lines). The holes are grouped by tool, in
@@ -161,8 +270,10 @@ blanks have the same shapes in the same layout (sharing them is possible but not
    holes, the blank still clamped.
 5. Screw the blank to the scrap through the fixing holes, and each shape down through its screw
    holes; take the clamps off.
-6. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
-7. Unscrew the shapes and the frame; next blank.
+6. If the blank has a `BnnP`, run it now: it cuts the pockets into the shapes from the top face,
+   while they are still screwed down.
+7. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
+8. Unscrew the shapes and the frame; next blank.
 
 ## Safety
 

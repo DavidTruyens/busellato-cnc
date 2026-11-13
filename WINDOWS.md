@@ -45,6 +45,10 @@ In the page: add shapes (DXF), set quantities and settings, check the preview, t
 `%USERPROFILE%\nesting-project\out\<date-time>\` with the programs, `RUNSHEET.html` (print it)
 and a `DISKETTE` folder: exactly what goes on the diskette.
 
+In the settings there is a **Pockets** section: the pocket tool, depth and feeds, and one row for
+each kind of pocket the shapes have (shown in its own colour in the drawings), where you can
+change them or switch a pocket kind off. These numbers are guesses until they are measured.
+
 ## Write the diskette
 
 1. Put a 1.44 MB diskette in the USB floppy drive. Format it in Explorer: right-click the
@@ -65,8 +69,11 @@ and a `DISKETTE` folder: exactly what goes on the diskette.
    `A:LOAD` (copies each program to its folder, never overwrites), then in file management
    register each program, open it in the editor and save it once.
 3. Compile. Check every program in the simulator.
-4. First run **in the air** (no blank on the table, you watching, hand on the emergency
-   stop), then on **scrap**, then on real parts. Follow the printed run sheet.
+4. For each blank, the order is: drill program (`B..D`), screw the blank and the shapes down,
+   pocket program (`B..P`, only when the shapes have pockets), then the cut program (`B..C`).
+5. First run **in the air** (no blank on the table, you watching, hand on the emergency
+   stop), then on **scrap**, then on real parts. Follow the printed run sheet. The pocket
+   programs have not been run on the machine yet, so be especially careful with the first one.
 
 ## Update
 

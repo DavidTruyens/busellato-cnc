@@ -1,7 +1,7 @@
 # Pockets in the nesting tool — design
 
 Date: 2026-11-13
-Status: written, builder check done, awaiting the user's approval. Builds on the nesting tool (`nesting/`, PRs #5 and #6).
+Status: implemented on branch windows-start, not yet run on the machine (see "As built"). Builds on the nesting tool (`nesting/`, PRs #5 and #6).
 
 ## Goal
 
@@ -147,3 +147,37 @@ changes values on a laptop; no Fusion round trip and no hand-written G-code.
 2. Whether the plunge entry and the feed values are fine for MDF on this machine.
 3. Whether the mirrored export (turn over about the vertical axis) gives the orientation the
    operator expects on the machine; confirmed only after a real plate has been cut.
+
+## As built
+
+Differences from the design text above (the code and `nesting/README.md` are the reference):
+
+- **Stepover:** `stepover_pct` (default 40) is a maximum, capped at 70 % of the tool diameter
+  when used, and the rings run from the inside out with the wall ring last (the design said
+  outside in, finishing pass last). A ring at the deepest offset is added when the middle would
+  otherwise be missed.
+- **Concave pockets:** convex ones are cleared by construction; non-convex ones are verified over
+  the whole interior and refused with an error when material would be left.
+- **Group ids and colours** are numbered over all shapes of the project, switched off ones too, in
+  first-seen order over shapes sorted by name. The palette has 15 colours.
+- **Overrides** are stored in `project.json` under `pockets`, keyed by the group key (position
+  and vertices), not by group id; only fields that differ from the defaults are kept. The page
+  checks them and names the group and field.
+- **Settings:** the design called them `pocket.*`; they are `pockets.*`. Added beyond the design:
+  `spindle_rpm` (also per group), `direction` (cw or ccw, also per group), and `min_floor`
+  (default 2 mm). Tool, diameter and depth settings per group may also be overridden.
+- **Detection:** a circle on layer `POCKET` is a pocket whatever its size; when a `POCKET` layer
+  exists only its loops count, otherwise any closed inner loop off `CONTOUR` does. The design's
+  warning for a circle over the minimum is shown as the pocket in the group list rather than a
+  separate message.
+- **Program naming and order:** `B<nn>P`, ordered by tool then group; each operation carries its
+  own tool, spindle speed and feeds. Depth is in equal passes.
+- **Ring memo:** pocket rings are remembered between plans (up to 256 entries), because long
+  pockets are slow to compute.
+- **Warnings** as designed (screw or fixing hole inside or too near a pocket, pockets closer than
+  the tool diameter, cutter outside the blank), the same check that already existed for the
+  other programs.
+- **Export:** `fusion/export_plates.py` takes `FACE` (`'bottom'` default, `'top'` old
+  behaviour); `plates/plates.json` has `face` and `pocket_loops`.
+- **Not verified on the machine:** the mirror orientation, the tool numbers and tool changes inside
+  `B<nn>P`, feeds and depth in MDF, the pocket direction (climb or conventional).
