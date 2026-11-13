@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .geometry import Arc, Line, Pt, Seg, bbox, translate
@@ -25,10 +25,26 @@ class Hole:
 
 
 @dataclass
+class Pocket:
+    """A recess cut part-way into the plate, in the shape's own frame (outline lower-left at 0,0).
+
+    outline: closed chain of lines and arcs.
+    circle: set for a round pocket (a CIRCLE entity bigger than the hole limit); the outline is
+        then two 180-degree counter-clockwise arcs (right point -> left point -> right point)
+        so downstream code can offset it without splitting arcs.
+    from_circle: True when the pocket came from a circle.
+    """
+    outline: list[Seg]
+    circle: Hole | None = None
+    from_circle: bool = False
+
+
+@dataclass
 class Shape:
     name: str
     outline: list[Seg]
     holes: list[Hole]
+    pockets: list[Pocket] = field(default_factory=list)
 
     @property
     def length(self) -> float:
@@ -232,7 +248,13 @@ def _inside(poly: list[Pt], x: float, y: float) -> bool:
     return inside
 
 
-def read_dxf(path: str | Path) -> Shape:
+def _round_pocket(cx: float, cy: float, r: float) -> Pocket:
+    right, left = (cx + r, cy), (cx - r, cy)
+    return Pocket([Arc(right, left, (cx, cy), r, True), Arc(left, right, (cx, cy), r, True)],
+                  Hole(cx, cy, 2 * r), True)
+
+
+def read_dxf(path: str | Path, min_pocket_circle: float = 8.0) -> Shape:
     path = Path(path)
     try:
         # explicit UTF-8 (a BOM is dropped); a stray byte must not stop the outline being read
@@ -245,7 +267,7 @@ def read_dxf(path: str | Path) -> Shape:
         raise DxfError(path, f"cannot parse DXF (no outline readable): {e}") from e
 
     contour = [s for layer, s in segs if layer == "CONTOUR"]
-    candidates = contour if contour else [s for _, s in segs]
+    candidates = contour if contour else [s for layer, s in segs if layer != "POCKET"]
     chains = _chains(candidates)
     closed = [c for c in chains if _closed(c)]
     if contour:
@@ -260,11 +282,38 @@ def read_dxf(path: str | Path) -> Shape:
     outline = max(closed, key=_area)
 
     x0, y0, x1, y1 = bbox(outline)
+    poly = _sample(outline)
     on_holes = [c for c in circles if c[0] == "HOLES"]
     if on_holes:
         chosen = on_holes
     else:
-        poly = _sample(outline)
-        chosen = [c for c in circles if _inside(poly, c[1], c[2])]
-    holes = [Hole(cx - x0, cy - y0, 2 * r) for _, cx, cy, r in chosen]
-    return Shape(path.stem, translate(outline, -x0, -y0), holes)
+        chosen = [c for c in circles if c[0] != "POCKET" and _inside(poly, c[1], c[2])]
+    holes: list[Hole] = []
+    pockets: list[Pocket] = []
+    for _, cx, cy, r in chosen:
+        if 2 * r > min_pocket_circle:
+            pockets.append(_round_pocket(cx - x0, cy - y0, r))
+        else:
+            holes.append(Hole(cx - x0, cy - y0, 2 * r))
+    # a circle on layer POCKET is a round pocket whatever its size
+    for layer, cx, cy, r in circles:
+        if layer == "POCKET":
+            pockets.append(_round_pocket(cx - x0, cy - y0, r))
+
+    pocket_segs = [s for layer, s in segs if layer == "POCKET"]
+    if pocket_segs:
+        loops = _chains(pocket_segs)
+        for c in loops:
+            if not _closed(c):
+                raise DxfError(path, "pocket outline on layer POCKET is open (endpoints do not join)")
+            if not _inside(poly, c[0].a[0], c[0].a[1]):
+                raise DxfError(path, "pocket on layer POCKET lies outside the outline")
+    else:
+        if contour:
+            others = _chains([s for layer, s in segs if layer != "CONTOUR"])
+        else:
+            others = [c for c in chains if c is not outline]
+        loops = [c for c in others if _closed(c) and _inside(poly, c[0].a[0], c[0].a[1])]
+    for c in loops:
+        pockets.append(Pocket(translate(c, -x0, -y0)))
+    return Shape(path.stem, translate(outline, -x0, -y0), holes, pockets)

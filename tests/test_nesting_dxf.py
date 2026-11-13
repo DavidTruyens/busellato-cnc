@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from nesting.dxf import DxfError, Shape, read_dxf
+from nesting.dxf import DxfError, Pocket, Shape, read_dxf
 from nesting.geometry import Arc, Line, bbox
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -211,6 +211,125 @@ class EncodingTests(unittest.TestCase):
         self.assertEqual(bbox(read_dxf(self.write_bytes("u.dxf", data)).outline), (0, 0, 300, 100))
         data = b"999\nlatin-1 \xe9\n" + dxf(body).encode("ascii")
         self.assertEqual(bbox(read_dxf(self.write_bytes("l.dxf", data)).outline), (0, 0, 300, 100))
+
+
+class PocketTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def write(self, name, text):
+        p = Path(self.tmp.name) / name
+        p.write_text(text)
+        return p
+
+    def test_pocket_layer_slot_is_a_pocket(self):
+        p = self.write("a.dxf", dxf(rect(100, 50, 300, 150),
+                                    rect(130, 90, 270, 110, "POCKET"),
+                                    circle(110, 100, 3.3)))
+        shape = read_dxf(p)
+        self.assertEqual(len(shape.pockets), 1)
+        self.assertEqual(len(shape.holes), 1)
+        pk = shape.pockets[0]
+        self.assertIsInstance(pk, Pocket)
+        self.assertIsNone(pk.circle)
+        self.assertFalse(pk.from_circle)
+        x0, y0, x1, y1 = bbox(pk.outline)
+        self.assertAlmostEqual(x0, 30)
+        self.assertAlmostEqual(y0, 40)
+        self.assertAlmostEqual(x1 - x0, 140)
+        self.assertAlmostEqual(y1 - y0, 20)
+
+    def test_inner_loop_without_pocket_layer_is_a_pocket(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100),
+                                    rect(50, 40, 150, 60, "SLOT")))
+        shape = read_dxf(p)
+        self.assertEqual(len(shape.pockets), 1)
+        self.assertEqual(len(shape.holes), 0)
+        self.assertAlmostEqual(bbox(shape.pockets[0].outline)[0], 50)
+
+    def test_inner_loop_without_contour_layer_is_a_pocket(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100, "0"),
+                                    rect(50, 40, 150, 60, "0")))
+        shape = read_dxf(p)
+        self.assertEqual(shape.length, 200)
+        self.assertEqual(len(shape.pockets), 1)
+
+    def test_circle_over_minimum_is_pocket_circle_at_minimum_is_hole(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100),
+                                    circle(50, 50, 4.0), circle(120, 50, 4.1)))
+        shape = read_dxf(p)
+        self.assertEqual(len(shape.holes), 1)
+        self.assertAlmostEqual(shape.holes[0].diameter, 8.0)
+        self.assertEqual(len(shape.pockets), 1)
+        pk = shape.pockets[0]
+        self.assertTrue(pk.from_circle)
+        self.assertAlmostEqual(pk.circle.x, 120)
+        self.assertAlmostEqual(pk.circle.y, 50)
+        self.assertAlmostEqual(pk.circle.diameter, 8.2)
+        self.assertEqual(len(pk.outline), 2)
+        for a in pk.outline:
+            self.assertIsInstance(a, Arc)
+            self.assertAlmostEqual(a.radius, 4.1)
+        self.assertEqual(pk.outline[0].b, pk.outline[1].a)
+        self.assertEqual(pk.outline[1].b, pk.outline[0].a)
+        # a larger threshold keeps it a hole
+        shape = read_dxf(p, min_pocket_circle=10.0)
+        self.assertEqual((len(shape.holes), len(shape.pockets)), (2, 0))
+
+    def test_open_pocket_chain_is_an_error(self):
+        p = self.write("open.dxf", dxf(rect(0, 0, 200, 100),
+                                       line(50, 40, 150, 40, "POCKET"),
+                                       line(150, 40, 150, 60, "POCKET")))
+        with self.assertRaises(DxfError) as cm:
+            read_dxf(p)
+        self.assertIn("open.dxf", str(cm.exception))
+
+    def test_pocket_outside_outline_is_an_error(self):
+        p = self.write("out.dxf", dxf(rect(0, 0, 200, 100),
+                                      rect(300, 40, 350, 60, "POCKET")))
+        with self.assertRaises(DxfError) as cm:
+            read_dxf(p)
+        self.assertIn("out.dxf", str(cm.exception))
+
+    def test_no_pockets_means_empty_list(self):
+        p = self.write("a.dxf", dxf(rect(0, 0, 200, 100), circle(50, 50, 3.3)))
+        self.assertEqual(read_dxf(p).pockets, [])
+
+    def test_real_plates_have_one_slot_each(self):
+        files = sorted((ROOT / "plates").glob("*.dxf"))
+        self.assertEqual(len(files), 12)
+        for f in files:
+            with self.subTest(plate=f.name):
+                shape = read_dxf(f)
+                self.assertEqual(len(shape.pockets), 1)
+                self.assertEqual(len(shape.holes), 2)
+                x0, y0, x1, y1 = bbox(shape.pockets[0].outline)
+                self.assertAlmostEqual(y1 - y0, 20, delta=0.01)
+                self.assertAlmostEqual(x1 - x0, shape.length - 60, delta=0.01)
+
+    def test_mirrored_dxf_gives_mirrored_shape(self):
+        def build(m):
+            def pts(*pp):
+                return [(m * x, y) for x, y in pp]
+            def poly(ps, layer):
+                return "".join(line(*ps[i], *ps[(i + 1) % len(ps)], layer)
+                               for i in range(len(ps)))
+            outline = poly(pts((0, 0), (200, 0), (200, 60), (80, 100), (0, 100)), "CONTOUR")
+            slot = poly(pts((20, 20), (120, 20), (120, 40), (20, 40)), "POCKET")
+            return dxf(outline, slot)
+        a = read_dxf(self.write("a.dxf", build(1)))
+        b = read_dxf(self.write("b.dxf", build(-1)))
+        self.assertAlmostEqual(a.length, b.length)
+        ax0, ay0, ax1, ay1 = bbox(a.pockets[0].outline)
+        bx0, by0, bx1, by1 = bbox(b.pockets[0].outline)
+        self.assertAlmostEqual(bx0, a.length - ax1)
+        self.assertAlmostEqual(bx1, a.length - ax0)
+        self.assertAlmostEqual(by0, ay0)
+        self.assertAlmostEqual(by1, ay1)
+        pa = {(round(s.a[0], 6), round(s.a[1], 6)) for s in a.outline}
+        pb = {(round(a.length - s.a[0], 6), round(s.a[1], 6)) for s in b.outline}
+        self.assertEqual(pa, pb)
 
 
 if __name__ == "__main__":
