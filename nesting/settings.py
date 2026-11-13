@@ -4,6 +4,12 @@ import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
 
+# Smallest stepover, % of the tool diameter: a tiny one gives thousands of rings (a plan that
+# never ends); 10 % already gives 10 rings per tool diameter of pocket width.
+MIN_STEPOVER_PCT = 10
+STEPOVER_MESSAGE = "must be between 10 and 100 (percent of the tool diameter)"
+
+
 class SettingsError(ValueError):
     def __init__(self, field: str, message: str):
         super().__init__(f"{field}: {message}")
@@ -68,6 +74,23 @@ class DrillScrew:
 
 
 @dataclass
+class Pockets:
+    # All PLACEHOLDERS, to verify on the machine.
+    min_circle_diameter: float = 8   # smallest circle that counts as a pocket
+    min_floor: float = 2             # material left under a pocket
+    tool: int = 66
+    diameter: float = 8
+    depth: float = 8
+    depth_per_pass: float = 4
+    plunge_feed: float = 1
+    cut_feed: float = 3
+    spindle_rpm: float = 18000
+    stepover_pct: float = 40         # of the tool diameter, 10 to 100
+    direction: str = "cw"            # turning sense seen from above for pocket walls;
+                                     # climb vs conventional is unverified
+
+
+@dataclass
 class Blank:
     shapes_per: int = 2
     group_by: str = "length"  # 'length' | 'order'
@@ -118,6 +141,7 @@ class Settings:
     drill_fix: DrillFix = field(default_factory=DrillFix)
     drill_screw: DrillScrew = field(default_factory=DrillScrew)
     blank: Blank = field(default_factory=Blank)
+    pockets: Pockets = field(default_factory=Pockets)
     origin: str = "G54"
 
     @classmethod
@@ -157,13 +181,17 @@ class Settings:
             "drill_screw.tool", "drill_screw.diameter", "drill_screw.depth",
             "drill_screw.feed",
             "blank.head_dia",
+            "pockets.min_circle_diameter", "pockets.min_floor", "pockets.diameter",
+            "pockets.depth", "pockets.depth_per_pass", "pockets.plunge_feed",
+            "pockets.cut_feed", "pockets.spindle_rpm", "pockets.stepover_pct",
         ]
         shapes_per = self.blank.shapes_per
         if (not isinstance(shapes_per, int) or isinstance(shapes_per, bool)
                 or shapes_per < 1):
             raise SettingsError("blank.shapes_per",
                                 "must be a whole number, 1 or more")
-        for path in ("router.tool", "drill_fix.tool", "drill_screw.tool"):
+        for path in ("router.tool", "drill_fix.tool", "drill_screw.tool",
+                     "pockets.tool"):
             v = self._get(path)
             if not isinstance(v, int) or isinstance(v, bool) or v < 1:
                 raise SettingsError(path, "must be a whole tool number, 1 or more")
@@ -186,14 +214,19 @@ class Settings:
         choices = {
             "origin": ("G54", "G55"),
             "router.direction": ("ccw", "cw"),
+            "pockets.direction": ("ccw", "cw"),
             "blank.group_by": ("length", "order"),
             "machine.y_toward": ("front", "back"),
         }
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
+        # relies on the positive-number loop above having run: stepover_pct is a number > 0 here
+        if not MIN_STEPOVER_PCT <= self.pockets.stepover_pct <= 100:
+            raise SettingsError("pockets.stepover_pct", STEPOVER_MESSAGE)
         self._validate_sizes()
         self._validate_depths()
+        self._validate_pocket_depth()
 
     def _validate_sizes(self) -> None:
         """Cross-field checks: the trim, the kerf and the margins must leave room for a shape."""
@@ -211,6 +244,13 @@ class Settings:
         if not 2 * b.margin_side < m.frame_y:
             raise SettingsError("machine.frame_y", f"must be more than 2 x blank.margin_side "
                                                    f"({2 * b.margin_side:g} mm): no room for a shape")
+
+    def _validate_pocket_depth(self) -> None:
+        pk = self.pockets
+        if not pk.depth + pk.min_floor <= self.panel.thickness:
+            raise SettingsError("pockets.depth", f"depth plus pockets.min_floor ({pk.min_floor:g} "
+                                                 f"mm) must not exceed the panel thickness "
+                                                 f"({self.panel.thickness:g} mm)")
 
     def _validate_depths(self) -> None:
         """No written depth may reach the top of the vacuum cups (below the scrap plate)."""

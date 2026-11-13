@@ -5,12 +5,14 @@ Run inside Fusion (Scripts and Add-Ins, or via the Fusion MCP execute_python:
     OUT_DIR = '<repo>/plates'; exec(open('<repo>/fusion/export_plates.py').read())).
 
 Per plate (one body per occurrence, flat, ~18 mm thick):
-  - the top face is the planar face whose normal points up (+Z) in the document
-  - the outer loop goes on layer CONTOUR, circular inner loops on layer HOLES
-  - coordinates are millimetres, x = document X, y = document Y, seen from above
-    (no mirroring), shifted so the lower-left of the outline bounding box is (0,0);
+  - FACE = 'bottom' (default): the machined face is the planar face whose normal points down
+    (-Z) in the document, seen from below, so it is the face that ends up on top on the machine.
+    The plate is turned over about its vertical axis: x becomes -x, y stays. FACE = 'top' keeps
+    the old behaviour (face with normal +Z, seen from above, no mirroring).
+  - the outer loop goes on layer CONTOUR, circular inner loops on layer HOLES, every other
+    closed inner loop (lines and arcs, e.g. a slot) on layer POCKET; no depths or tags
+  - coordinates are millimetres, shifted so the lower-left of the outline bounding box is (0,0);
     arcs stay arcs
-Any other inner loop is reported in 'ignored_loops' and not exported.
 """
 import json
 import math
@@ -24,17 +26,24 @@ try:
 except NameError:
     OUT_DIR = os.path.join(os.path.expanduser('~'), 'plates')
 
+try:
+    FACE
+except NameError:
+    FACE = 'bottom'
+
 MM = 10.0  # Fusion internal unit is cm
 
 
-def _top_face(occ, body):
+def _face_of(occ, body):
+    """Largest planar face whose normal points down (FACE 'bottom') or up (FACE 'top')."""
     best = None
     for f in body.faces:
         if f.geometry.objectType != adsk.core.Plane.classType():
             continue
         n = f.geometry.normal.copy()
         n.transformBy(occ.transform2)
-        if n.z > 0.99 and (best is None or f.area > best.area):
+        ok = n.z < -0.99 if FACE == 'bottom' else n.z > 0.99
+        if ok and (best is None or f.area > best.area):
             best = f
     return best
 
@@ -53,26 +62,28 @@ def _basis(occ):
 
 def _export(occ):
     comp = occ.component
-    face = _top_face(occ, comp.bRepBodies.item(0))
+    face = _face_of(occ, comp.bRepBodies.item(0))
     if face is None:
-        raise RuntimeError('%s: no up-facing planar face' % occ.name)
+        raise RuntimeError('%s: no %s-facing planar face' % (occ.name, 'down' if FACE == 'bottom' else 'up'))
     outer = [lp for lp in face.loops if lp.isOuter][0]
     u, v = _basis(occ)
 
+    flip = -1.0 if FACE == 'bottom' else 1.0   # turn the plate over about its vertical axis
+
     def p2(pt):
-        return (pt.x * u.x + pt.y * u.y + pt.z * u.z,
+        return (flip * (pt.x * u.x + pt.y * u.y + pt.z * u.z),
                 pt.x * v.x + pt.y * v.y + pt.z * v.z)
 
     ents, pts = [], []   # ents: ('LINE'|'ARC'|'CIRCLE', layer, args) before shift
-    holes, ignored = [], 0
+    holes, pockets = [], 0
     for lp in face.loops:
         if lp.isOuter:
             layer = 'CONTOUR'
         elif lp.edges.count == 1 and lp.edges.item(0).geometry.objectType == adsk.core.Circle3D.classType():
             layer = 'HOLES'
         else:
-            ignored += 1
-            continue
+            layer = 'POCKET'
+            pockets += 1
         for e in lp.edges:
             g = e.geometry
             t = g.objectType
@@ -119,12 +130,12 @@ def _export(occ):
             cr = (p0[0] - c[0]) * (pm[1] - c[1]) - (p0[1] - c[1]) * (pm[0] - c[0])
             s, e_ = (ang(p0), ang(p1)) if cr > 0 else (ang(p1), ang(p0))
             out.append((k, layer, (c, r * MM, s, e_)))
-    return out, holes, ignored, (x0, y0), sh
+    return out, holes, pockets, (x0, y0), sh
 
 
 def _dxf(entities):
-    L = ['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER', '70', '2']
-    for name, col in (('CONTOUR', 7), ('HOLES', 1)):
+    L = ['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER', '70', '3']
+    for name, col in (('CONTOUR', 7), ('HOLES', 1), ('POCKET', 3)):
         L += ['0', 'LAYER', '2', name, '70', '0', '62', str(col), '6', 'CONTINUOUS']
     L += ['0', 'ENDTAB', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES']
     for k, layer, a in entities:
@@ -152,13 +163,13 @@ def run():
         if occ.component.bRepBodies.count != 1:
             continue
         name = occ.component.name
-        ents, holes, ignored, origin, sh = _export(occ)
+        ents, holes, pockets, origin, sh = _export(occ)
         bb = occ.bRepBodies.item(0).boundingBox
         fn = name.replace(' ', '_') + '.dxf'
         with open(os.path.join(OUT_DIR, fn), 'w') as fh:
             fh.write(_dxf(ents))
         plates.append({
-            'name': name, 'dxf': fn, 'ignored_loops': ignored,
+            'name': name, 'dxf': fn, 'face': FACE, 'pocket_loops': pockets,
             'thickness': round((bb.maxPoint.z - bb.minPoint.z) * MM, 3),
             'world_bbox_xy': [round((bb.maxPoint.x - bb.minPoint.x) * MM, 2),
                               round((bb.maxPoint.y - bb.minPoint.y) * MM, 2)],

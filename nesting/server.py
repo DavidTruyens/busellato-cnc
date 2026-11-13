@@ -20,8 +20,10 @@ import tempfile
 import threading
 import time
 import webbrowser
+from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 from .backends import BACKENDS
@@ -30,9 +32,10 @@ from .geometry import OffsetError
 from .importdisk import NAME as DISKETTE, size_warning
 from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
-from .preview import preview_data
-from .program import plan_programs
-from .settings import Settings, SettingsError
+from .pockets import GroupSettings, PocketGroup, effective, find_groups, group_for
+from .preview import pocket_groups_data, preview_data
+from .program import plan_programs, plan_shapes, tool_diameter_conflict
+from .settings import STEPOVER_MESSAGE, Pockets, Settings, SettingsError
 
 HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
@@ -67,6 +70,62 @@ def validate(settings: Settings) -> None:
             raise SettingsError(path, 'must be a whole tool number')
 
 
+_POCKET_MESSAGES = {'enabled': 'must be true or false',
+                    'direction': 'must be one of cw, ccw',
+                    'tool': 'must be a whole tool number, 1 or more',
+                    'stepover_pct': STEPOVER_MESSAGE}
+_POCKET_FIELDS = {f.name for f in fields(GroupSettings)}
+
+
+def pocket_override_error(key: str, override, settings: Settings,
+                          floor: bool = True) -> tuple[str, str] | None:
+    """(field below the group, message) for the first bad value of one group's override
+    ('' for the override itself), or None. Checked like pockets.effective, plus (floor True,
+    settings already validated) the floor the depth must leave, like Settings.validate
+    checks the default depth."""
+    if override is None:                            # like effective: no override
+        return None
+    if not isinstance(override, dict):
+        return '', 'must be an object of pocket group settings'
+    for name, value in override.items():
+        if name not in _POCKET_FIELDS:
+            continue                                # unknown fields are ignored, like effective
+        try:
+            effective(key, {key: {name: value}}, settings.pockets)
+        except ValueError:
+            return name, _POCKET_MESSAGES.get(name, 'must be a number greater than 0')
+    if not floor:
+        return None
+    gs = effective(key, {key: override}, settings.pockets)
+    least, thick = settings.pockets.min_floor, settings.panel.thickness
+    if not gs.depth + least <= thick:
+        return 'depth', (f'depth plus pockets.min_floor ({least:g} mm) must not exceed the '
+                         f'panel thickness ({thick:g} mm)')
+    return None
+
+
+def check_pockets(pockets, settings: Settings, groups: list[PocketGroup]) -> None:
+    """SettingsError('pockets.<group id>.<field>', ...) for the first bad override of a
+    current group. Keys that match no group (stale: a DXF edit changes a group's key) are
+    kept as they are and not checked: they are never used and the page cannot show them."""
+    if not isinstance(pockets, dict):
+        raise SettingsError('pockets', 'must be an object: pocket group key -> settings')
+    for g in groups:
+        bad = pocket_override_error(g.key, pockets.get(g.key), settings)
+        if bad:
+            name = f'pockets.{g.id}'
+            raise SettingsError(f'{name}.{bad[0]}' if bad[0] else name, bad[1])
+
+
+def _min_circle(settings: dict) -> float:
+    """pockets.min_circle_diameter if it is a valid number, else the default (a bad value
+    stops every plan through validate(), so shapes read with the default are only listed)."""
+    v = (settings.get('pockets') or {}).get('min_circle_diameter')
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 < v < float('inf'):
+        return Pockets().min_circle_diameter
+    return float(v)
+
+
 def safe_filename(name) -> str:
     """Last path component of `name` if it is a plain `*.dxf` name; else ApiError 400."""
     base = re.split(r'[\\/]', name if isinstance(name, str) else '')[-1].strip()
@@ -87,15 +146,20 @@ class Project:
         self.file = self.dir / 'project.json'
         self.lock = threading.Lock()
         self.out_lock = threading.Lock()     # picks and writes one output folder at a time
-        self._cache: dict[str, tuple[float, Shape]] = {}
+        # file name -> (mtime, pockets.min_circle_diameter, shape)
+        self._cache: dict[str, tuple[float, float, Shape]] = {}
 
     # --- stored state -------------------------------------------------------------------
     def _stored(self) -> dict:
+        """shapes, settings and pockets (the group overrides, as stored: checked later)."""
         if not self.file.exists():
-            return {'shapes': [], 'settings': Settings().to_dict()}
+            return {'shapes': [], 'settings': Settings().to_dict(), 'pockets': {}}
         data = json.loads(self.file.read_text(encoding='utf-8'))
+        if not isinstance(data, dict):
+            raise ValueError('expected an object')
         return {'shapes': list(data.get('shapes') or []),
-                'settings': Settings.from_dict(data.get('settings') or {}).to_dict()}
+                'settings': Settings.from_dict(data.get('settings') or {}).to_dict(),
+                'pockets': data.get('pockets', {})}
 
     def _files(self) -> list[Path]:
         if not self.shapes_dir.is_dir():
@@ -103,29 +167,30 @@ class Project:
         return sorted(p for p in self.shapes_dir.iterdir()
                       if p.suffix.lower() == '.dxf' and p.is_file())
 
-    def _shapes(self) -> tuple[list[Shape], list[str]]:
-        """Shapes read from shapes/*.dxf (cached by mtime), plus a message per unreadable file."""
+    def _shapes(self, min_circle: float) -> tuple[list[Shape], list[str]]:
+        """Shapes read from shapes/*.dxf, plus a message per unreadable file. Cached by mtime
+        and min_circle (which circles are pockets): changing either reads the file again."""
         shapes, errors = [], []
         files = self._files()
         for path in files:
             mtime = path.stat().st_mtime
             hit = self._cache.get(path.name)
-            if hit and hit[0] == mtime:
-                shapes.append(hit[1])
+            if hit and hit[:2] == (mtime, min_circle):
+                shapes.append(hit[2])
                 continue
             try:
-                shape = read_dxf(path)
+                shape = read_dxf(path, min_pocket_circle=min_circle)
             except DxfError as e:
                 errors.append(str(e))
                 continue
-            self._cache[path.name] = (mtime, shape)
+            self._cache[path.name] = (mtime, min_circle, shape)
             shapes.append(shape)
         return shapes, errors
 
-    def _merged(self):
-        """(shapes in list order with qty/enabled, settings dict, dxf errors)."""
-        stored = self._stored()
-        shapes, errors = self._shapes()
+    def _merged(self, stored: dict | None = None):
+        """(shapes in list order with qty/enabled, settings dict, dxf errors, pockets)."""
+        stored = self._stored() if stored is None else stored
+        shapes, errors = self._shapes(_min_circle(stored['settings']))
         by_name = {s.name: s for s in shapes}
         rows, seen = [], set()
         for e in stored['shapes']:
@@ -134,7 +199,7 @@ class Project:
                 seen.add(name)
                 rows.append((by_name[name], int(e.get('qty', 1)), bool(e.get('enabled', True))))
         rows += [(s, 1, True) for s in shapes if s.name not in seen]
-        return rows, stored['settings'], errors
+        return rows, stored['settings'], errors, stored['pockets']
 
     @staticmethod
     def _listing(rows) -> list[dict]:
@@ -146,12 +211,56 @@ class Project:
             return self._project()
 
     def _project(self) -> dict:
-        rows, settings, _ = self._merged()
-        return {'shapes': self._listing(rows), 'settings': settings}
+        rows, settings, _, pockets = self._merged()
+        return {'shapes': self._listing(rows), 'settings': settings, 'pockets': pockets,
+                'pocket_groups': self._pocket_groups(rows, settings, pockets)}
+
+    @staticmethod
+    def _pocket_groups(rows, settings_dict: dict, pockets) -> list[dict]:
+        """pocket_groups_data over every shape of the project (switched off too, so their
+        overrides stay editable) with the stored overrides; count is the number of pockets
+        on switched-on shapes (0 for a group of switched-off shapes only). A group whose
+        override is bad gets enabled False and `error`."""
+        settings = Settings.from_dict(settings_dict)
+        try:
+            validate(settings)
+            settings_ok = True
+        except SettingsError:           # /api/plan names it; no arithmetic on bad values here
+            settings_ok = False
+        on = [(s, q) for s, q, enabled in rows if enabled and q > 0]
+        # enough of a Plan for pocket_groups_data: each shape once (not qty times: a
+        # hand-edited qty can be huge); the counts are then set from the quantities
+        listed = SimpleNamespace(blanks=[SimpleNamespace(
+            shapes=[SimpleNamespace(shape=sh) for sh, _, _ in rows])])
+        ok = isinstance(pockets, dict)
+        groups = Project._groups(rows)
+        out = pocket_groups_data(listed, settings, pockets if ok else {}, groups)
+        counts = {g['id']: 0 for g in out}
+        for sh, q in on:
+            for pk in sh.pockets:
+                if (g := group_for(pk, groups)) is not None:
+                    counts[g.id] += q
+        for g in out:
+            g['count'] = counts[g['id']]
+        for g in out:
+            if not ok:
+                error = 'pockets: must be an object: pocket group key -> settings'
+            elif 'error' in g:
+                continue
+            elif bad := pocket_override_error(g['key'], pockets.get(g['key']), settings,
+                                             settings_ok):
+                field = f'pockets.{g["id"]}' + (f'.{bad[0]}' if bad[0] else '')
+                error = f'{field}: {bad[1]}'
+            else:
+                continue
+            g['enabled'] = False
+            g['error'] = error
+        return out
 
     def save(self, body) -> dict:
         if not isinstance(body, dict):
             raise ApiError(400, {'error': 'expected an object with shapes and settings'})
+        pockets = body.get('pockets', {})
         settings = Settings.from_dict(body.get('settings') or {})
         try:
             validate(settings)
@@ -170,13 +279,31 @@ class Project:
                 raise ApiError(400, {'field': f'shapes.{name}.enabled',
                                      'message': 'must be true or false'})
             shapes.append({'name': name, 'qty': qty, 'enabled': on})
+        stored = {'shapes': shapes, 'settings': settings.to_dict(), 'pockets': pockets}
         with self.lock:
+            rows = self._merged(stored)[0]          # group ids as the new project gives them
+            groups = self._groups(rows)
+            try:
+                check_pockets(pockets, settings, groups)
+            except SettingsError as e:
+                raise ApiError(400, {'field': e.field, 'message': e.message})
+            # one tool number, one diameter (over the shapes that will be placed)
+            placed = [s for s, q, on in rows if on and q > 0]
+            conflict = tool_diameter_conflict(settings, pockets, groups, placed)
+            if conflict:
+                raise ApiError(400, {'field': conflict[1], 'message': conflict[0]})
             self.dir.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                json.dump({'shapes': shapes, 'settings': settings.to_dict()}, f, indent=2)
+                json.dump(stored, f, indent=2)
             os.replace(tmp, self.file)
             return self._project()
+
+    @staticmethod
+    def _groups(rows) -> list[PocketGroup]:
+        """Pocket groups over every shape of the project, switched on or not: the ids and
+        colours of the settings list, the plan, the programs and the run sheet."""
+        return find_groups([s for s, _, _ in rows])
 
     # --- shapes ---------------------------------------------------------------------------
     def upload(self, body) -> dict:
@@ -196,7 +323,11 @@ class Project:
             path = Path(tmp) / name                 # same name, so messages name the file
             path.write_text(text, encoding='utf-8', newline='')   # as sent: no \r\r\n on Windows
             try:
-                shape = read_dxf(path)
+                stored = self._stored()
+            except ValueError:                      # bad project.json: still check the file
+                stored = {'settings': {}}
+            try:
+                shape = read_dxf(path, min_pocket_circle=_min_circle(stored['settings']))
             except DxfError as e:
                 raise ApiError(400, {'error': str(e)})
             target = self.shapes_dir / name
@@ -207,20 +338,75 @@ class Project:
 
     # --- plan -----------------------------------------------------------------------------
     def snapshot(self):
-        """(rows, settings dict, dxf errors) read under the lock; ValueError if project.json is bad."""
+        """(rows, settings dict, dxf errors, pockets) read under the lock; ValueError if
+        project.json is bad."""
         with self.lock:
             return self._merged()
 
     def compute(self, snap):
-        """(settings, plan, programs, problems) from a snapshot, without the lock.
-        Raises SettingsError, OffsetError, ValueError."""
-        rows, settings_dict, errors = snap
+        """(settings, plan, programs, problems, groups) from a snapshot, without the lock.
+        groups: the project's pocket groups over every shape (switched off too), so a group's
+        id and colour are the same in the settings list, the plan and the programs.
+        Raises SettingsError, OffsetError, ValueError (a bad pocket override in project.json
+        is a ValueError naming the field: the page cannot have sent it)."""
+        rows, settings_dict, errors, pockets = snap
         settings = Settings.from_dict(settings_dict)
         validate(settings)
+        groups = self._groups(rows)
+        try:
+            check_pockets(pockets, settings, groups)
+        except SettingsError as e:
+            raise ValueError(f'project.json: {e.field}: {e.message}') from None
         entries = [ShapeEntry(s, q, on) for s, q, on in rows]
         plan = build_plan(entries, settings)
-        programs = plan_programs(plan, settings)
-        return settings, plan, programs, errors + list(plan.problems)
+        programs = plan_programs(plan, settings, pockets, groups)
+        problems = errors + list(plan.problems)
+        problems += self._circle_warnings(plan, settings, pockets, groups)
+        problems += self._stale_warning(pockets, groups)
+        return settings, plan, programs, problems, groups
+
+    @staticmethod
+    def _stale_warning(pockets: dict, groups: list[PocketGroup]) -> list[str]:
+        """One line when stored pocket settings match no current group (a DXF edit or a
+        rename changed the group key): they stay in project.json but are not used."""
+        keys = {g.key for g in groups}
+        n = sum(1 for k in pockets if k not in keys)
+        if not n:
+            return []
+        if n == 1:
+            return ['1 stored pocket setting matches no current group (kept in project.json, '
+                    'not used)']
+        return [f'{n} stored pocket settings match no current group (kept in project.json, '
+                f'not used)']
+
+    @staticmethod
+    def _circle_warnings(plan, settings: Settings, pockets: dict,
+                         groups: list[PocketGroup]) -> list[str]:
+        """One warning per distinct circle (place and size) per placed shape that is read as
+        a pocket, unless its pocket group is switched off (then it is not cut)."""
+        mc = settings.pockets.min_circle_diameter
+        shapes = plan_shapes(plan)
+        out = []
+        for shape in shapes:
+            seen = set()
+            for pk in shape.pockets:
+                if not pk.from_circle:
+                    continue
+                c = pk.circle
+                where = (round(c.x, 3), round(c.y, 3), round(c.diameter, 3))
+                if where in seen:
+                    continue
+                seen.add(where)
+                g = group_for(pk, groups)
+                try:
+                    on = g is None or effective(g.key, pockets, settings.pockets).enabled
+                except ValueError:
+                    on = True
+                if on:
+                    out.append(f'{shape.name}: circle of {c.diameter:g} mm is treated as a '
+                               f'pocket (over pockets.min_circle_diameter {mc:g} mm); raise '
+                               f'the minimum above it to make it a hole')
+        return out
 
     def plan(self) -> dict:
         try:
@@ -229,8 +415,8 @@ class Project:
             return self._failed(Settings(), [f'project.json: {e}'], None)
         settings = Settings.from_dict(snap[1])
         try:
-            settings, plan, programs, problems = self.compute(snap)
-            data = preview_data(plan, programs, settings)
+            settings, plan, programs, problems, groups = self.compute(snap)
+            data = preview_data(plan, programs, settings, snap[3], groups)
         except SettingsError as e:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
         except (OffsetError, DxfError, ValueError) as e:
@@ -252,7 +438,7 @@ class Project:
 
     def program_text(self, name: str) -> str:
         try:
-            settings, _, programs, _ = self.compute(self.snapshot())
+            settings, _, programs, _, _ = self.compute(self.snapshot())
         except (OffsetError, ValueError) as e:      # SettingsError is a ValueError
             raise ApiError(400, {'error': str(e)})
         for p in programs:
@@ -263,7 +449,7 @@ class Project:
     def generate(self) -> dict:
         snap = self.snapshot()
         try:
-            settings, plan, programs, problems = self.compute(snap)
+            settings, plan, programs, problems, groups = self.compute(snap)
         except SettingsError as e:
             raise ApiError(400, {'error': str(e), 'field': e.field})
         except (OffsetError, ValueError) as e:
@@ -275,15 +461,18 @@ class Project:
         stamp = time.strftime('%Y%m%d-%H%M%S')
         project = {'name': self.dir.name, 'shapes': self._listing(snap[0])}
         with self.out_lock:
-            return self._write(out, stamp, plan, programs, settings, project, problems)
+            return self._write(out, stamp, plan, programs, settings, project, problems, snap[3],
+                               groups)
 
-    def _write(self, out, stamp, plan, programs, settings, project, problems) -> dict:
+    def _write(self, out, stamp, plan, programs, settings, project, problems,
+               pockets, groups) -> dict:
         for k in range(1, 1000):
             folder = out / (stamp if k == 1 else f'{stamp}-{k}')
             if folder.exists():
                 continue
             try:
-                files = write_output(folder, plan, programs, settings, project)
+                files = write_output(folder, plan, programs, settings, project,
+                                     pocket_overrides=pockets, groups=groups)
             except FileExistsError:
                 continue
             disk = folder / DISKETTE

@@ -11,9 +11,10 @@ from nesting.backends import BACKENDS
 from nesting.dxf import read_dxf
 from nesting.layout import ShapeEntry, build_plan
 from nesting.output import write_output
-from nesting.preview import preview_data
+from nesting.preview import pocket_groups_data, preview_data
 from nesting.program import plan_programs
 from nesting.settings import Settings
+from test_nesting_program import pocket_shape, rect, rect_loop
 
 repo = Path(__file__).resolve().parent.parent
 
@@ -134,7 +135,7 @@ class OutputTests(unittest.TestCase):
     def test_loader_and_project_have_the_d_and_c_programs(self):
         files = {p.name: p for p in self.write()}
         progs = sorted(p.name for p in self.progs)
-        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DC'))
+        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'))
         for n in progs:
             self.assertIn(n, files)
         self.assertFalse([n for n in files if re.fullmatch(r'B\d\d[FS]', n)])
@@ -153,7 +154,8 @@ class OutputTests(unittest.TestCase):
         section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
         order = [section.index(x) for x in ('origin corner', 'Clamp it', 'Run <b>B01D</b>',
                                             'Screw the blank', 'each shape',
-                                            'Take the clamps off', 'Run <b>B01C</b>', 'Unscrew')]
+                                            'Take the clamps off', 'Run <b>B01P</b>',
+                                            'Run <b>B01C</b>', 'Unscrew')]
         self.assertEqual(order, sorted(order))
         self.assertIn('the blank still clamped: every hole', section)
 
@@ -175,7 +177,7 @@ class OutputTests(unittest.TestCase):
 
     def test_runsheet_has_no_separate_fixing_or_screw_programs(self):
         same = Settings()
-        same.drill_screw.tool = same.drill_fix.tool
+        same.drill_screw.tool, same.drill_screw.diameter = same.drill_fix.tool, same.drill_fix.diameter
         for st in (self.s, same):
             plan = build_plan(self.entries, st)
             progs = plan_programs(plan, st)
@@ -214,6 +216,68 @@ class OutputTests(unittest.TestCase):
         self.write()
         html = (self.out / 'RUNSHEET.html').read_text(encoding='utf-8')
         self.assertIn('below the top of the stack', html)
+
+    def test_runsheet_pockets_steps_table_and_drawing(self):
+        self.write()
+        html = (self.out / 'RUNSHEET.html').read_text(encoding='utf-8')
+        data = preview_data(self.plan, self.progs, self.s)
+        self.assertTrue(data['pocket_groups'])
+        self.assertIn('Run <b>B01P</b>', html)
+        self.assertLess(html.index('Run <b>B01D</b>'), html.index('Run <b>B01P</b>'))
+        self.assertLess(html.index('Run <b>B01P</b>'), html.index('Run <b>B01C</b>'))
+        self.assertIn('<b>Pockets</b>', html)
+        g = data['pocket_groups'][0]
+        self.assertIn(f'<td>{g["id"]}</td><td><span class="sw" style="background:{g["color"]}">', html)
+        self.assertIn('<th>Tool</th><th>Tool Ø (mm)</th><th>Depth (mm)</th>', html)
+        self.assertIn(f'<td>T{g["tool"]}</td><td class="num">{g["diameter"]:g}</td>', html)
+        self.assertIn(f'<path class="pocket" fill="{g["color"]}"', html)
+
+    def test_runsheet_without_pockets_has_no_pocket_table(self):
+        plan = build_plan([ShapeEntry(rect('a', 1000, 230))], self.s)
+        html = self._sheet(self.s, plan_programs(plan, self.s), plan)
+        self.assertNotIn('<b>Pockets</b>', html)
+        self.assertNotIn('B01P', html)
+        self.assertNotIn('class="pocket"', html)
+        self.assertIn('Run <b>B01C</b>', html)
+
+    def test_disabled_group_is_not_in_the_run_sheet(self):
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
+        plan = build_plan([ShapeEntry(sh)], self.s)
+        key = pocket_groups_data(plan, self.s)[0]['key']
+        ov = {key: {'enabled': False}}
+        progs = plan_programs(plan, self.s, ov)
+        out = Path(self.tmp.name) / 'off'
+        write_output(out, plan, progs, self.s, {}, pocket_overrides=ov)
+        html = (out / 'RUNSHEET.html').read_text(encoding='utf-8')
+        self.assertNotIn('B01P', html)
+        self.assertNotIn('<b>Pockets</b>', html)
+        self.assertNotIn('class="pocket"', html)
+
+    def test_project_json_has_pocket_overrides_and_groups(self):
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
+        plan = build_plan([ShapeEntry(sh)], self.s)
+        key = pocket_groups_data(plan, self.s)[0]['key']
+        ov = {key: {'depth': 5}}
+        out = Path(self.tmp.name) / 'ov'
+        write_output(out, plan, plan_programs(plan, self.s, ov), self.s, {}, pocket_overrides=ov)
+        data = json.loads((out / 'PROJECT.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['pockets'], ov)
+        self.assertEqual(data['pocket_groups'], pocket_groups_data(plan, self.s, ov))
+        self.assertEqual(data['pocket_groups'][0]['depth'], 5)
+        self.write()
+        self.assertEqual(json.loads((self.out / 'PROJECT.json').read_text())['pockets'], {})
+
+    def test_loader_and_diskette_include_pocket_programs(self):
+        self.write()
+        names = [p.name for p in self.progs]
+        self.assertIn('B01P', names)
+        for f in ('LOAD.BAT', 'COLLECT.BAT'):
+            text = (self.out / f).read_bytes().decode('ascii')
+            for n in names:
+                self.assertIn(n.upper() if f == 'LOAD.BAT' else f'{n[0]} {n[1:]}', text, (f, n))
+        disk = self.out / 'DISKETTE' / 'SORG'
+        self.assertTrue((disk / 'SRG' / 'B' / '01P').is_file())
+        self.assertEqual((disk / 'INDICE.PRG').stat().st_size, 82 * len(names))
 
 
 if __name__ == '__main__':

@@ -15,7 +15,7 @@ from .backends import BACKENDS
 from .importdisk import NAME as DISKETTE, write_diskette
 from .layout import Plan
 from .preview import preview_data
-from .program import Program
+from .program import Program, pass_count
 from .settings import Settings
 
 LOADER = Path(__file__).resolve().parent.parent / 'tools' / 'make-loader.py'
@@ -30,7 +30,8 @@ h1{font-size:18pt;margin:0 0 4mm}h2{font-size:14pt;margin:0 0 3mm}h3{font-size:1
 .warn{border:2px solid #b00;padding:3mm;margin:0 0 6mm;font-weight:bold}
 section{page-break-after:always;margin-bottom:10mm}
 svg{width:100%;height:auto;border:1px solid #000;background:#fff}
-.blank{fill:#eef;stroke:#339;stroke-width:2}.shape{fill:#fd9;stroke:#640;stroke-width:1.5}
+.blank{fill:#eef;stroke:#339;stroke-width:2}.shape{fill:#fd9;stroke:#640;stroke-width:1.5}.pocket{fill-opacity:.35;stroke-width:1.5}
+.sw{display:inline-block;width:5mm;height:5mm;border:1px solid #000;vertical-align:middle}
 .kerf{fill:#c00}.cutn{font-size:40px;font-weight:bold;fill:#c00}.org{fill:#000}
 .fix{fill:none;stroke:#c00;stroke-width:2}.screw{fill:none;stroke:#060;stroke-width:2}
 .lbl{font-size:28px;text-anchor:middle;fill:#000}.bid{font-size:40px;fill:#339;font-weight:bold}
@@ -77,7 +78,7 @@ ORIGIN = {
 }
 
 
-def _blank_svg(b: dict, y_toward: str) -> str:
+def _blank_svg(b: dict, y_toward: str, cut_groups: set[str] = frozenset()) -> str:
     """The blank as seen from above, operator at the bottom; numbers from preview_data, which
     already holds the program frame drawn for SVG (y down)."""
     L, W = b['width'], b['height']
@@ -87,6 +88,10 @@ def _blank_svg(b: dict, y_toward: str) -> str:
            f'<circle class="org" cx="0" cy="{_g(oy)}" r="12"/>']
     for s in b['shapes']:
         out.append(f'<path class="shape" d="{escape(s["path"])}"/>')
+        for pk in s.get('pockets', []):
+            if pk['group'] in cut_groups:
+                c = escape(pk['color'])
+                out.append(f'<path class="pocket" fill="{c}" stroke="{c}" d="{escape(pk["path"])}"/>')
         out.append(f'<text class="lbl" x="{_g(s["cx"])}" y="{_g(s["cy"])}">{escape(s["name"])}</text>')
     for h in b['fix']:
         out.append(f'<circle class="fix" cx="{_g(h["x"])}" cy="{_g(h["y"])}" r="8"/>')
@@ -112,7 +117,7 @@ def _cut_table(panel: dict) -> str:
 
 
 def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
-    d, c = f'{bid}D', f'{bid}C'
+    d, pk, c = f'{bid}D', f'{bid}P', f'{bid}C'
     corner = 'back-left' if y_toward == 'front' else 'front-left'
     steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot, '
              f'the {corner} corner) against the X and Y pins, long side along machine X. '
@@ -124,11 +129,38 @@ def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
         steps.append('Screw the blank to the scrap plate through the fixing holes, and each shape '
                      'down through its screw holes.')
     steps.append('Take the clamps off.')
+    if pk in names:
+        steps.append(f'Run <b>{escape(pk)}</b> (cuts the pockets into the shapes, from the top '
+                     'face of the blank).')
     if c in names:
         steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
                      'blank\'s frame is not cut).')
     steps.append('Unscrew the shapes and the frame; the frame is left over. Next blank.')
     return steps
+
+
+def _pocket_table(b: dict, groups: dict) -> str:
+    """The pocket groups cut on this blank (empty string when none)."""
+    seen: dict[str, int] = {}
+    for s in b['shapes']:
+        for pk in s.get('pockets', []):
+            if groups.get(pk['group'], {}).get('enabled'):
+                seen[pk['group']] = seen.get(pk['group'], 0) + 1
+    if not seen:
+        return ''
+    rows = ['<p><b>Pockets</b></p><table><tr><th>Group</th><th>Colour</th><th>Size (mm)</th>'
+            '<th>Pockets</th><th>Tool</th><th>Tool Ø (mm)</th><th>Depth (mm)</th><th>Passes</th>'
+            '</tr>']
+    for gid, n in seen.items():
+        g = groups[gid]
+        rows.append(f'<tr><td>{escape(gid)}</td>'
+                    f'<td><span class="sw" style="background:{escape(g["color"])}"></span></td>'
+                    f'<td>{_g(g["width"])} x {_g(g["height"])}</td><td class="num">{n}</td>'
+                    f'<td>T{g["tool"]}</td><td class="num">{round(g["diameter"], 3):g}</td>'
+                    f'<td class="num">{round(g["depth"], 3):g}</td>'
+                    f'<td class="num">{pass_count(g["depth"], g["depth_per_pass"])}</td></tr>')
+    rows.append('</table>')
+    return ''.join(rows)
 
 
 def _tools(p: dict) -> str:
@@ -182,13 +214,14 @@ def _runsheet(data: dict, project: dict) -> str:
                          f'<td>{escape(shapes)}</td></tr>')
         parts.append('</table></section>')
     yt = data['y_toward']
+    groups = {g['id']: g for g in data.get('pocket_groups', [])}
     for b in data['blanks']:
         names = {p['name'] for p in b['programs']}
         parts.append(f'<section><h2>Blank {escape(b["id"])} (from panel {escape(b["panel"])}), '
                      f'{_g(b["width"])} x {_g(b["height"])} mm</h2>')
         parts.append(f'<p>Program coordinates: {escape(ORIGIN[yt])}. Drawing seen from above, '
                      'operator at the bottom. Not yet verified on the machine.</p>')
-        parts.append(_blank_svg(b, yt))
+        parts.append(_blank_svg(b, yt, {g for g, v in groups.items() if v['enabled']}))
         parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt))
                      + '</ol>')
         parts.append('<table><tr><th>Program</th><th>Tools</th><th>Description</th></tr>')
@@ -197,6 +230,7 @@ def _runsheet(data: dict, project: dict) -> str:
                          f'<td>{escape(p["description"])}</td></tr>')
         parts.append('</table>')
         parts.append(_drill_table(b))
+        parts.append(_pocket_table(b, groups))
         parts.append('<p><b>Heights (mm)</b></p><table>')
         for key, label in Z_LABELS:
             if key in b['z']:
@@ -208,9 +242,12 @@ def _runsheet(data: dict, project: dict) -> str:
 
 def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: Settings,
                  project: dict, backend: str = 'cnc90',
-                 today: datetime.date | None = None) -> list[Path]:
+                 today: datetime.date | None = None,
+                 pocket_overrides: dict | None = None,
+                 groups: list | None = None) -> list[Path]:
     """Write the job folder `out_dir` (all or nothing). Returns its entries: the program files,
-    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py)."""
+    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py).
+    groups: the project's pocket groups, as given to plan_programs (see preview_data)."""
     out_dir = Path(out_dir)
     if out_dir.exists():
         raise FileExistsError(f'{out_dir} already exists; choose a new folder')
@@ -230,9 +267,11 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
         if r.returncode != 0:
             raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
         write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
+        data = preview_data(plan, programs, settings, pocket_overrides, groups)
         (stage / 'PROJECT.json').write_text(
-            json.dumps({'settings': settings.to_dict(), 'project': project}, indent=2), encoding='utf-8')
-        data = preview_data(plan, programs, settings)
+            json.dumps({'settings': settings.to_dict(), 'project': project,
+                        'pockets': pocket_overrides or {},
+                        'pocket_groups': data['pocket_groups']}, indent=2), encoding='utf-8')
         (stage / 'RUNSHEET.html').write_text(_runsheet(data, project), encoding='utf-8')
         if out_dir.exists():
             raise FileExistsError(f'{out_dir} already exists; choose a new folder')

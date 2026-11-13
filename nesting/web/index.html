@@ -100,8 +100,21 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
 .legend .cutonly,.legend .jobonly{display:none}
+.legend i.pk{background:linear-gradient(90deg,#d9480f 0 33%,#2b8a3e 33% 66%,#7048e8 66%)}
 .legend.cut .cutonly,.legend.job .jobonly{display:inline}
 .legend.job .layoutonly{display:none}
+.pgroup{border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin:6px 0;background:#fbfcfe}
+.pgroup.dim{opacity:.55}
+.ghead{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
+.ghead label{display:flex;gap:4px;align-items:center;cursor:pointer}
+.ghead .gcount{color:var(--mute);font-size:12px;margin-left:auto}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.3);flex-shrink:0}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 6px;margin-top:4px}
+.pgrid label{display:block;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pgrid input{padding:3px 4px}
+.pgrid input.ovr{font-weight:600}
+.pgroup .ferr,.gerr{color:var(--err);font-size:12px;margin-top:3px}
+.gerr:empty{display:none}
 @media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
 </style>
 </head>
@@ -146,6 +159,8 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
       <span><i style="background:var(--fix)"></i>fixing hole (blank to scrap)</span>
       <span><i style="background:var(--pilot)"></i>screw hole (shape to scrap)</span>
       <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre; dot = start, arrows = direction)</span>
+      <span class="jobonly"><i class="pk"></i>pocket (group colour)</span>
+      <span class="cutonly"><i style="background:none;border:1px solid #667085"></i>pocket cutter path (tool centre, first pass, group colour)</span>
     </div>
   </div>
   <div class="banner" id="problems"></div>
@@ -174,6 +189,11 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <div id="routerToolFields"></div>
   <div id="routerFields"></div>
   <p class="note" id="gapNote"></p>
+
+  <h2 id="pockets">Pockets</h2>
+  <div id="pocketFields"></div>
+  <p class="note">Defaults for every pocket group; all placeholders until measured. Depth is measured from the top of the blank. Pockets are cut by the blank's <code>B..P</code> program, after the screws and before the cut.</p>
+  <div id="pocketGroups"></div>
 
   <h2>Drills</h2>
   <div id="drillFields"></div>
@@ -245,6 +265,18 @@ const FIELDS = {
     ['router.depth_per_pass', 'Depth per pass', 'mm'],
     ['router.clearance', 'Clearance between cuts', 'mm'],
     ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
+  pocketFields: [
+    ['pockets.min_circle_diameter', 'A circle over this Ø is a pocket (else a hole)', 'mm', 0.5],
+    ['pockets.min_floor', 'Least floor left under a pocket', 'mm', 0.5],
+    ['pockets.tool', 'Pocket tool', 'T', 1, 'int'],
+    ['pockets.diameter', 'Pocket tool Ø', 'mm', 0.1],
+    ['pockets.depth', 'Pocket depth', 'mm', 0.5],
+    ['pockets.depth_per_pass', 'Depth per pass', 'mm', 0.5],
+    ['pockets.spindle_rpm', 'Spindle', 'rpm', 500],
+    ['pockets.plunge_feed', 'Plunge feed', 'm/min', 0.5],
+    ['pockets.cut_feed', 'Cut feed', 'm/min', 0.5],
+    ['pockets.stepover_pct', 'Stepover (of the Ø)', '%', 5],
+    ['pockets.direction', 'Direction', [['cw', 'Clockwise'], ['ccw', 'Counter-clockwise']]]],
   drillFields: [
     ['drill_fix.tool', 'Fixing drill tool', 'T', 1, 'int'],
     ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
@@ -281,7 +313,14 @@ const Z_LABELS = [
 const RUNS = {x: 'along X', y: 'along Y'};
 const FREES = {offcut: 'offcut (trim)', strip: 'strip', rough: 'blank, to trim', blank: 'blank'};
 
-let project = null, plan = null;
+// per pocket group override: [field, label, step]; an empty input uses the default
+const GROUP_FIELDS = [['tool', 'Tool T', 1], ['diameter', 'Ø mm', 0.1], ['depth', 'Depth mm', 0.5],
+  ['depth_per_pass', 'Pass mm', 0.5], ['plunge_feed', 'Plunge m/min', 0.5], ['cut_feed', 'Cut m/min', 0.5],
+  ['stepover_pct', 'Stepover %', 5]];
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
+const safeColor = c => typeof c === 'string' && COLOR_RE.test(c) ? c : '#888888';
+
+let project = null, plan = null, groups = [], groupRefs = {};
 let panelIdx = 0, view = 'layout', selB = null, selProg = null, hlCut = null;
 let timer = null, queue = Promise.resolve(), saveError = null, firstPlan = true;
 
@@ -348,9 +387,15 @@ function clearErrors(){
 }
 function showFieldError(err){
   // returns true when the field has a control on the page
-  const box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`);
+  let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
+  // pockets.G<n>.<field>: the message goes under the group's row, the input is marked
+  const m = /^pockets\.(G\d+)(?:\.(.+))?$/.exec(err.field || '');
+  if (!box && m){
+    box = document.querySelector(`.ferr[data-err="${CSS.escape('pockets.' + m[1])}"]`);
+    if (m[2]) msg = `${m[2]}: ${msg}`;
+  }
   if (!box) return false;
-  box.textContent = err.message;
+  box.textContent = msg;
   const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
   if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
   return true;
@@ -361,6 +406,7 @@ function status(text, bad){ $('status').textContent = text; $('status').classLis
 // ---- sync with the server ----------------------------------------------------------------
 function changed(){
   syncSettingsNotes();
+  updateGroups();
   status('Saving…');
   clearTimeout(timer);
   timer = setTimeout(() => { timer = null; sync(); }, 300);
@@ -372,12 +418,19 @@ function sync(){
     clearErrors();
     if (!r.ok){
       saveError = b.field ? b : {field: '', message: b.error || 'not saved'};
+      // the group list of what is saved, so an error text of an earlier state does not linger
+      try {
+        const g = await fetch('/api/project');
+        if (g.ok){ groups = (await g.json()).pocket_groups || []; renderGroups(); }
+      } catch (e){ /* the status line below says it is not saved */ }
       showFieldError(saveError);
       status(`Not saved: ${saveError.field} ${saveError.message}`, true);
       renderProblems();
       return;
     }
     saveError = null;
+    groups = b.pocket_groups || [];
+    renderGroups();
     status('Saved');
     await loadPlan();
   }).catch(e => status('Server not reachable: ' + e.message, true));
@@ -405,6 +458,81 @@ async function loadPlan(){
     }
   }
   renderAll();
+}
+
+// ---- pocket groups: one row per group, overrides in project.pockets[group key] -------------
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+function setOverride(key, name, value){
+  // value undefined removes the field; a group without overrides has no entry
+  const o = isPlainObject(project.pockets[key]) ? project.pockets[key] : {};
+  if (value === undefined) delete o[name]; else o[name] = value;
+  if (Object.keys(o).length) project.pockets[key] = o; else delete project.pockets[key];
+  changed();
+}
+function renderGroups(){
+  const host = $('pocketGroups');
+  // only groups with a pocket on a switched-on shape; a group with an error stays visible so
+  // its message and field can be found. The ids and colours stay those of the whole project.
+  const shown = groups.filter(g => g.count || g.error);
+  const sig = shown.map(g => g.id + '|' + g.key).join('\n');
+  if (host.dataset.sig !== sig || !host.childElementCount){
+    host.dataset.sig = sig;
+    groupRefs = {};
+    host.replaceChildren();
+    if (!shown.length) host.append(el('p', {className: 'note'},
+      groups.length ? 'No pockets in the switched-on shapes.' : 'No pockets in the shapes.'));
+    shown.forEach(g => host.append(buildGroup(g)));
+  }
+  updateGroups();
+}
+function buildGroup(g){
+  const ov = isPlainObject(project.pockets[g.key]) ? project.pockets[g.key] : {};
+  const swatch = el('span', {className: 'swatch', title: 'pocket colour in the drawing'});
+  swatch.style.backgroundColor = safeColor(g.color);
+  const cb = el('input', {type: 'checkbox', id: `pg_${g.id}_enabled`, checked: ov.enabled !== false});
+  cb.dataset.k = `pockets.${g.id}.enabled`;
+  cb.addEventListener('change', () => setOverride(g.key, 'enabled', cb.checked ? undefined : false));
+  const count = el('span', {className: 'gcount'});
+  const head = el('div', {className: 'ghead'},
+    el('label', {htmlFor: cb.id, title: 'cut this group (off: not cut, shown dimmed)'}, cb, swatch, el('b', {}, g.id)),
+    `${fmt(g.width)} × ${fmt(g.height)} ${g.kind}`, count);
+  const grid = el('div', {className: 'pgrid'});
+  const inputs = {};
+  GROUP_FIELDS.forEach(([name, label, step]) => {
+    const id = `pg_${g.id}_${name}`;
+    const input = el('input', {id, type: 'number', step: String(step)});
+    input.value = typeof ov[name] === 'number' ? String(ov[name]) : '';
+    input.classList.toggle('ovr', input.value !== '');
+    input.dataset.k = `pockets.${g.id}.${name}`;
+    input.addEventListener('input', () => {
+      // empty: back to the default; text the browser cannot read: null, the server names it
+      setOverride(g.key, name, input.value === '' && !input.validity.badInput ? undefined : parseValue(input.value));
+      input.classList.toggle('ovr', input.value !== '');
+    });
+    inputs[name] = input;
+    grid.append(el('div', {}, el('label', {htmlFor: id}, label), input));
+  });
+  const err = el('div', {className: 'ferr'}); err.dataset.err = `pockets.${g.id}`;
+  const gerr = el('div', {className: 'gerr'});
+  const card = el('div', {className: 'pgroup'}, head, grid, err, gerr);
+  groupRefs[g.id] = {card, count, inputs, gerr};
+  return card;
+}
+function updateGroups(){
+  // what changes without rebuilding the rows (and losing the focus): counts, dimming,
+  // the defaults shown in the empty inputs and the server's error for the group
+  const d = project.settings.pockets || {};
+  groups.forEach(g => {
+    const r = groupRefs[g.id];
+    if (!r) return;
+    const ov = isPlainObject(project.pockets[g.key]) ? project.pockets[g.key] : {};
+    r.card.classList.toggle('dim', !g.count || ov.enabled === false || !!g.error);
+    r.count.textContent = `${g.count} pocket${g.count === 1 ? '' : 's'}` + (g.count ? '' : ' (shapes off)');
+    Object.entries(r.inputs).forEach(([name, input]) => {
+      input.placeholder = typeof d[name] === 'number' ? fmt(d[name]) : '';
+    });
+    r.gerr.textContent = g.error || '';
+  });
 }
 
 // ---- shapes list and upload ----------------------------------------------------------------
@@ -440,8 +568,11 @@ async function upload(files){
     box.append(line);
   }
   const r = await fetch('/api/project');
-  project.shapes = (await r.json()).shapes;
+  const fresh = await r.json();
+  project.shapes = fresh.shapes;
+  groups = fresh.pocket_groups || [];
   renderShapes();
+  renderGroups();
   changed();
 }
 const drop = $('drop');
@@ -555,10 +686,21 @@ function renderJob(){
   s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(front ? fr.y - 12 * k : H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
   s += `<rect x="0" y="0" width="${esc(b.width)}" height="${esc(H)}" fill="var(--tmpl)" stroke="#6b4e16" stroke-width="${n(2.5)}"/>`;
   s += `<text x="${n(160)}" y="${esc(front ? H + 26 * k : 30 * k)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
+  // the server numbers and colours the groups over every shape of the project, so the ids
+  // and colours here are those of the settings list; switched off: from the plan's list
+  const planGroup = Object.fromEntries((plan.pocket_groups || []).map(g => [g.id, g]));
   b.shapes.forEach((q, qi) => {
     s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="${n(2)}"/>`;
+    (q.pockets || []).forEach(pk => {
+      // a group switched off is not cut: drawn faint and dashed
+      const c = esc(safeColor(pk.color)), g = planGroup[pk.group], on = !g || g.enabled;
+      s += `<path d="${esc(pk.path)}" fill="${c}" fill-opacity="${on ? (view === 'cut' ? .25 : .45) : .12}" stroke="${c}" stroke-width="${n(2)}"${on ? '' : ` stroke-dasharray="${n(6)} ${n(4)}"`}><title>${esc('pocket group ' + pk.group + (on ? '' : ' (off: not cut)'))}</title></path>`;
+    });
     if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}" marker-start="url(#go)" marker-mid="url(#dir)"/>`;
     s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10 * k)}" font-size="${n(28)}" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + (qi + 1) + ')') : ''}</text>`;
+  });
+  if (view === 'cut') (b.pocket_rings || []).forEach(r => {
+    s += `<path d="${esc(r.path)}" fill="none" stroke="${esc(safeColor(r.color))}" stroke-width="${n(1.5)}"/>`;
   });
   if (view === 'drill'){
     b.fix.forEach((h, i) => {
@@ -604,6 +746,7 @@ function renderZ(){
 }
 
 // ---- programs and the real program text ------------------------------------------------------
+const VIEW_OF = {drill: 'drill', cut: 'cut', pocket: 'cut'};   // the cut view also draws the pocket rings
 function renderProgs(){
   const p = blankAt(), tbl = $('progs');
   $('pname').textContent = p ? p.id : '—';
@@ -619,7 +762,7 @@ function renderProgs(){
     const tr = el('tr', {className: g.name === selProg ? 'sel' : ''}, el('td', {}, el('b', {}, g.name)),
                   el('td', {}, toolsOf(g)), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
     tr.dataset.name = g.name;
-    tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderTabs(); renderPanel(); renderProgs(); });
+    tr.addEventListener('click', () => { selProg = g.name; view = VIEW_OF[g.kind] || 'cut'; syncView(); renderTabs(); renderPanel(); renderProgs(); });
     body.append(tr);
   });
   tbl.append(body);
@@ -707,8 +850,12 @@ $('result').addEventListener('click', e => { if (e.target.id === 'result') $('re
     const r = await fetch('/api/project');
     project = await r.json();
     if (!r.ok) throw new Error(project.error || 'cannot read the project');
+    groups = project.pocket_groups || [];
+    delete project.pocket_groups;          // listed by the server, not saved
+    if (!isPlainObject(project.pockets)) project.pockets = {};
     buildFields();
     renderShapes();
+    renderGroups();
     status('Loaded');
     await loadPlan();
   } catch (e){ status('Cannot load the project: ' + e.message, true); }

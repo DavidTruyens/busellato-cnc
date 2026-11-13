@@ -202,5 +202,85 @@ class CupDepthTests(unittest.TestCase):
         s.validate()
 
 
+class PocketSettingsTests(unittest.TestCase):
+    def test_pockets_defaults_present(self):
+        s = Settings.default()
+        p = s.pockets
+        self.assertEqual((p.min_circle_diameter, p.min_floor, p.tool, p.diameter),
+                         (8, 2, 66, 8))
+        self.assertEqual((p.depth, p.depth_per_pass, p.plunge_feed, p.cut_feed),
+                         (8, 4, 1, 3))
+        self.assertEqual((p.spindle_rpm, p.stepover_pct, p.direction), (18000, 40, "cw"))
+        self.assertEqual(s.to_dict()["pockets"]["tool"], 66)
+        self.assertEqual(Settings.from_dict(s.to_dict()), s)
+        s.validate()
+
+    def test_old_project_loads_pocket_defaults(self):
+        s = Settings.from_dict({"router": {"diameter": 12}, "panel": {"thickness": 19}})
+        self.assertEqual(s.pockets, Settings.default().pockets)
+        s.validate()
+
+    def test_pocket_depth_must_leave_floor(self):
+        s = Settings.default()
+        s.pockets.depth = 17
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "pockets.depth")
+        s.pockets.depth = 16
+        s.validate()
+
+    def test_stepover_out_of_range(self):
+        for value in (0, -5, 100.5, float("nan"), "40", True, 1e-9, 0.4, 9.99):
+            with self.subTest(value=value):
+                s = Settings.default()
+                s.pockets.stepover_pct = value
+                with self.assertRaises(SettingsError) as cm:
+                    s.validate()
+                self.assertEqual(cm.exception.field, "pockets.stepover_pct")
+        for value in (10, 100):
+            s = Settings.default()
+            s.pockets.stepover_pct = value
+            s.validate()
+
+    def test_stepover_message_names_the_range(self):
+        s = Settings.default()
+        s.pockets.stepover_pct = 0.4
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertIn("between 10 and 100", cm.exception.message)
+
+    def test_pocket_tool_must_be_whole_number(self):
+        for value in (66.5, True, "66", 0, -1, 2.0):
+            with self.subTest(value=value):
+                s = Settings.default()
+                s.pockets.tool = value
+                with self.assertRaises(SettingsError) as cm:
+                    s.validate()
+                self.assertEqual(cm.exception.field, "pockets.tool")
+
+    def test_pocket_numbers_and_direction_checked(self):
+        for field in ("min_circle_diameter", "diameter", "depth", "depth_per_pass",
+                      "plunge_feed", "cut_feed", "spindle_rpm", "min_floor"):
+            for value in (0, -1, float("inf"), "8"):
+                with self.subTest(field=field, value=value):
+                    s = Settings.default()
+                    setattr(s.pockets, field, value)
+                    with self.assertRaises(SettingsError) as cm:
+                        s.validate()
+                    self.assertEqual(cm.exception.field, "pockets." + field)
+        s = Settings.default()
+        s.pockets.direction = "up"
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "pockets.direction")
+
+    def test_partial_pockets_section_keeps_other_defaults(self):
+        s = Settings.from_dict({"pockets": {"tool": 5}})
+        self.assertEqual(s.pockets.tool, 5)
+        d = Settings.default().pockets
+        self.assertEqual(s.pockets.diameter, d.diameter)
+        self.assertEqual(s.pockets.stepover_pct, d.stepover_pct)
+
+
 if __name__ == "__main__":
     unittest.main()

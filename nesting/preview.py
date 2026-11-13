@@ -12,12 +12,14 @@ origin corner is bottom left. x, y of a rectangle are its top-left corner.
 from __future__ import annotations
 
 import math
+import re
 
 from .backends import BACKENDS
 from .geometry import Arc, Line, _sweep, bbox, translate
 from .layout import Blank, PanelPlan, Plan, SawCut, footprint, to_panel
-from .program import (LINE_WARNING, ContourOp, DrillOp, Program, base_label, segs_to_program,
-                      stack_top, to_program, y_flipped)
+from .pockets import PocketGroup, effective, find_groups, group_for
+from .program import (LINE_WARNING, ContourOp, DrillOp, Program, base_label, plan_shapes,
+                      segs_to_program, stack_top, to_program, y_flipped)
 from .settings import Settings
 
 BACKEND = 'cnc90'
@@ -94,8 +96,69 @@ def _drill_tools(fix_ops, screw_ops, tool_of, settings: Settings) -> list[dict]:
     return out
 
 
-def _blank_data(b: Blank, programs: list[Program], settings: Settings):
+_RING = re.compile(r' (G\d+) pocket \d+ pass (\d+)/\d+ ring \d+/\d+$')
+
+
+def _pocket_rings(mine: list[Program], colors: dict, flip: float | None) -> list[dict]:
+    """One SVG path per ring of the first depth pass of the blank's pocket program: the
+    segments the emitter writes (program frame), later passes repeat the same rings."""
+    out = []
+    for p in mine:
+        if p.kind != 'pocket':
+            continue
+        for o in p.ops:
+            m = _RING.search(o.label)
+            if m and m.group(2) == '1':
+                out.append({'group': m.group(1), 'color': colors.get(m.group(1), ''),
+                            'path': _path(o.segs, flip)})
+    return out
+
+
+def pocket_groups_data(plan: Plan, settings: Settings,
+                       pocket_overrides: dict | None = None,
+                       groups: list[PocketGroup] | None = None) -> list[dict]:
+    """The plan's pocket groups with their effective settings (defaults + overrides), for the
+    UI and the run sheet. count is the number of pockets on the plan, copies included. A group
+    whose override is invalid gets enabled False, the default settings and an `error`.
+    groups: the project's groups (ids and colours over every shape of the project); only
+    those with a pocket on the plan are listed. None: found over the plan's shapes."""
+    given = groups is not None
+    if not given:
+        groups = find_groups(plan_shapes(plan))
+    counts = {g.id: 0 for g in groups}
+    for b in plan.blanks:
+        for ps in b.shapes:
+            for pk in ps.shape.pockets:
+                g = group_for(pk, groups)
+                if g is not None:
+                    counts[g.id] += 1
+    out = []
+    for g in groups:
+        if given and not counts[g.id]:
+            continue
+        error = None
+        try:
+            gs = effective(g.key, pocket_overrides or {}, settings.pockets)
+        except ValueError as e:
+            gs = effective(g.key, {}, settings.pockets)
+            gs.enabled = False
+            error = f'pocket group {g.id}: {e}'
+        d = {'id': g.id, 'key': g.key, 'width': g.width, 'height': g.height, 'kind': g.kind,
+             'count': counts[g.id], 'color': g.color, 'enabled': gs.enabled, 'tool': gs.tool,
+             'diameter': gs.diameter, 'depth': gs.depth, 'depth_per_pass': gs.depth_per_pass,
+             'plunge_feed': gs.plunge_feed, 'cut_feed': gs.cut_feed,
+             'stepover_pct': gs.stepover_pct, 'direction': gs.direction}
+        if error:
+            d['error'] = error
+        out.append(d)
+    return out
+
+
+def _blank_data(b: Blank, programs: list[Program], settings: Settings,
+                groups: list[PocketGroup] | None = None):
     """(blank view: program frame drawn for SVG, holes as drilled in the program frame)."""
+    groups = groups or []
+    colors = {g.id: g.color for g in groups}
     flip = _job_flip(b, settings)
 
     def sy(y):
@@ -110,10 +173,16 @@ def _blank_data(b: Blank, programs: list[Program], settings: Settings):
         moved = segs_to_program(b, settings, translate(ps.shape.outline, ps.x, ps.y))
         x0, y0, x1, y1 = bbox(moved)
         op = cuts.get(f'{b.id} {ps.name} #{ps.copy}')
+        pockets = []
+        for pk in ps.shape.pockets:
+            g = group_for(pk, groups)
+            if g is not None:
+                pocket = segs_to_program(b, settings, translate(pk.outline, ps.x, ps.y))
+                pockets.append({'group': g.id, 'path': _path(pocket, flip), 'color': g.color})
         shapes.append({'name': ps.name, 'copy': ps.copy, 'path': _path(moved, flip),
-                       'cut_path': _path(op.segs, flip) if op else '',
+                       'cut_path': _path(op.segs, flip) if op else '', 'pockets': pockets,
                        'cx': (x0 + x1) / 2, 'cy': sy((y0 + y1) / 2)})
-    ops = [o for p in mine for o in p.ops]
+    ops = [o for p in mine if p.kind == 'cut' for o in p.ops]
     z = {'stack_top': stack_top(settings),
          'fixing': fix_ops[0].depth if fix_ops else None,
          'screw': screw_ops[0].depth if screw_ops else None,
@@ -122,6 +191,7 @@ def _blank_data(b: Blank, programs: list[Program], settings: Settings):
             'rotated': b.rotated, 'shapes': shapes,
             'fix': [{'x': o.x, 'y': sy(o.y)} for o in fix_ops],
             'screw': [{'x': o.x, 'y': sy(o.y)} for o in screw_ops],
+            'pocket_rings': _pocket_rings(mine, colors, flip),
             'programs': [_program_entry(p, settings) for p in mine],
             'drill_tools': _drill_tools(fix_ops, screw_ops, lambda o: tool_by_op[id(o)], settings),
             'z': {k: v for k, v in z.items() if v is not None}}
@@ -167,11 +237,19 @@ def _panel_data(panel: PanelPlan, holes: dict, settings: Settings) -> dict:
             'waste': waste, 'waste_pct': 100 * waste / area}
 
 
-def preview_data(plan: Plan, programs: list[Program], settings: Settings) -> dict:
+def preview_data(plan: Plan, programs: list[Program], settings: Settings,
+                 pocket_overrides: dict | None = None,
+                 groups: list[PocketGroup] | None = None) -> dict:
+    """groups: the project's pocket groups, as given to plan_programs (None: found over the
+    plan's shapes, as plan_programs does without them)."""
     p, m = settings.panel, settings.machine
+    pocket_groups = pocket_groups_data(plan, settings, pocket_overrides, groups)
+    if groups is None:
+        groups = find_groups(plan_shapes(plan))
+    problems = list(plan.problems) + [g['error'] for g in pocket_groups if 'error' in g]
     blanks, holes = [], {}
     for b in plan.blanks:
-        data, fix_ops, screw_ops = _blank_data(b, programs, settings)
+        data, fix_ops, screw_ops = _blank_data(b, programs, settings, groups)
         blanks.append(data)
         holes[b.id] = (fix_ops, screw_ops)
     return {'panel': {'length': p.length, 'width': p.width, 'thickness': p.thickness,
@@ -180,4 +258,5 @@ def preview_data(plan: Plan, programs: list[Program], settings: Settings) -> dic
             'y_toward': m.y_toward,
             'panels': [_panel_data(pp, holes, settings) for pp in plan.panels],
             'blanks': blanks,
-            'problems': list(plan.problems)}
+            'pocket_groups': pocket_groups,
+            'problems': problems}
