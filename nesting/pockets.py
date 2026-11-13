@@ -12,7 +12,8 @@ from .settings import Pockets
 
 # Distinct from the page colours (blank tan, shape blue, holes red, saw cut black, green/amber UI).
 PALETTE = ["#00897b", "#8e24aa", "#f57c00", "#d81b60", "#00bcd4",
-           "#827717", "#5e35b1", "#7cb342", "#fbc02d"]
+           "#827717", "#5e35b1", "#7cb342", "#fbc02d",
+           "#546e7a", "#8d6e63", "#ff8a65", "#aed581", "#b39ddb", "#f48fb1"]
 
 _STEP = 0.05
 SLOT_ASPECT = 3.0

@@ -93,6 +93,23 @@ class PocketGroupTests(unittest.TestCase):
         self.assertEqual([g.kind for g in gs], ["round", "shape"])
 
 
+class PaletteTests(unittest.TestCase):
+    def test_palette_has_enough_distinct_colours(self):
+        import re
+        self.assertGreaterEqual(len(set(PALETTE)), 14)
+        self.assertTrue(all(re.fullmatch(r"#[0-9a-f]{6}", c) for c in PALETTE))
+
+    def test_real_plates_groups_have_distinct_colours(self):
+        from pathlib import Path
+        from nesting.dxf import read_dxf
+        plates = Path(__file__).resolve().parent.parent / "plates"
+        shapes = [read_dxf(f) for f in sorted(plates.glob("*.dxf"))]
+        self.assertEqual(len(shapes), 12)
+        groups = find_groups(shapes)
+        self.assertGreaterEqual(len(groups), 10)
+        self.assertEqual(len({g.color for g in groups}), len(groups))
+
+
 class EffectiveTests(unittest.TestCase):
     def test_merge_and_unknown_ignored(self):
         d = Pockets()
