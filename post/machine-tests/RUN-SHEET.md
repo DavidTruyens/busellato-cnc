@@ -10,23 +10,29 @@ Fusion Personal cannot post a program with a tool change, so every test is split
 tool: the router contour (T65) and the drilling (T1) are separate programs. Copy and
 compile both, then run them one after the other (router first, then drills).
 
-Before copying, check that the name is free (none of the ZZT* names is in
-`C:\CNC90\MOD1\SORG\SRG\Z` according to `hdd/LISTING.TXT`):
+Combined visit: `regen/README.md` adds a compiler regeneration test (four real programs recompiled and compared on the
+Mac) and batch files (`INSTALL.BAT`, `COLLECT.BAT`) that copy and collect everything in one go. Use it instead of the nine
+`COPY` lines below if you want both tests on one diskette.
 
-    DIR C:\CNC90\MOD1\SORG\SRG\Z\ZZT1A
+On the machine the first letter of a program name is its folder and the rest is the file name
+(program `ZZT1A` = `SRG\Z\ZT1A`; checked against the machine's `INDICE.PRG`). Before copying, check that
+the name is free (none of the ZZT* programs exists in `C:\CNC90\MOD1\SORG\SRG\Z` according to
+`hdd/LISTING.TXT`):
+
+    DIR C:\CNC90\MOD1\SORG\SRG\Z\ZT1A
 
 Before starting, copy and compile ALL 9 programs (ZZT1, ZZT1D, ZZT1A, ZZT1AD, ZZT2A,
 ZZT3A-D) from the shuttle diskette, one COPY each, then compile each one in CNC90:
 
-    COPY A:\ZZT1   C:\CNC90\MOD1\SORG\SRG\Z\ZZT1
-    COPY A:\ZZT1D  C:\CNC90\MOD1\SORG\SRG\Z\ZZT1D
-    COPY A:\ZZT1A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT1A
-    COPY A:\ZZT1AD C:\CNC90\MOD1\SORG\SRG\Z\ZZT1AD
-    COPY A:\ZZT2A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT2A
-    COPY A:\ZZT3A  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3A
-    COPY A:\ZZT3B  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3B
-    COPY A:\ZZT3C  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3C
-    COPY A:\ZZT3D  C:\CNC90\MOD1\SORG\SRG\Z\ZZT3D
+    COPY A:\ZZT1    C:\CNC90\MOD1\SORG\SRG\Z\ZT1
+    COPY A:\ZZT1D   C:\CNC90\MOD1\SORG\SRG\Z\ZT1D
+    COPY A:\ZZT1A   C:\CNC90\MOD1\SORG\SRG\Z\ZT1A
+    COPY A:\ZZT1AD  C:\CNC90\MOD1\SORG\SRG\Z\ZT1AD
+    COPY A:\ZZT2A   C:\CNC90\MOD1\SORG\SRG\Z\ZT2A
+    COPY A:\ZZT3A   C:\CNC90\MOD1\SORG\SRG\Z\ZT3A
+    COPY A:\ZZT3B   C:\CNC90\MOD1\SORG\SRG\Z\ZT3B
+    COPY A:\ZZT3C   C:\CNC90\MOD1\SORG\SRG\Z\ZT3C
+    COPY A:\ZZT3D   C:\CNC90\MOD1\SORG\SRG\Z\ZT3D
 
 | Program | Tool | Stock (G71 Z) | Content | Lines |
 |---|---|---|---|---|

@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel nesting and programs</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#fff; --ink:#1c2230; --mute:#667085; --line:#d9dde5;
+  --accent:#1f5fbf; --accent-ink:#fff; --warn:#a15c00; --warn-bg:#fff4e0;
+  --stock:#f1e6cf; --stock-line:#9b7b3c; --tmpl:#dcc79c; --plate:#a9c7ea; --plate-line:#245a9e;
+  --fix:#c0261c; --pilot:#111; --ok:#1b7f43; --err:#b42318;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0;font-weight:600}
+.badge{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:99px;padding:2px 10px;font-size:12px}
+.spacer{flex:1}
+#status{font-size:12px;color:var(--mute)}
+#status.bad{color:var(--err)}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:6px;cursor:pointer}
+button:hover{border-color:#aab3c2}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.6;cursor:wait}
+main{flex:1;min-height:0;display:grid;grid-template-columns:270px 1fr 310px;gap:0}
+aside,section.center{min-height:0;overflow:auto}
+aside{background:var(--panel);padding:12px 14px}
+aside.left{border-right:1px solid var(--line)}
+aside.right{border-left:1px solid var(--line)}
+h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:14px 0 6px}
+h2:first-child{margin-top:0}
+table{border-collapse:collapse;width:100%}
+th,td{padding:4px 6px;text-align:left;border-bottom:1px solid #eceff4;font-size:13px;white-space:nowrap}
+th{font-weight:500;color:var(--mute);font-size:12px}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.name span{display:inline-block;max-width:100px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+input[type=number],select{font:inherit;width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+input.qty{width:46px;text-align:right}
+input.bad,select.bad{border-color:var(--err);background:#fff5f4}
+.drop{border:2px dashed #b9c1cf;border-radius:8px;padding:12px;text-align:center;color:var(--mute);margin:8px 0}
+.drop.over{border-color:var(--accent);background:#eef4ff}
+.drop u{cursor:pointer}
+.upmsg{font-size:12px;margin:4px 0}
+.upmsg div{margin:2px 0}
+.upmsg .err{color:var(--err)}
+.upmsg .ok{color:var(--ok)}
+.field{display:grid;grid-template-columns:1fr 78px 38px;gap:6px;align-items:center;margin:5px 0}
+.field.wide{grid-template-columns:1fr}
+.field.wide label{color:var(--mute);font-size:12px}
+.field.half{grid-template-columns:1fr 126px}
+.field label{color:var(--ink)}
+.field .unit{color:var(--mute);font-size:12px;margin-left:3px}
+.ferr{grid-column:1/-1;color:var(--err);font-size:12px}
+.fnote{grid-column:1/-1;color:var(--mute);font-size:12px;margin-top:-3px}
+.ferr:empty{display:none}
+.note{font-size:12px;color:var(--mute);margin:4px 0}
+.radio{display:block;margin:3px 0}
+section.center{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tab{padding:5px 12px;border-radius:6px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg span{padding:5px 12px;cursor:pointer;border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--accent);color:#fff}
+.canvas{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px;overflow:auto;flex-shrink:0}
+svg text{font-family:inherit}
+.tmpl{cursor:pointer}
+.tmpl:hover rect.t{stroke-width:4}
+.cutlist{background:var(--panel);border:1px solid var(--line);border-radius:8px;flex-shrink:0}
+.cutlist h2{margin:0;padding:10px 12px 4px}
+.cutlist table td{padding:4px 12px}
+.cutlist tr.hl td{background:#fff4e0}
+.cutlist:empty{display:none}
+.stats{color:var(--mute);font-size:13px}
+.banner{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:8px;padding:8px 12px;font-size:13px}
+.banner ul{margin:4px 0 0;padding-left:18px}
+.banner:empty{display:none}
+.progs{background:var(--panel);border:1px solid var(--line);border-radius:8px;flex-shrink:0}
+.progs h2{margin:0;padding:10px 12px 4px}
+.progs table td{padding:6px 12px}
+.progs tr[data-name]{cursor:pointer}
+.progs tr.sel td{background:#eef4ff}
+.progs .wtxt{color:var(--warn);font-size:12px;white-space:normal}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.codehead{padding:6px 12px;background:#1b2233;color:#9fb0cc;font-size:12px}
+pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 0 8px 8px;max-height:210px;min-height:60px;overflow:auto}
+.pill{display:inline-block;border-radius:99px;padding:1px 8px;font-size:12px;border:1px solid var(--line);background:#f7f8fa}
+.pill.warn{color:var(--warn);background:var(--warn-bg);border-color:#f0cf94}
+.zbox{background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px}
+.zbox b{font-variant-numeric:tabular-nums}
+.zbox table td{padding:2px 0;white-space:normal;border-bottom:0}
+.sel-card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fbfcfe;font-size:13px}
+#result{position:fixed;inset:0;background:rgba(15,20,35,.5);display:none;align-items:center;justify-content:center;z-index:5}
+#result .box{background:#fff;border-radius:10px;max-width:680px;width:92%;max-height:86vh;overflow:auto;padding:18px 20px}
+#result h3{margin:0 0 6px}
+#result ol{padding-left:20px}
+#result .err{color:var(--err)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.legend .cutonly,.legend .jobonly{display:none}
+.legend.cut .cutonly,.legend.job .jobonly{display:inline}
+.legend.job .layoutonly{display:none}
+@media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Panel nesting &amp; programs</h1>
+  <span class="badge">Not yet run on the machine: check every program in the simulator first</span>
+  <span class="spacer"></span>
+  <span id="status"></span>
+  <button class="primary" id="gen">Generate programs</button>
+</header>
+
+<main>
+<aside class="left">
+  <h2>Shapes</h2>
+  <table id="shapes"><thead><tr><th></th><th>Name</th><th class="num">L × W</th><th class="num">Qty</th></tr></thead><tbody></tbody></table>
+  <div class="drop" id="drop">Drop DXF files here<br><small>or <u id="choose">choose files</u> — outline + circles, any 2D shape</small></div>
+  <input type="file" id="file" accept=".dxf" multiple hidden>
+  <div class="upmsg" id="upmsg"></div>
+
+  <h2>Blanks</h2>
+  <p class="note">A panel saw cuts each panel into blanks. One blank at a time is screwed to the scrap plate on the cups; the shapes are cut out of it and its frame is left over.</p>
+  <div id="blankFields"></div>
+  <p class="note" id="panelNote"></p>
+
+  <h2>Panel and saw</h2>
+  <div id="panelFields"></div>
+</aside>
+
+<section class="center">
+  <div class="bar" id="ptabs"></div>
+  <div class="bar" id="btabs"></div>
+  <div class="bar">
+    <div class="seg" id="views"><span data-v="layout" class="on">Layout</span><span data-v="drill">Drill job</span><span data-v="cut">Cut job</span></div>
+    <span class="stats" id="stats"></span>
+    <span class="spacer"></span>
+    <div class="legend" id="legend">
+      <span><i style="background:var(--tmpl)"></i>blank</span>
+      <span><i style="background:var(--plate)"></i>shape</span>
+      <span class="layoutonly"><i style="background:#c0261c"></i>saw cut (kerf)</span>
+      <span class="jobonly"><i style="background:none;border:2px dashed #667085"></i>machine work frame</span>
+      <span><i style="background:var(--fix)"></i>fixing hole (blank to scrap)</span>
+      <span><i style="background:var(--pilot)"></i>screw hole (shape to scrap)</span>
+      <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre)</span>
+    </div>
+  </div>
+  <div class="banner" id="problems"></div>
+  <div class="canvas"><svg id="svg" width="100%"></svg></div>
+  <div class="cutlist" id="cutlist"></div>
+
+  <div class="progs">
+    <h2>Programs for <span id="pname"></span></h2>
+    <table id="progs"></table>
+    <div class="codehead" id="codehead">Program text</div>
+    <pre id="code"></pre>
+  </div>
+</section>
+
+<aside class="right">
+  <h2>Selection</h2>
+  <div class="sel-card" id="sel">Click a blank on the panel.</div>
+
+  <h2>Heights (Z)</h2>
+  <div id="heightFields"></div>
+  <div class="zbox" id="zbox"></div>
+  <p class="note">All in mm. The program's stock height is the stack height (scrap + blank); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
+
+  <h2>Router (cut job)</h2>
+  <div class="field wide"><label for="preset">Preset: fills the router tool and Ø</label><select id="preset"></select></div>
+  <div id="routerToolFields"></div>
+  <div id="routerFields"></div>
+  <p class="note" id="gapNote"></p>
+
+  <h2>Drills</h2>
+  <div id="drillFields"></div>
+
+  <h2>Machine</h2>
+  <div id="machineFields"></div>
+  <p class="note">Values shown are placeholders until measured at the machine. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
+</aside>
+</main>
+
+<div id="result"><div class="box">
+  <h3 id="rtitle">Programs written</h3>
+  <p class="note" id="rfolder"></p>
+  <div id="files"></div>
+  <div id="rsteps">
+    <h3 style="margin-top:12px">At the machine</h3>
+    <ol>
+      <li>Print <code>RUNSHEET.html</code> from the folder: saw cut list per panel, then per blank its drawing, steps and depths.</li>
+      <li>Copy everything in the folder to the root of the diskette.</li>
+      <li>DOS: run <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites, says what it did).</li>
+      <li>CNC90 file management: register each program, then open and save it once in the editor.</li>
+      <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
+      <li>Saw each panel into blanks as the cut list says.</li>
+      <li>Per blank: lay it on the scrap against the pins → fixing holes → screw the blank down → screw holes → screw the shapes down → cut the shapes out.</li>
+      <li>Optional: <code>A:COLLECT</code> copies the compiler output to <code>A:\OUT\</code>.</li>
+    </ol>
+  </div>
+  <button id="rclose">Close</button>
+</div></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = v => String(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+// like the emitter: 3 decimals, trailing zeros and a trailing '.' removed
+function fmt(v){
+  const s = (Math.round(v * 1000) / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  return s === '-0' || s === '' ? '0' : s;
+}
+const fmtArea = v => (Math.round(v * 10) / 10).toString();
+function el(tag, props, ...kids){
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  kids.forEach(k => e.append(k));   // strings become text nodes
+  return e;
+}
+const getK = (o, k) => k.split('.').reduce((a, p) => a == null ? a : a[p], o);
+function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, p) => a[p], o)[last] = v; }
+
+// ---- settings controls: every field of Settings -----------------------------------------
+const NOTE_FEED = "not written to the program (the control uses the tool's own feed)";
+const NOTE_DIA = 'used only to decide whether the two drill jobs share one program';
+// [key, label, unit or choices, step, kind, (unused), note under the field]
+const NOTE_FRAME = "placeholder: to verify on the machine's axis parameter screens";
+const FIELDS = {
+  heightFields: [
+    ['heights.scrap', 'Scrap plate on cups', 'mm'],
+    ['heights.into_scrap', 'Shape cut into scrap', 'mm', 0.1],
+    ['heights.fix_into_scrap', 'Fixing holes into scrap', 'mm', 0.5]],
+  routerToolFields: [
+    ['router.tool', 'Router tool', 'T', 1, 'int'],
+    ['router.diameter', 'Router Ø', 'mm', 0.1]],
+  routerFields: [
+    ['router.spindle_rpm', 'Spindle', 'rpm', 500],
+    ['router.plunge_feed', 'Plunge feed', 'm/min', 0.5],
+    ['router.cut_feed', 'Cut feed', 'm/min', 0.5],
+    ['router.depth_per_pass', 'Depth per pass', 'mm'],
+    ['router.clearance', 'Clearance between cuts', 'mm'],
+    ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
+  drillFields: [
+    ['drill_fix.tool', 'Fixing drill tool', 'T', 1, 'int'],
+    ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
+    ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED],
+    ['drill_screw.tool', 'Screw drill tool', 'T', 1, 'int'],
+    ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
+    ['drill_screw.depth', 'Screw hole depth into scrap', 'mm'],
+    ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED]],
+  blankFields: [
+    ['blank.shapes_per', 'Shapes per blank', '', 1, 'int'],
+    ['blank.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
+    ['blank.margin_end', 'End margin', 'mm'],
+    ['blank.margin_side', 'Side margin', 'mm'],
+    ['blank.fix_inset', 'Fixing hole inset', 'mm'],
+    ['blank.head_dia', 'Screw head Ø (clearance)', 'mm']],
+  panelFields: [
+    ['panel.length', 'Panel length', 'mm'],
+    ['panel.width', 'Panel width', 'mm'],
+    ['panel.thickness', 'Panel thickness (blank)', 'mm'],
+    ['panel.edge', 'Saw trim per edge', 'mm'],
+    ['panel.kerf', 'Saw kerf', 'mm', 0.5]],
+  machineFields: [
+    ['origin', 'Origin', [['G54', 'G54'], ['G55', 'G55']]],
+    ['machine.frame_x', 'Work frame X', 'mm', 1, 'num', '', NOTE_FRAME],
+    ['machine.frame_y', 'Work frame Y', 'mm', 1, 'num', '', NOTE_FRAME]]
+};
+const ROUTER_TOOLS = [[66, 8, 'T66 Ø8 (right, 4.5 HP)'], [65, 18, 'T65 Ø18 (left, 7 HP)']];
+const Z_LABELS = [
+  ['stack_top', 'Stack height (top of the stack above the cups)'],
+  ['fixing', 'Fixing holes: drill depth below the top of the stack'],
+  ['screw', 'Screw holes: drill depth below the top of the stack'],
+  ['shape_cut', 'Shapes: cut depth below the top of the stack']];
+const RUNS = {x: 'along X', y: 'along Y'};
+const FREES = {offcut: 'offcut (trim)', strip: 'strip', rough: 'blank, to trim', blank: 'blank'};
+
+let project = null, plan = null;
+let panelIdx = 0, view = 'layout', selB = null, selProg = null, hlCut = null;
+let timer = null, queue = Promise.resolve(), saveError = null, firstPlan = true;
+
+function parseValue(raw){
+  if (raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;   // the server names the field when it is wrong
+}
+
+function buildFields(){
+  Object.entries(FIELDS).forEach(([box, list]) => {
+    const host = $(box);
+    list.forEach(([key, label, unit, step, kind, only, note]) => {
+      let input;
+      const id = 'f_' + key.replace('.', '_');
+      if (Array.isArray(unit)){
+        input = el('select', {id});
+        unit.forEach(([v, t]) => input.append(el('option', {value: v}, t)));
+        input.value = getK(project.settings, key);
+        input.addEventListener('change', () => { setK(project.settings, key, input.value); changed(); });
+      } else {
+        input = el('input', {id, type: 'number', step: String(step || 1)});
+        input.value = getK(project.settings, key);
+        input.addEventListener('input', () => { setK(project.settings, key, parseValue(input.value)); changed(); });
+      }
+      input.dataset.k = key;
+      const f = el('div', {className: Array.isArray(unit) ? 'field half' : 'field'},
+                   el('label', {htmlFor: id}, label), input);
+      if (!Array.isArray(unit)) f.append(el('span', {className: 'unit'}, unit));
+      if (note) f.append(el('div', {className: 'fnote'}, note));
+      const err = el('div', {className: 'ferr'}); err.dataset.err = key;
+      f.append(err);
+      if (only) f.dataset.only = only;
+      host.append(f);
+    });
+  });
+  // router preset: fills the tool and diameter inputs, which save like any other field
+  const sel = $('preset');
+  sel.append(el('option', {value: ''}, 'Typed in'));
+  ROUTER_TOOLS.forEach(([t, d, txt]) => sel.append(el('option', {value: t + '|' + d}, txt)));
+  sel.addEventListener('change', () => {
+    if (!sel.value) return;
+    const [t, d] = sel.value.split('|').map(Number), r = project.settings.router;
+    r.tool = t; r.diameter = d;
+    $('f_router_tool').value = t; $('f_router_diameter').value = d;
+    changed();
+  });
+  syncSettingsNotes();
+}
+
+function syncSettingsNotes(){
+  const s = project.settings;
+  const preset = ROUTER_TOOLS.find(([t, d]) => t === s.router.tool && d === s.router.diameter);
+  $('preset').value = preset ? preset[0] + '|' + preset[1] : '';
+  $('panelNote').textContent = `A blank must fit the work frame ${s.machine.frame_x} × ${s.machine.frame_y} (long side along machine X). Blanks are sawn from ${s.panel.width} × ${s.panel.length} panels; 90° turns on the panel allowed.`;
+  const gap = Number(s.router.diameter) + Number(s.router.clearance);
+  $('gapNote').textContent = `Gap between shapes on a blank: tool Ø + clearance = ${Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
+}
+
+// ---- field errors ------------------------------------------------------------------------
+function clearErrors(){
+  document.querySelectorAll('.ferr').forEach(e => e.textContent = '');
+  document.querySelectorAll('.bad').forEach(e => e.classList.remove('bad'));
+}
+function showFieldError(err){
+  // returns true when the field has a control on the page
+  const box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`);
+  if (!box) return false;
+  box.textContent = err.message;
+  const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
+  if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
+  return true;
+}
+
+function status(text, bad){ $('status').textContent = text; $('status').classList.toggle('bad', !!bad); }
+
+// ---- sync with the server ----------------------------------------------------------------
+function changed(){
+  syncSettingsNotes();
+  status('Saving…');
+  clearTimeout(timer);
+  timer = setTimeout(() => { timer = null; sync(); }, 300);
+}
+function sync(){
+  queue = queue.then(async () => {
+    const r = await fetch('/api/project', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(project)});
+    const b = await r.json();
+    clearErrors();
+    if (!r.ok){
+      saveError = b.field ? b : {field: '', message: b.error || 'not saved'};
+      showFieldError(saveError);
+      status(`Not saved: ${saveError.field} ${saveError.message}`, true);
+      renderProblems();
+      return;
+    }
+    saveError = null;
+    status('Saved');
+    await loadPlan();
+  }).catch(e => status('Server not reachable: ' + e.message, true));
+  return queue;
+}
+function flush(){
+  if (timer){ clearTimeout(timer); timer = null; sync(); }
+  return queue;
+}
+
+async function loadPlan(){
+  const r = await fetch('/api/plan');
+  plan = await r.json();
+  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, frame: {x: 0, y: 0}, panels: [], blanks: [], problems: [plan.error || 'plan failed'], settings_error: null};
+  if (plan.settings_error) showFieldError(plan.settings_error);
+  if (panelIdx >= plan.panels.length) panelIdx = 0;
+  const p = plan.panels[panelIdx];
+  if (!p || !p.blanks.some(b => b.id === selB)) selB = p && p.blanks.length ? p.blanks[0].id : null;
+  if (firstPlan && p){
+    firstPlan = false;
+    const h0 = location.hash.slice(1);
+    if (h0 === 'drill' || h0 === 'cut'){
+      view = h0;
+      const g = blankAt().programs.find(x => x.kind === h0); selProg = g ? g.name : null;
+    }
+  }
+  renderAll();
+}
+
+// ---- shapes list and upload ----------------------------------------------------------------
+function renderShapes(){
+  const body = $('shapes').tBodies[0];
+  body.replaceChildren();
+  if (!project.shapes.length){
+    body.append(el('tr', {}, el('td', {colSpan: 4, className: 'note'}, 'No shapes yet: drop DXF files below.')));
+  }
+  project.shapes.forEach(s => {
+    const cb = el('input', {type: 'checkbox', checked: s.enabled});
+    cb.addEventListener('change', () => { s.enabled = cb.checked; changed(); });
+    const q = el('input', {className: 'qty', type: 'number', min: '0', step: '1', value: String(s.qty)});
+    q.addEventListener('input', () => { s.qty = parseValue(q.value); changed(); });
+    body.append(el('tr', {}, el('td', {}, cb), el('td', {className: 'name', title: s.name}, el('span', {}, s.name)),
+      el('td', {className: 'num'}, `${Math.round(s.length)} × ${Math.round(s.width)}`), el('td', {className: 'num'}, q)));
+  });
+}
+
+async function upload(files){
+  await flush();
+  const box = $('upmsg');
+  box.replaceChildren();
+  for (const f of files){
+    let line;
+    try {
+      const r = await fetch('/api/shapes', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                             body: JSON.stringify({filename: f.name, text: await f.text()})});
+      const b = await r.json();
+      line = r.ok ? el('div', {className: 'ok'}, `${b.name}: ${Math.round(b.length)} × ${Math.round(b.width)}, ${b.holes} holes${b.replaced ? ' (replaced the earlier file)' : ''}`)
+                  : el('div', {className: 'err'}, b.error || b.message || `${f.name}: upload failed`);
+    } catch (e){ line = el('div', {className: 'err'}, `${f.name}: ${e.message}`); }
+    box.append(line);
+  }
+  const r = await fetch('/api/project');
+  project.shapes = (await r.json()).shapes;
+  renderShapes();
+  changed();
+}
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); upload([...e.dataTransfer.files]); });
+$('choose').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', () => { upload([...$('file').files]); $('file').value = ''; });
+
+// ---- panel drawing ---------------------------------------------------------------------------
+function panelAt(){ return plan && plan.panels[panelIdx]; }
+function blankAt(){ return plan && plan.blanks.find(b => b.id === selB); }
+const pct = v => Math.round(v) + '%';
+
+function renderTabs(){
+  $('ptabs').replaceChildren(...plan.panels.map((q, i) => {
+    const tab = el('span', {className: 'tab' + (i === panelIdx ? ' on' : '')},
+                   `${q.id} · ${q.blanks.length} blank${q.blanks.length === 1 ? '' : 's'} · ${pct(q.waste_pct)} waste`);
+    tab.addEventListener('click', () => { panelIdx = i; selB = q.blanks.length ? q.blanks[0].id : null; selProg = null; hlCut = null; renderAll(); });
+    return tab;
+  }));
+  const p = panelAt();
+  // the drill and cut jobs run one blank at a time: pick which one
+  $('btabs').replaceChildren(...(view === 'layout' || !p ? [] : [el('span', {className: 'note'}, 'Blank:'), ...p.blanks.map(b => {
+    const tab = el('span', {className: 'tab' + (b.id === selB ? ' on' : '')}, `${b.id} · ${fmt(b.width)} × ${fmt(b.height)}`);
+    tab.addEventListener('click', () => { selB = b.id; selProg = null; renderAll(); });
+    return tab;
+  })]));
+}
+
+function renderPanel(){
+  $('legend').classList.toggle('cut', view === 'cut');
+  $('legend').classList.toggle('job', view !== 'layout');
+  if (view === 'layout') renderLayout(); else renderJob();
+  renderCutList();
+}
+
+function renderLayout(){
+  const L = plan.panel.length, W = plan.panel.width, p = panelAt();
+  let s = `<rect x="0" y="0" width="${esc(L)}" height="${esc(W)}" fill="var(--stock)" stroke="var(--stock-line)" stroke-width="3"/>`;
+  s += `<circle cx="0" cy="${esc(W)}" r="12" fill="#1c2230"/>`;
+  if (!p){
+    s += `<text x="${esc(L / 2)}" y="${esc(W / 2)}" font-size="48" text-anchor="middle" fill="#667085">No shapes placed on a blank</text>`;
+  } else {
+    p.blanks.forEach(b => {
+      const on = selB === b.id;
+      s += `<g class="tmpl" data-id="${esc(b.id)}">`;
+      s += `<rect class="t" x="${esc(b.x)}" y="${esc(b.y)}" width="${esc(b.w)}" height="${esc(b.h)}" fill="var(--tmpl)" stroke="${on ? 'var(--accent)' : '#6b4e16'}" stroke-width="${on ? 6 : 2.5}"/>`;
+      b.shapes.forEach(q => {
+        s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="2.5"/>`;
+      });
+      b.fix.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="8" fill="none" stroke="var(--fix)" stroke-width="3"/>`);
+      b.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="6" fill="none" stroke="var(--pilot)" stroke-width="3"/>`);
+      s += `<text x="${esc(b.x + b.w / 2)}" y="${esc(b.y + b.h / 2 + 22)}" font-size="64" font-weight="700" text-anchor="middle" fill="#6b4e16" opacity=".85">${esc(b.id)}</text>`;
+      s += '</g>';
+    });
+    p.cuts.forEach(c => {
+      const [x, y, w, h] = c.rect, on = hlCut === c.n;
+      s += `<rect x="${esc(x)}" y="${esc(y)}" width="${esc(w)}" height="${esc(h)}" fill="#c0261c" opacity="${on ? 1 : .8}" stroke="${on ? '#c0261c' : 'none'}" stroke-width="${on ? 8 : 0}"/>`;
+      const tx = c.axis === 'x' ? x + 8 + (c.stage === 3 ? 40 : 0) : x + 8, ty = c.axis === 'x' ? y - 6 : y + 26 + (c.stage - 1) * 26;
+      s += `<text x="${esc(tx)}" y="${esc(ty)}" font-size="${on ? 30 : 22}" fill="#c0261c">${esc(c.n)}</text>`;
+    });
+  }
+  const svg = $('svg');
+  svg.setAttribute('viewBox', `-20 -20 ${L + 40} ${W + 40}`);
+  svg.innerHTML = s;
+  svg.querySelectorAll('.tmpl').forEach(g => g.addEventListener('click', () => { selB = g.dataset.id; selProg = null; renderLayout(); renderSel(); renderZ(); renderProgs(); }));
+  if (p){
+    $('stats').textContent = `${p.blanks.length} blank${p.blanks.length === 1 ? '' : 's'}, ${p.cuts.length} saw cuts, waste ${fmtArea(p.waste / 1e6)} m² of ${fmtArea(L * W / 1e6)} m² (${pct(p.waste_pct)})`;
+  } else $('stats').textContent = '';
+}
+
+function renderCutList(){
+  const p = panelAt(), box = $('cutlist');
+  box.replaceChildren();
+  if (view !== 'layout' || !p) return;
+  const body = el('tbody');
+  p.cuts.forEach(c => {
+    const what = FREES[c.frees] + (c.blanks.length ? ' ' + c.blanks.join(', ') : '');
+    const tr = el('tr', {className: hlCut === c.n ? 'hl' : ''},
+      el('td', {className: 'num'}, String(c.n)), el('td', {className: 'num'}, String(c.stage)), el('td', {}, RUNS[c.axis]),
+      el('td', {className: 'num'}, `${c.axis === 'x' ? 'Y' : 'X'} ${fmt(c.at)}`),
+      el('td', {className: 'num'}, `${fmt(c.start)} … ${fmt(c.end)}`), el('td', {}, what),
+      el('td', {className: 'num'}, c.size ? `${fmt(c.size[0])} × ${fmt(c.size[1])}` : ''));
+    tr.addEventListener('mouseenter', () => { hlCut = c.n; tr.className = 'hl'; renderLayout(); });
+    tr.addEventListener('mouseleave', () => { hlCut = null; tr.className = ''; renderLayout(); });
+    body.append(tr);
+  });
+  const pn = plan.panel;
+  box.append(el('h2', {}, `Saw cut list for ${p.id}`),
+    el('div', {className: 'note', style: 'padding:0 12px'}, `Positions in mm from the panel's origin corner (black dot, bottom left); the kerf (${fmt(pn.kerf)} mm) lies from the position upward. Stage 1 cuts go right across the panel, stage 2 across a strip, stage 3 trims one piece. Edge trim ${fmt(pn.edge)} mm.`),
+    el('table', {}, el('thead', {}, el('tr', {}, el('th', {className: 'num'}, 'Cut'), el('th', {className: 'num'}, 'Stage'), el('th', {}, 'Runs'),
+      el('th', {className: 'num'}, 'At'), el('th', {className: 'num'}, 'From … to'), el('th', {}, 'Frees'), el('th', {className: 'num'}, 'Piece X × Y'))), body));
+}
+function renderJob(){
+  // one blank in blank coordinates: that is what the machine runs
+  const b = blankAt(), fr = plan.frame;
+  const svg = $('svg');
+  if (!b){ svg.setAttribute('viewBox', '0 0 1000 200'); svg.innerHTML = '<text x="500" y="100" font-size="32" text-anchor="middle" fill="#667085">No blank</text>'; $('stats').textContent = ''; return; }
+  const H = b.height, X = Math.max(fr.x, b.width), Y = Math.max(fr.y, H);
+  const k = X / 2000;          // sizes scale with the drawing, like on the panel view
+  const n = v => esc(v * k);
+  let s = `<rect x="0" y="${esc(H - fr.y)}" width="${esc(fr.x)}" height="${esc(fr.y)}" fill="none" stroke="#667085" stroke-width="${n(3)}" stroke-dasharray="${n(18)} ${n(10)}"/>`;
+  s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
+  s += `<rect x="0" y="0" width="${esc(b.width)}" height="${esc(H)}" fill="var(--tmpl)" stroke="#6b4e16" stroke-width="${n(2.5)}"/>`;
+  s += `<text x="${n(14)}" y="${n(30)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
+  s += `<circle cx="0" cy="${esc(H)}" r="${n(9)}" fill="#1c2230"/><text x="${n(14)}" y="${esc(H + 28 * k)}" font-size="${n(20)}" fill="#1c2230">X0 Y0 (origin corner, at the pins)</text>`;
+  b.shapes.forEach((q, qi) => {
+    s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="${n(2)}"/>`;
+    if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}"/>`;
+    s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10 * k)}" font-size="${n(28)}" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + (qi + 1) + ')') : ''}</text>`;
+  });
+  if (view === 'drill'){
+    b.fix.forEach((h, i) => {
+      s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${n(12)}" fill="#fff" stroke="var(--fix)" stroke-width="${n(3)}"/>`;
+      s += `<text x="${esc(h.x + 16 * k)}" y="${esc(h.y - 12 * k)}" font-size="${n(20)}" fill="var(--fix)">${i + 1}</text>`;
+    });
+    b.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${n(8)}" fill="#fff" stroke="var(--pilot)" stroke-width="${n(3)}"/>`);
+  }
+  svg.setAttribute('viewBox', `${-30 * k} ${H - Y - 30 * k} ${X + 60 * k} ${Y + 75 * k}`);
+  svg.innerHTML = s;
+  $('stats').textContent = `${b.id}: ${fmt(b.width)} × ${fmt(H)} mm in program coordinates`;
+}
+
+function renderSel(){
+  const b = blankAt(), box = $('sel');
+  if (!b){ box.textContent = 'Click a blank on the panel.'; return; }
+  const dims = Object.fromEntries(project.shapes.map(s => [s.name, s]));
+  box.replaceChildren(el('b', {}, b.id), ` from ${b.panel} `);
+  if (b.rotated) box.append(el('span', {className: 'pill'}, 'turned 90° on the panel'));
+  box.append(el('br'), `${fmt(b.width)} × ${fmt(b.height)} mm (as sawn; long side = machine X)`);
+  b.shapes.forEach(q => {
+    const d = dims[q.name];
+    box.append(el('br'), `• ${q.name}` + (d ? ` (${Math.round(d.length)} × ${Math.round(d.width)})` : ''));
+  });
+  box.append(el('br'), el('span', {className: 'note'}, `${b.fix.length} fixing holes, ${b.screw.length} screw holes`));
+}
+
+function renderZ(){
+  const b = blankAt(), box = $('zbox');
+  if (!b){ box.textContent = 'No blank: nothing to drill or cut.'; return; }
+  const rows = Z_LABELS.filter(([k]) => b.z[k] != null)
+    .map(([k, label]) => el('tr', {}, el('td', {}, label), el('td', {className: 'num'}, el('b', {}, fmt(b.z[k])))));
+  box.replaceChildren(el('div', {className: 'note'}, `${b.id}, mm: stack height, then each depth below the top of the stack`),
+                      el('table', {}, el('tbody', {}, ...rows)));
+}
+
+// ---- programs and the real program text ------------------------------------------------------
+function renderProgs(){
+  const p = blankAt(), tbl = $('progs');
+  $('pname').textContent = p ? p.id : '—';
+  tbl.replaceChildren();
+  if (!p){ $('codehead').textContent = 'Program text'; $('code').textContent = ''; return; }
+  if (!p.programs.some(g => g.name === selProg)) selProg = p.programs.length ? p.programs[0].name : null;
+  tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'Program'), el('th', {}, 'Tool'), el('th', {}, 'Does'),
+                                       el('th', {className: 'num'}, 'Operations'), el('th', {className: 'num'}, 'Lines'))));
+  const body = el('tbody');
+  p.programs.forEach(g => {
+    const does = el('td', {}, g.description);
+    g.warnings.forEach(w => does.append(el('br'), el('span', {className: 'wtxt'}, '⚠ ' + w)));
+    const tr = el('tr', {className: g.name === selProg ? 'sel' : ''}, el('td', {}, el('b', {}, g.name)),
+                  el('td', {}, 'T' + g.tool), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
+    tr.dataset.name = g.name;
+    tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderTabs(); renderPanel(); renderProgs(); });
+    body.append(tr);
+  });
+  tbl.append(body);
+  renderCode();
+}
+
+let codeReq = 0;
+async function renderCode(){
+  const name = selProg, mine = ++codeReq;
+  $('codehead').textContent = name ? `${name}: program text as it will be written` : 'Program text';
+  if (!name){ $('code').textContent = ''; return; }
+  $('code').textContent = '…';
+  try {
+    const r = await fetch('/api/program?name=' + encodeURIComponent(name));
+    const text = r.ok ? await r.text() : ((await r.json()).error || 'not available');
+    if (mine === codeReq) $('code').textContent = text;
+  } catch (e){ if (mine === codeReq) $('code').textContent = e.message; }
+}
+
+function renderProblems(){
+  const box = $('problems'), items = [];
+  if (saveError) items.push(`Not saved: ${saveError.field ? saveError.field + ': ' : ''}${saveError.message}. The drawing shows the last saved settings.`);
+  if (plan && plan.settings_error) items.push(`Setting ${plan.settings_error.field}: ${plan.settings_error.message}`);
+  if (plan) plan.problems.forEach(p => items.push(p));
+  box.replaceChildren();
+  if (items.length) box.append(el('b', {}, 'Problems'), el('ul', {}, ...items.map(t => el('li', {}, t))));
+}
+
+function syncView(){ document.querySelectorAll('#views span').forEach(e => e.classList.toggle('on', e.dataset.v === view)); }
+document.querySelectorAll('#views span').forEach(e => e.addEventListener('click', () => { view = e.dataset.v; syncView(); renderTabs(); renderPanel(); }));
+
+function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); }
+
+// ---- generate --------------------------------------------------------------------------------
+const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, never overwrites',
+  'L1.BAT': 'helper for LOAD.BAT', 'COLLECT.BAT': 'after compiling: copies the compiler output to A:\\OUT\\',
+  'C1.BAT': 'helper for COLLECT.BAT', 'PROJECT.json': 'all settings and shapes of this job', 'RUNSHEET.html': 'printable run sheet'};
+$('gen').addEventListener('click', async () => {
+  const btn = $('gen');
+  btn.disabled = true;
+  try {
+    await flush();
+    const files = $('files');
+    files.replaceChildren();
+    $('rfolder').textContent = '';
+    if (saveError){
+      showResult(false, `Settings not saved (${saveError.field} ${saveError.message}): fix that first.`);
+      return;
+    }
+    const r = await fetch('/api/generate', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+    const b = await r.json();
+    if (!r.ok){ showResult(false, b.error || 'generate failed', b.problems); return; }
+    const progs = Object.fromEntries((plan ? plan.blanks : []).flatMap(b => b.programs).map(g => [g.name, g]));
+    $('rfolder').textContent = 'Folder: ' + b.folder;
+    const body = el('tbody');
+    b.files.forEach(n => {
+      const g = progs[n];
+      body.append(el('tr', {}, el('td', {}, el('b', {}, n)),
+        el('td', {}, g ? `T${g.tool} · ${g.description}` : (NOTES[n] || '')),
+        el('td', {}, g ? el('code', {}, `SRG\\${n[0]}\\${n.slice(1)}`) : '')));
+    });
+    files.append(el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'File'), el('th', {}, 'What'), el('th', {}, 'Machine path'))), body));
+    showResult(true, '', b.problems);
+  } catch (e){ showResult(false, e.message); }
+  finally { btn.disabled = false; }
+});
+function showResult(ok, error, problems){
+  $('rtitle').textContent = ok ? 'Programs written' : 'Nothing written';
+  $('rsteps').style.display = ok ? '' : 'none';
+  const files = $('files');
+  if (error) files.append(el('p', {className: 'err'}, error));
+  if (problems && problems.length)
+    files.append(el('p', {className: 'err'}, 'Left out (see the run sheet):'), el('ul', {}, ...problems.map(t => el('li', {}, t))));
+  $('result').style.display = 'flex';
+}
+$('rclose').addEventListener('click', () => $('result').style.display = 'none');
+$('result').addEventListener('click', e => { if (e.target.id === 'result') $('result').style.display = 'none'; });
+
+// ---- start -----------------------------------------------------------------------------------
+(async () => {
+  try {
+    const r = await fetch('/api/project');
+    project = await r.json();
+    if (!r.ok) throw new Error(project.error || 'cannot read the project');
+    buildFields();
+    renderShapes();
+    status('Loaded');
+    await loadPlan();
+  } catch (e){ status('Cannot load the project: ' + e.message, true); }
+})();
+</script>
+</body>
+</html>

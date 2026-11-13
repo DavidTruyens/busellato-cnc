@@ -49,7 +49,7 @@ out.mkdir(exist_ok=True)
 def write_bat(label, title, files, cmds):
     lines = [
         '@ECHO OFF',
-        f'REM {title} -> {label}: {files} files plus this COPY.BAT',
+        f'REM {title}, label {label}: {files} files plus this COPY.BAT',
         'ECHO.',
         f'ECHO {title}: this diskette must be labelled {label}.',
         'VOL A:',
