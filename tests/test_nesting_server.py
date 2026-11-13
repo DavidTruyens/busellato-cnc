@@ -236,7 +236,10 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(plan['panels']), 3)
         self.assertEqual(len(plan['blanks']), 6)
         names = [p['name'] for b in plan['blanks'] for p in b['programs']]
-        self.assertEqual(len(names), 18)
+        self.assertEqual(names, [f'B0{n}{k}' for n in range(1, 7) for k in 'DC'])
+        progs = {p['name']: p for b in plan['blanks'] for p in b['programs']}
+        self.assertEqual((progs['B01D']['tools'], progs['B01C']['tools']), ([1, 2], [66]))
+        self.assertEqual([t['holes'] for t in plan['blanks'][0]['drill_tools']], ['fixing', 'screw'])
         self.assertEqual(plan['problems'], [])
         self.assertIsNone(plan['settings_error'])
         z = plan['blanks'][0]['z']
@@ -374,7 +377,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(folder.parent, self.dir / 'out')
             self.assertRegex(folder.name, r'^\d{8}-\d{6}(-\d+)?$')
             self.assertEqual(sorted(res['files']), sorted(p.name for p in folder.iterdir()))
-            for n in ('B01F', 'B06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
+            for n in ('B01D', 'B06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
                 self.assertIn(n, res['files'])
         self.assertEqual(len(list((self.dir / 'out').iterdir())), 2)
 
@@ -464,8 +467,11 @@ class ServerTests(unittest.TestCase):
         _, cut = self.call('GET', '/api/program?name=B01C')
         self.assertIn('Z18.25', cut)
         self.assertRegex(cut.splitlines()[0], r'^G71X\d+Y\d+Z36.2T00')
-        _, screw = self.call('GET', '/api/program?name=B01S')
-        self.assertIn('Z26.4\r', screw)
+        _, drill = self.call('GET', '/api/program?name=B01D')
+        self.assertRegex(drill, r'G81G90G54P5T0102X[\d.]+Y[\d.]+Z26.4\r')    # screw holes, own tool
+        self.assertRegex(drill, r'G81G90G54P5T0101X[\d.]+Y[\d.]+Z19.2\r')    # fixing: 18.2 + 1
+        for old in ('B01F', 'B01S'):
+            self.assertEqual(self.call('GET', f'/api/program?name={old}')[0], 404)
 
     def test_upper_case_extension_is_stored_as_lower_case(self):
         text = dxf(rect(0, 0, 300, 100))
@@ -552,12 +558,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.call('GET', '/nope')[0], 404)
 
     def test_page_and_readme_say_which_drill_settings_are_not_written(self):
-        # I2: G81 carries no F; the drill diameters only decide whether F and S merge
+        # I2: G81 carries no F and no diameter; both are listed on the run sheet per tool
         status, html = self.call('GET', '/')
         self.assertEqual(status, 200)
         readme = (repo / 'nesting' / 'README.md').read_text()
         feed = "not written to the program (the control uses the tool's own feed)"
-        dia = 'used only to decide whether the two drill jobs share one program'
+        dia = 'not written to the program (the tool number picks the drill); listed per tool on the run sheet'
         for text in (html, readme):
             self.assertIn(feed, text)
             self.assertIn(dia, text)
@@ -618,7 +624,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, res)
         folder = Path(res['folder'])
         self.assertEqual(folder.parent, self.dir / 'out')
-        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'FSC']
+        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'DC']
         self.assertEqual(res['programs'], names)
         for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])

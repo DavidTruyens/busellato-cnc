@@ -2,7 +2,7 @@
 
 A local tool (Python 3.11, standard library only) that takes part outlines (DXF), groups them
 into rectangular **blanks**, plans how a **panel saw** cuts those blanks from 1220 x 2440 panels,
-and writes, per blank, one CNC90 program per tool for the Busellato S.EASY. Design:
+and writes, per blank, one CNC90 drill program and one cut program for the Busellato S.EASY. Design:
 `docs/superpowers/specs/2026-11-08-nesting-tool-design.md` (see its "Revision 2026-11-09").
 
 The machine's work frame is smaller than a panel, so a whole panel is never machined at once.
@@ -48,6 +48,7 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | | edge 10 | Saw trim at every panel border; nothing is placed there. Must be 0 (no trim) or at least the kerf. |
 | | kerf 4 | Panel saw blade width; there is one kerf between every two pieces. |
 | machine | frame_x 3072, frame_y 787 | Work frame a blank must fit in, long side along machine X. **Placeholders** decoded from a control config file, not measured: to verify on the machine's axis parameter screens. |
+| | y_toward front | Which way program Y grows (see "Program coordinates"). `front`: X0 Y0 is the blank's back-left corner (top left of the drawing), Y grows toward the front of the machine. `back`: X0 Y0 is the front-left corner (bottom left of the drawing), Y grows toward the back (the behaviour before 2026-11-13). Project files without it load as `front`. **Not verified on the machine.** |
 | heights | scrap 18 | Thickness of the scrap plate on the cups, under the blank. |
 | | into_scrap 0.5 | How far a shape cut goes below the blank into the scrap. |
 | | fix_into_scrap 1 | How far the fixing holes go into the scrap. |
@@ -55,9 +56,9 @@ Lengths in mm, feeds in m/min (as the machine's programs use them), spindle spee
 | | spindle_rpm 18000, plunge_feed 1, cut_feed 3 | Spindle speed and feeds. |
 | | depth_per_pass 9 | Maximum cut per pass. Passes are counted over the material (panel thickness + `into_scrap`) and are equal steps. |
 | | clearance 4 | Extra space between neighbours; the gap between shapes is diameter + clearance. |
-| | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
-| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per blank, in its margin, through the blank into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
-| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes at each shape's own holes, through the blank; `depth` is how far below the blank, into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: used only to decide whether the two drill jobs share one program. |
+| | direction ccw | Cutting direction of the contours (`ccw` or `cw`, default counter-clockwise), as seen from above in the drawing with the operator at the bottom, whatever `machine.y_toward` is. With Y toward the front that sense is clockwise in the program's numbers, so the corner arcs come out as G2 (they were G3 with Y toward the back). Whether that is climb or conventional milling depends on the spindle direction, which is not recorded anywhere in this repo: check it at the machine before cutting real parts. |
+| drill_fix | tool 1, diameter 6, feed 1 | The 4 fixing holes per blank, in its margin, through the blank into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: not written to the program (the tool number picks the drill); listed per tool on the run sheet. |
+| drill_screw | tool 2, diameter 3, depth 8, feed 1 | Screw holes at each shape's own holes, through the blank; `depth` is how far below the blank, into the scrap. `feed`: not written to the program (the control uses the tool's own feed). `diameter`: not written to the program (the tool number picks the drill); listed per tool on the run sheet. Fixing and screw holes always go into the same drill program (`BnnD`), also with different tools. |
 | blank | shapes_per 2, group_by length | How many shapes share a blank, and how they are grouped (`length` or `order`). A group whose blank does not fit the work frame or the panel is split, down to one shape; a blank never takes more shapes than `shapes_per`. |
 | | margin_end 45, margin_side 45 | Blank margin around the group. The blank size is rounded up to whole mm (the extra goes to the far margins). |
 | | fix_inset 15, head_dia 14 | Fixing hole inset from the blank edge, and screw head diameter. Clearance checks: a fixing hole must be at least router diameter + `head_dia`/2 + 3 from every shape (the cutter edge runs a full diameter outside the shape), and `fix_inset` at least `head_dia`/2 + 3 (the head stays inside the blank). |
@@ -82,7 +83,8 @@ Each panel is cut in a two-stage guillotine plan: stage 1 cuts go right across t
 strips, stage 2 cuts go across a strip and free the blanks, and a stage 3 cut trims a blank that
 is narrower than its strip. There is a kerf between every two pieces and the edge trim at the
 panel borders. A blank may lie turned 90 degrees on the panel; its programs are still written in
-blank coordinates. Both strip directions are tried; the plan with the fewest panels wins, then the
+the blank's own program coordinates. The panel view (Layout) is the saw plan, with the panel's
+origin corner bottom left; it is not in machine coordinates. Both strip directions are tried; the plan with the fewest panels wins, then the
 one with the least waste inside the strips (kerf and slivers), then strips along the length.
 
 The cut list gives, per cut, its order, stage, direction, position (the near side of the kerf, in
@@ -96,17 +98,39 @@ and its height is what the program header carries as the stock Z.
 That makes the scrap thickness one number to change: edit `heights.scrap`, regenerate, and every
 depth follows. This reading of the CNC90 convention is not verified on the machine.
 
+## Program coordinates
+
+Every program of a blank is written in one frame, seen from above with the operator at the
+bottom of the drawing (the Drill job / Cut job views and the run sheet drawings):
+
+- X0 Y0 is the blank's corner against the pins; X grows to the right along the long side.
+- With `machine.y_toward` `front` (default) X0 Y0 is the **back-left** corner (top left of the
+  drawing) and **Y grows toward the front** (down in the drawing). The Drill job / Cut job views
+  then draw the program numbers as they are, Y down.
+- With `back`, X0 Y0 is the front-left corner (bottom left of the drawing) and Y grows toward
+  the back; the views draw it with Y up. The drawing itself is the same in both; only the numbers
+  and the origin mark change.
+
+`front` is the user's statement (2026-11-13), **not yet verified on the machine**. Mirroring Y
+also swaps G2 and G3 for the same physical turn: check where X0 Y0 is and the arc direction with
+an air cut before cutting. Inside the code, the layout works y-up from the blank's lower-left
+corner; `nesting/program.py` (`to_program`, `segs_to_program`) is the one place that maps it to
+the program frame.
+
 ## At the machine
 
 The scrap plate lies on the vacuum cups, aligned by the machine's X and Y pins. One blank at a
-time goes on top of it, its origin corner against the pins, long side along machine X. The
-programs are in blank coordinates (X0 Y0 = the blank's origin corner); that the origin sits at
-the pins is an assumption to check at the machine.
+time goes on top of it, its origin corner (see "Program coordinates") against the pins, long side
+along machine X. That the origin sits at the pins is an assumption to check at the machine.
 
-Per blank `Bnn`, the programs are `BnnF` (fixing holes), `BnnS` (screw holes) and `BnnC` (cut
-the shape outlines); `BnnS` is not written when fixing and screw holes use the same tool and
-diameter, and then `BnnF` carries both. The first character `B` is the machine folder
-(`SRG\B\nnF`). The number has 2 digits, or more when there are more than 99 blanks (all names
+Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole) and
+`BnnC` (cut the shape outlines). `BnnD` holds both hole kinds even when they use different tools:
+every `G81` line names its own tool (`T01nn`), as in many of the machine's own programs (on the H05
+backup 203 of the 717 programs name more than one tool, 63 of them in `G81` drill lines). The holes are grouped by tool, in
+the order fixing tool, screw tool, so the tool changes only once; with one tool it is a single
+group, fixing holes first. Whether the machine changes between these particular drill tools
+inside one program has not been tried. The first character `B` is the machine folder
+(`SRG\B\nnD`). The number has 2 digits, or more when there are more than 99 blanks (all names
 then get the same width, for example `B100C`). Every blank gets its own programs, even when two
 blanks have the same shapes in the same layout (sharing them is possible but not done).
 
@@ -116,11 +140,12 @@ blanks have the same shapes in the same layout (sharing them is possible but not
    compile.
 3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
    cut list and which blank is which, then a page per blank).
-4. Lay a blank on the scrap against the pins and clamp it; run the fixing holes (`BnnF`).
-5. Screw the blank to the scrap through the fixing holes; take the clamps off.
-6. Run the screw-hole drill (`BnnS`), then screw each shape down through its screw holes.
-7. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
-8. Unscrew the shapes and the frame; next blank.
+4. Lay a blank on the scrap against the pins and clamp it; run the drill program (`BnnD`): all
+   holes, the blank still clamped.
+5. Screw the blank to the scrap through the fixing holes, and each shape down through its screw
+   holes; take the clamps off.
+6. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
+7. Unscrew the shapes and the frame; next blank.
 
 ## Safety
 

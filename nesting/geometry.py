@@ -75,6 +75,15 @@ def translate(segs: list[Seg], dx: float, dy: float) -> list[Seg]:
     return out
 
 
+def mirror_y(segs: list[Seg], h: float) -> list[Seg]:
+    """Each segment with y -> h - y. A mirror reverses the turning sense, so every arc's ccw
+    flag flips; the order of the segments and their start/end points is kept."""
+    def m(p: Pt) -> Pt:
+        return (p[0], h - p[1])
+    return [Arc(m(s.a), m(s.b), m(s.center), s.radius, not s.ccw) if isinstance(s, Arc)
+            else Line(m(s.a), m(s.b)) for s in segs]
+
+
 # --- contour offset ---------------------------------------------------------
 
 TAU = 2 * math.pi

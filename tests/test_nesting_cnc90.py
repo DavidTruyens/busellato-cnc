@@ -94,6 +94,47 @@ class Cnc90Tests(unittest.TestCase):
         p = Program('T', 1, 'drill', '', (400, 300, 60), [DrillOp(1, 2, 3, 6)], None, 1, 1)
         self.assertIn('G81G90G55P5T0101X1Y2Z3\r\n', emit(p, self.s))
 
+    def test_each_drill_line_names_its_own_tool(self):
+        ops = [DrillOp(15, 275, 19, 6, 10), DrillOp(675, 275, 19, 6, 10),
+               DrillOp(195, 205, 26, 3, 2)]
+        p = Program('B01D', 10, 'drill', '', (690, 290, 36), ops, None, 1, 1)
+        self.assertEqual(p.tools, [10, 2])
+        self.assertEqual(emit(p, self.s), ''.join(l + '\r\n' for l in [
+            'G71X690Y290Z36T00N6L3', 'G150()',
+            'G81G90G54P5T0110X15Y275Z19',
+            'G81G90G54P5T0110X675Y275Z19',
+            'G81G90G54P5T0102X195Y205Z26',
+            'M2']))
+
+    def test_single_tool_drill_unchanged_with_op_tools(self):
+        # ops carrying the program's own tool give the same bytes as ops without one
+        ops = [DrillOp(320, 220, 2, 6, 1), DrillOp(352, 220, 2, 6, 1), DrillOp(320, 260, 2, 6, 1)]
+        p = Program('ZZT1AD', 1, 'drill', '', (400, 300, 60), ops, None, 1, 1)
+        self.assertEqual(emit(p, self.s), golden('ZZT1AD'))
+
+    def test_generated_drill_programs_mix_tools_and_pass_the_checker(self):
+        s = Settings()
+        s.drill_fix.tool, s.drill_screw.tool = 10, 2
+        entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
+        progs = plan_programs(build_plan(entries, s), s)
+        drills = [p for p in progs if p.kind == 'drill']
+        self.assertTrue(drills)
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for p in drills:
+                text = emit(p, s)
+                tools = re.findall(r'^G81G90G54P5T01(\d\d)', text, re.M)
+                self.assertEqual(len(tools), len(p.ops))
+                # one tool change: all T0110 lines, then all T0102 lines
+                self.assertEqual(tools, sorted(tools, key=lambda t: t != '10'))
+                self.assertEqual(set(tools), {'10', '02'})
+                path = Path(tmp) / p.name
+                path.write_bytes(text.encode('ascii'))
+                paths.append(str(path))
+            r = subprocess.run([sys.executable, str(repo / 'tools' / 'check_cnc90.py'), *paths],
+                               capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_registry_has_cnc90(self):
         self.assertIs(BACKENDS['cnc90'], emit)
 

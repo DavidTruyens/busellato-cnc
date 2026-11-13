@@ -244,7 +244,8 @@ class Project:
         p, m = settings.panel, settings.machine
         panel = {'length': p.length, 'width': p.width, 'thickness': p.thickness,
                  'edge': p.edge, 'kerf': p.kerf}
-        return {'panel': panel, 'frame': {'x': m.frame_x, 'y': m.frame_y}, 'panels': [],
+        return {'panel': panel, 'frame': {'x': m.frame_x, 'y': m.frame_y},
+                'y_toward': m.y_toward, 'panels': [],
                 'blanks': [], 'problems': problems, 'settings_error': settings_error}
 
     def program_text(self, name: str) -> str:

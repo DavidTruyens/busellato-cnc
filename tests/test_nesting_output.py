@@ -131,25 +131,58 @@ class OutputTests(unittest.TestCase):
         self.assertIn('frame is not cut', html)
         self.assertIn('placeholder', html)
 
+    def test_loader_and_project_have_the_d_and_c_programs(self):
+        files = {p.name: p for p in self.write()}
+        progs = sorted(p.name for p in self.progs)
+        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DC'))
+        for n in progs:
+            self.assertIn(n, files)
+        self.assertFalse([n for n in files if re.fullmatch(r'B\d\d[FS]', n)])
+        load = files['LOAD.BAT'].read_text()
+        for n in progs:
+            self.assertIn(f'CALL A:\\L1.BAT B {n[1:]} {n}', load)
+        collect = files['COLLECT.BAT'].read_text()
+        self.assertIn('CALL A:\\C1.BAT B 01D', collect)
+        self.assertNotRegex(load + collect, r'B ?\d\d[FS]\b')
+        proj = json.loads(files['PROJECT.json'].read_text())
+        self.assertEqual(proj['settings']['drill_fix']['tool'], 1)
+        self.assertEqual(proj['settings']['drill_screw']['tool'], 2)
+
     def test_runsheet_blank_steps_in_order(self):
         html = self._sheet(self.s, self.progs)
         section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
-        order = [section.index(x) for x in ('origin corner', 'B01F', 'Screw the blank', 'B01S',
-                                            'Screw each shape', 'B01C')]
+        order = [section.index(x) for x in ('origin corner', 'Clamp it', 'Run <b>B01D</b>',
+                                            'Screw the blank', 'each shape',
+                                            'Take the clamps off', 'Run <b>B01C</b>', 'Unscrew')]
         self.assertEqual(order, sorted(order))
+        self.assertIn('the blank still clamped: every hole', section)
 
-    def test_runsheet_says_screw_holes_merged(self):
-        html = self._sheet(self.s, self.progs)
-        self.assertNotIn('merged into', html)
-        self.assertIn('B01S', html)
+    def test_runsheet_lists_each_drill_tool_with_diameter_and_feed(self):
         m = Settings()
-        m.drill_screw.tool, m.drill_screw.diameter = m.drill_fix.tool, m.drill_fix.diameter
+        m.drill_fix.tool, m.drill_fix.diameter, m.drill_fix.feed = 10, 6, 2.5
+        m.drill_screw.tool, m.drill_screw.diameter, m.drill_screw.feed = 2, 3, 0.75
         plan = build_plan(self.entries, m)
         progs = plan_programs(plan, m)
-        self.assertFalse(any(p.name.endswith('S') for p in progs))
         html = self._sheet(m, progs, plan)
-        self.assertIn('merged into B01F', html)
-        self.assertNotIn('Drill <b>B01S', html)
+        section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
+        self.assertIn('<tr><td>B01D</td><td>T10, T2</td><td>Fixing and screw holes</td></tr>', section)
+        self.assertIn('<tr><td>B01C</td><td>T66</td>', section)
+        self.assertIn('Feed (m/min, not written)', section)
+        self.assertRegex(section, r'<tr><td>fixing</td><td class="num">4</td><td>T10</td>'
+                                  r'<td class="num">6</td><td class="num">2.5</td><td class="num">19</td></tr>')
+        self.assertRegex(section, r'<tr><td>screw</td><td class="num">\d+</td><td>T2</td>'
+                                  r'<td class="num">3</td><td class="num">0.75</td><td class="num">26</td></tr>')
+
+    def test_runsheet_has_no_separate_fixing_or_screw_programs(self):
+        same = Settings()
+        same.drill_screw.tool = same.drill_fix.tool
+        for st in (self.s, same):
+            plan = build_plan(self.entries, st)
+            progs = plan_programs(plan, st)
+            html = self._sheet(st, progs, plan)
+            self.assertIsNone(re.search(r'B\d\d[FS]\b', html))
+            self.assertNotIn('merged into', html)
+            self.assertIn('Run <b>B01D</b>', html)
 
     def _sheet(self, settings, progs, plan=None):
         out = Path(self.tmp.name) / f'sheet{len(list(Path(self.tmp.name).iterdir()))}'
