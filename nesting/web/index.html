@@ -471,13 +471,17 @@ function setOverride(key, name, value){
 }
 function renderGroups(){
   const host = $('pocketGroups');
-  const sig = groups.map(g => g.id + '|' + g.key).join('\n');
+  // only groups with a pocket on a switched-on shape; a group with an error stays visible so
+  // its message and field can be found. The ids and colours stay those of the whole project.
+  const shown = groups.filter(g => g.count || g.error);
+  const sig = shown.map(g => g.id + '|' + g.key).join('\n');
   if (host.dataset.sig !== sig || !host.childElementCount){
     host.dataset.sig = sig;
     groupRefs = {};
     host.replaceChildren();
-    if (!groups.length) host.append(el('p', {className: 'note'}, 'No pockets in the shapes.'));
-    groups.forEach(g => host.append(buildGroup(g)));
+    if (!shown.length) host.append(el('p', {className: 'note'},
+      groups.length ? 'No pockets in the switched-on shapes.' : 'No pockets in the shapes.'));
+    shown.forEach(g => host.append(buildGroup(g)));
   }
   updateGroups();
 }
