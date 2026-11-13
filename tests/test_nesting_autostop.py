@@ -1,7 +1,11 @@
 import contextlib
 import http.client
+import http.server
 import io
 import json
+import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -9,6 +13,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from nesting import ping
+from nesting import server as server_module
 from nesting.autostop import IdleWatch, run_watch
 from nesting.server import _serve, main, make_server
 
@@ -263,3 +269,76 @@ class ServerAutoStopTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PingTests(unittest.TestCase):
+    def serve(self, server):
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        def stop():
+            server.shutdown()
+            thread.join(2)
+            server.server_close()
+        self.addCleanup(stop)
+        return server.server_address[1]
+
+    def other_server(self, status, body):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+        return self.serve(http.server.HTTPServer(('127.0.0.1', 0), Handler))
+
+    def test_ping_running(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        port = self.serve(make_server(Path(tmp.name), port=0))
+        self.assertEqual(ping.RUNNING, ping.probe(port))
+        self.assertEqual(0, ping.RUNNING)
+
+    def test_app_name_matches_server(self):
+        self.assertEqual(server_module.APP, ping.APP)
+
+    def test_ping_free(self):
+        s = socket.socket()
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+        self.assertEqual(ping.FREE, ping.probe(port))
+        self.assertEqual(1, ping.FREE)
+
+    def test_ping_other_server(self):
+        self.assertEqual(ping.OTHER, ping.probe(self.other_server(404, b'no')))
+        self.assertEqual(ping.OTHER,
+                         ping.probe(self.other_server(200, b'hello')))
+        self.assertEqual(ping.OTHER, ping.probe(
+            self.other_server(200, b'{"app": "something else"}')))
+        self.assertEqual(2, ping.OTHER)
+
+    def test_ping_cli(self):
+        s = socket.socket()
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+        root = Path(__file__).resolve().parent.parent
+        r = subprocess.run([sys.executable, '-m', 'nesting.ping', str(port)],
+                           cwd=root, capture_output=True, text=True,
+                           timeout=30)
+        self.assertEqual(1, r.returncode)
+        self.assertEqual(f'port {port} is free\n', r.stdout)
+
+    def test_main_messages(self):
+        for code, text in ((0, 'nesting tool runs on port 7'),
+                           (1, 'port 7 is free'),
+                           (2, 'port 7 is in use by another program')):
+            out = io.StringIO()
+            with mock.patch.object(ping, 'probe', return_value=code), \
+                    contextlib.redirect_stdout(out):
+                self.assertEqual(code, ping.main(['ping', '7']))
+            self.assertEqual(text + '\n', out.getvalue())
