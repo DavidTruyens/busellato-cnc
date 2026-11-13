@@ -1,0 +1,134 @@
+{
+  "shapes": [
+    {
+      "name": "3-1",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "3-2",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "3-3",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_1-1",
+      "qty": 2,
+      "enabled": true
+    },
+    {
+      "name": "klas_1-2",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_1-3",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_1-4",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_2-1",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_2-2",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "klas_2-3",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "zorglokaal-1",
+      "qty": 1,
+      "enabled": true
+    },
+    {
+      "name": "zorglokaal-2",
+      "qty": 1,
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "panel": {
+      "length": 2440,
+      "width": 1220,
+      "thickness": 18,
+      "edge": 10,
+      "kerf": 4
+    },
+    "machine": {
+      "frame_x": 3072,
+      "frame_y": 787,
+      "y_toward": "front"
+    },
+    "heights": {
+      "scrap": 18,
+      "into_scrap": 0.5,
+      "fix_into_scrap": 1
+    },
+    "router": {
+      "tool": 66,
+      "diameter": 8,
+      "spindle_rpm": 18000,
+      "plunge_feed": 1,
+      "cut_feed": 3,
+      "depth_per_pass": 9,
+      "clearance": 4,
+      "direction": "ccw"
+    },
+    "drill_fix": {
+      "tool": 1,
+      "diameter": 6,
+      "feed": 1
+    },
+    "drill_screw": {
+      "tool": 2,
+      "diameter": 3,
+      "depth": 8,
+      "feed": 1
+    },
+    "blank": {
+      "shapes_per": 2,
+      "group_by": "length",
+      "margin_end": 45,
+      "margin_side": 45,
+      "fix_inset": 15,
+      "head_dia": 14
+    },
+    "pockets": {
+      "min_circle_diameter": 8,
+      "min_floor": 2,
+      "tool": 66,
+      "diameter": 8,
+      "depth": 8,
+      "depth_per_pass": 9,
+      "plunge_feed": 1,
+      "cut_feed": 3,
+      "spindle_rpm": 18000,
+      "stepover_pct": 40,
+      "direction": "cw"
+    },
+    "origin": "G54"
+  },
+  "pockets": {
+    "600,1600,29500,400|L800,2000,29900,2000|A29900,2000,29900,1600,29900,1800,0|L29900,1600,800,1600|A800,1600,800,2000,800,1800,0": {
+      "depth": 6
+    },
+    "600,1600,29540,400|L800,2000,29940,2000|A29940,2000,29940,1600,29940,1800,0|L29940,1600,800,1600|A800,1600,800,2000,800,1800,0": {
+      "enabled": false
+    }
+  }
+}
