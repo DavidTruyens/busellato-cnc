@@ -2,3 +2,5 @@
 /*.bat text eol=crlf
 # Shell scripts in the repo root: LF everywhere (bash on Linux and macOS needs it).
 /*.sh text eol=lf
+# VBScript files in the repo root: CRLF in a Windows checkout (Windows Script Host, ASCII only).
+/*.vbs text eol=crlf

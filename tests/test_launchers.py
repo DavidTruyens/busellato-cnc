@@ -1,4 +1,4 @@
-"""Launcher scripts: start.sh (Linux, macOS).
+"""Launcher scripts: start.sh (Linux, macOS); start.bat and the .vbs files (static checks).
 
 The script runs with a stub `git` (never a real pull), a stub `notify-send`
 and a stub BROWSER (never a real browser), on free ephemeral ports only.
@@ -341,6 +341,78 @@ class InstallLauncherTests(unittest.TestCase):
 
     def test_install_launcher_is_executable(self):
         self.assertTrue(os.access(INSTALL_SH, os.X_OK))
+
+
+START_BAT = REPO / 'start.bat'
+START_VBS = REPO / 'start-quiet.vbs'
+SHORTCUT_VBS = REPO / 'make-shortcut.vbs'
+
+
+class WindowsFilesTests(unittest.TestCase):
+    """Static checks only: nothing here can run cmd.exe or Windows Script Host."""
+
+    def text(self, path):
+        return path.read_bytes().decode('ascii')
+
+    def test_bat_and_vbs_are_crlf_ascii(self):
+        for path in (START_BAT, START_VBS, SHORTCUT_VBS):
+            r = subprocess.run(['git', 'check-attr', 'eol', path.name], cwd=REPO,
+                               capture_output=True, text=True)
+            if r.returncode != 0:
+                self.skipTest('git not available')
+            self.assertEqual(f'{path.name}: eol: crlf', r.stdout.strip())
+            path.read_bytes().decode('ascii')  # raises if not ASCII
+
+    def test_start_bat_quiet_mode(self):
+        bat = self.text(START_BAT)
+        for s in ('NESTING_QUIET', '--exit-when-closed', 'nesting.ping',
+                  'exit /b %CODE%', ':busy', ':oldpython', ':nofolder', ':nopython'):
+            self.assertIn(s, bat)
+        for code in range(1, 6):
+            self.assertIn(f'set "CODE={code}"', bat)
+        self.assertIn('Stops by itself when the page is closed.', bat)
+        self.assertIn('Port 8800 is in use by another program (or an old copy of the tool '
+                      'still runs in a window: close it). Nothing was started.',
+                      bat.replace('%PORT%', '8800'))
+
+    def test_start_bat_seed_check_uses_shapes(self):
+        self.assertIn('if not exist "%PROJECT%\\shapes\\"', self.text(START_BAT))
+
+    def test_start_bat_ends_every_path_with_exit_b(self):
+        bat = self.text(START_BAT)
+        self.assertIn('call "%~f0" --updated & exit /b)', bat)
+        self.assertEqual('exit /b 0', bat.rstrip().splitlines()[-1])
+
+    def test_vbs_codes_match_bat(self):
+        vbs = self.text(START_VBS)
+        for code in range(2, 6):
+            self.assertRegex(vbs, rf'Case {code}\b')
+        for s in ('start.bat', 'NESTING_QUIET', 'start.log',
+                  'Python 3 was not found.', 'This Python is too old',
+                  'Port 8800 is in use by another program',
+                  'The tool did not start or stopped with an error.',
+                  'The tool could not be started (code ', '"Log: "'):
+            self.assertIn(s, vbs)
+
+    def test_vbs_pings_before_running_start_bat(self):
+        vbs = self.text(START_VBS)
+        self.assertIn('MSXML2.ServerXMLHTTP.6.0', vbs)
+        self.assertIn('api/ping', vbs)
+        ping_call = vbs.index('If ToolRuns(')
+        run_bat = vbs.index('shell.Run("cmd /c')
+        self.assertLess(ping_call, run_bat)
+
+    def test_vbs_cmd_quoting(self):
+        # cmd /c strips the first and the last quote: ""bat" > "log" 2>&1"
+        vbs = self.text(START_VBS)
+        self.assertIn('shell.Run("cmd /c """"" & bat & """ > """ & logFile & """ 2>&1""", 0, True)',
+                      vbs)
+
+    def test_make_shortcut_targets_launcher(self):
+        vbs = self.text(SHORTCUT_VBS)
+        for s in ('start-quiet.vbs', 'wscript.exe', 'WorkingDirectory', 'Nesting tool.lnk',
+                  'shell32.dll,21'):
+            self.assertIn(s, vbs)
 
 
 if __name__ == '__main__':
