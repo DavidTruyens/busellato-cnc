@@ -75,7 +75,7 @@ class ServerTests(unittest.TestCase):
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200)
         groups = put.pop('pocket_groups')         # derived: follows qty and enabled
-        self.assertEqual([(g['id'], g['count']) for g in groups], [('G1', 3)])
+        self.assertEqual([(g['id'], g['count']) for g in groups], [('G1', 3), ('G2', 0)])
         proj.pop('pocket_groups')
         self.assertEqual(put, proj)
         self.assertTrue((self.dir / 'project.json').is_file())
@@ -576,7 +576,8 @@ class ServerTests(unittest.TestCase):
         proj['shapes'][1]['enabled'] = False
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, put)
-        self.assertEqual([(g['id'], g['count']) for g in put['pocket_groups']], [('G1', 3)])
+        self.assertEqual([(g['id'], g['count']) for g in put['pocket_groups']],
+                         [('G1', 3), ('G2', 0)])
 
     def test_pocket_overrides_round_trip(self):
         self.seed(PLATES[:2])
@@ -625,7 +626,6 @@ class ServerTests(unittest.TestCase):
                  ({key: {'enabled': 'no'}}, 'pockets.G2.enabled'),
                  ({key: {'direction': 'up'}}, 'pockets.G2.direction'),
                  ({key: 5}, 'pockets.G2'),
-                 ({'unknown': {'depth': 0}}, 'pockets.unknown.depth'),
                  ('x', 'pockets'),
                  ([], 'pockets')]
         for pockets, field in cases:
@@ -679,6 +679,79 @@ class ServerTests(unittest.TestCase):
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200, plan)
         self.assertTrue(plan['settings_error'])
+
+    def test_stale_unknown_key_is_kept_and_never_blocks(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        stale = {'stale-old-key': {'depth': 15}, 'other': 'deep', 'third': {'tool': 'x'}}
+        proj['pockets'] = dict(stale)
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        self.assertEqual(put['pockets'], stale)
+        proj['settings']['panel']['thickness'] = 12
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        self.assertEqual(json.loads((self.dir / 'project.json').read_text())['pockets'], stale)
+        self.assertTrue(all('error' not in g for g in put['pocket_groups']))
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertTrue(plan['blanks'], plan['problems'])
+        self.assertFalse(any('pockets.' in p for p in plan['problems']), plan['problems'])
+        status, res = self.call('POST', '/api/generate')
+        self.assertEqual(status, 200, res)
+        self.assertIn('B01P', res['programs'])
+
+    def test_switched_off_shape_group_is_listed_editable_and_checked(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        proj['shapes'][1]['enabled'] = False
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        self.assertEqual([(g['id'], g['count']) for g in put['pocket_groups']],
+                         [('G1', 1), ('G2', 0)])
+        key = put['pocket_groups'][1]['key']
+        self.assertGreater(len(key), 50)
+        put['pockets'] = {key: {'depth': 5}}
+        status, put = self.call('PUT', '/api/project', put)
+        self.assertEqual(status, 200, put)
+        self.assertEqual(put['pocket_groups'][1]['depth'], 5)
+        put['pockets'] = {key: {'depth': 15}}
+        put['settings']['panel']['thickness'] = 12
+        status, body = self.call('PUT', '/api/project', put)
+        self.assertEqual(status, 400, body)
+        self.assertEqual(body['field'], 'pockets.G2.depth')      # the id, never the long key
+        stored = json.loads((self.dir / 'project.json').read_text())
+        self.assertEqual(stored['pockets'], {key: {'depth': 5}})
+
+    def test_null_override_of_a_group_means_no_override(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        key = proj['pocket_groups'][0]['key']
+        proj['pockets'] = {key: None}
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        self.assertEqual(put['pocket_groups'][0]['depth'], Settings().pockets.depth)
+        self.assertNotIn('error', put['pocket_groups'][0])
+        status, plan = self.call('GET', '/api/plan')
+        self.assertTrue(plan['blanks'], plan['problems'])
+
+    def test_circle_warning_once_per_circle_and_not_when_group_is_off(self):
+        (self.dir / 'shapes' / 'round.dxf').write_text(dxf(
+            rect(0, 0, 600, 200), circle(50, 100, 3.3), circle(550, 100, 3.3),
+            circle(300, 100, 5), circle(300, 100, 5), circle(400, 100, 5)))
+        _, proj = self.call('GET', '/api/project')
+        proj['shapes'][0]['qty'] = 2
+        status, proj = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, proj)
+        _, plan = self.call('GET', '/api/plan')
+        warned = [p for p in plan['problems'] if 'treated as a pocket' in p]
+        self.assertEqual(len(warned), 2, plan['problems'])         # two places, not 2 x 3
+        proj['pockets'] = {g['key']: {'enabled': False} for g in proj['pocket_groups']}
+        status, proj = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, proj)
+        _, plan = self.call('GET', '/api/plan')
+        self.assertFalse(any('treated as a pocket' in p for p in plan['problems']),
+                         plan['problems'])
 
     def test_circle_pocket_is_a_warning_and_min_circle_20_makes_it_a_hole(self):
         self.circle_plate()

@@ -20,10 +20,10 @@ import tempfile
 import threading
 import time
 import webbrowser
-from types import SimpleNamespace
 from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 from .backends import BACKENDS
@@ -83,6 +83,8 @@ def pocket_override_error(key: str, override, settings: Settings,
     ('' for the override itself), or None. Checked like pockets.effective, plus (floor True,
     settings already validated) the floor the depth must leave, like Settings.validate
     checks the default depth."""
+    if override is None:                            # like effective: no override
+        return None
     if not isinstance(override, dict):
         return '', 'must be an object of pocket group settings'
     for name, value in override.items():
@@ -103,15 +105,15 @@ def pocket_override_error(key: str, override, settings: Settings,
 
 
 def check_pockets(pockets, settings: Settings, groups: list[PocketGroup]) -> None:
-    """SettingsError('pockets.<group id>.<field>', ...) for the first bad override. Every
-    override is checked, also those of keys that match no group (named by their key)."""
+    """SettingsError('pockets.<group id>.<field>', ...) for the first bad override of a
+    current group. Keys that match no group (stale: a DXF edit changes a group's key) are
+    kept as they are and not checked: they are never used and the page cannot show them."""
     if not isinstance(pockets, dict):
         raise SettingsError('pockets', 'must be an object: pocket group key -> settings')
-    ids = {g.key: g.id for g in groups}
-    for key, override in pockets.items():
-        bad = pocket_override_error(key, override, settings)
+    for g in groups:
+        bad = pocket_override_error(g.key, pockets.get(g.key), settings)
         if bad:
-            name = f'pockets.{ids.get(key, key)}'
+            name = f'pockets.{g.id}'
             raise SettingsError(f'{name}.{bad[0]}' if bad[0] else name, bad[1])
 
 
@@ -215,8 +217,10 @@ class Project:
 
     @staticmethod
     def _pocket_groups(rows, settings_dict: dict, pockets) -> list[dict]:
-        """pocket_groups_data over the switched-on shapes (the shapes a plan places), with
-        the stored overrides; a group whose override is bad gets enabled False and `error`."""
+        """pocket_groups_data over every shape of the project (switched off too, so their
+        overrides stay editable) with the stored overrides; count is the number of pockets
+        on switched-on shapes (0 for a group of switched-off shapes only). A group whose
+        override is bad gets enabled False and `error`."""
         settings = Settings.from_dict(settings_dict)
         try:
             validate(settings)
@@ -224,14 +228,14 @@ class Project:
         except SettingsError:           # /api/plan names it; no arithmetic on bad values here
             settings_ok = False
         on = [(s, q) for s, q, enabled in rows if enabled and q > 0]
-        # enough of a Plan for pocket_groups_data: each switched-on shape once (not qty
-        # times: a hand-edited qty can be huge); the counts are then set from the quantities
+        # enough of a Plan for pocket_groups_data: each shape once (not qty times: a
+        # hand-edited qty can be huge); the counts are then set from the quantities
         listed = SimpleNamespace(blanks=[SimpleNamespace(
-            shapes=[SimpleNamespace(shape=sh) for sh, _ in on])])
+            shapes=[SimpleNamespace(shape=sh) for sh, _, _ in rows])])
         ok = isinstance(pockets, dict)
         out = pocket_groups_data(listed, settings, pockets if ok else {})
         counts = {g['id']: 0 for g in out}
-        groups = find_groups([sh for sh, _ in on])
+        groups = Project._groups(rows)
         for sh, q in on:
             for pk in sh.pockets:
                 if (g := group_for(pk, groups)) is not None:
@@ -243,7 +247,7 @@ class Project:
                 error = 'pockets: must be an object: pocket group key -> settings'
             elif 'error' in g:
                 continue
-            elif bad := pocket_override_error(g['key'], pockets.get(g['key'], {}), settings,
+            elif bad := pocket_override_error(g['key'], pockets.get(g['key']), settings,
                                              settings_ok):
                 field = f'pockets.{g["id"]}' + (f'.{bad[0]}' if bad[0] else '')
                 error = f'{field}: {bad[1]}'
@@ -291,7 +295,9 @@ class Project:
 
     @staticmethod
     def _groups(rows) -> list[PocketGroup]:
-        return find_groups([s for s, q, on in rows if on and q > 0])
+        """Pocket groups over every shape of the project, switched on or not (the plan's own
+        groups, over the placed shapes, are found by plan_programs)."""
+        return find_groups([s for s, _, _ in rows])
 
     # --- shapes ---------------------------------------------------------------------------
     def upload(self, body) -> dict:
@@ -346,14 +352,37 @@ class Project:
         plan = build_plan(entries, settings)
         programs = plan_programs(plan, settings, pockets)
         problems = errors + list(plan.problems)
-        mc = settings.pockets.min_circle_diameter
-        for shape in plan_shapes(plan):
-            for pk in shape.pockets:
-                if pk.from_circle:
-                    problems.append(f'{shape.name}: circle of {pk.circle.diameter:g} mm is '
-                                    f'treated as a pocket (over pockets.min_circle_diameter '
-                                    f'{mc:g} mm); raise the minimum above it to make it a hole')
+        problems += self._circle_warnings(plan, settings, pockets)
         return settings, plan, programs, problems
+
+    @staticmethod
+    def _circle_warnings(plan, settings: Settings, pockets: dict) -> list[str]:
+        """One warning per distinct circle (place and size) per placed shape that is read as
+        a pocket, unless its pocket group is switched off (then it is not cut)."""
+        mc = settings.pockets.min_circle_diameter
+        shapes = plan_shapes(plan)
+        groups = find_groups(shapes)
+        out = []
+        for shape in shapes:
+            seen = set()
+            for pk in shape.pockets:
+                if not pk.from_circle:
+                    continue
+                c = pk.circle
+                where = (round(c.x, 3), round(c.y, 3), round(c.diameter, 3))
+                if where in seen:
+                    continue
+                seen.add(where)
+                g = group_for(pk, groups)
+                try:
+                    on = g is None or effective(g.key, pockets, settings.pockets).enabled
+                except ValueError:
+                    on = True
+                if on:
+                    out.append(f'{shape.name}: circle of {c.diameter:g} mm is treated as a '
+                               f'pocket (over pockets.min_circle_diameter {mc:g} mm); raise '
+                               f'the minimum above it to make it a hole')
+        return out
 
     def plan(self) -> dict:
         try:
