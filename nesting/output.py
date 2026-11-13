@@ -156,7 +156,7 @@ def _pocket_table(b: dict, groups: dict) -> str:
         rows.append(f'<tr><td>{escape(gid)}</td>'
                     f'<td><span class="sw" style="background:{escape(g["color"])}"></span></td>'
                     f'<td>{_g(g["width"])} x {_g(g["height"])}</td><td class="num">{n}</td>'
-                    f'<td>T{g["tool"]}</td><td class="num">{round(g["diameter"], 3):g}</td>'
+                    f'<td>{escape(g["head_label"])}</td><td class="num">{round(g["diameter"], 3):g}</td>'
                     f'<td class="num">{round(g["depth"], 3):g}</td>'
                     f'<td class="num">{pass_count(g["depth"], g["depth_per_pass"])}</td></tr>')
     rows.append('</table>')
@@ -164,19 +164,20 @@ def _pocket_table(b: dict, groups: dict) -> str:
 
 
 def _tools(p: dict) -> str:
-    return ', '.join(f'T{t}' for t in p.get('tools') or [p['tool']])
+    labels = p.get('tool_labels') or [f'T{t}' for t in p.get('tools') or [p['tool']]]
+    return escape(', '.join(labels))
 
 
 def _drill_table(b: dict) -> str:
     if not b.get('drill_tools'):
         return ''
-    rows = ['<p><b>Drill tools</b> (diameter and feed are the settings, not written to the '
-            'program: the control uses each tool\'s own feed; check the tool really has that '
-            'diameter)</p><table><tr><th>Holes</th><th>Count</th><th>Tool</th>'
+    rows = ['<p><b>Drill tools</b> (diameter and feed are the bit\'s, not written to the '
+            'program: the control uses each tool\'s own feed; check the bit in the head really '
+            'has that diameter)</p><table><tr><th>Holes</th><th>Count</th><th>Tool</th>'
             '<th>Diameter (mm)</th><th>Feed (m/min, not written)</th><th>Depth (mm)</th></tr>']
     for t in b['drill_tools']:
         rows.append(f'<tr><td>{escape(t["holes"])}</td><td class="num">{t["count"]}</td>'
-                    f'<td>T{t["tool"]}</td><td class="num">{t["diameter"]:g}</td>'
+                    f'<td>{escape(t["label"])}</td><td class="num">{t["diameter"]:g}</td>'
                     f'<td class="num">{t["feed"]:g}</td><td class="num">{round(t["depth"], 3):g}</td></tr>')
     rows.append('</table>')
     return ''.join(rows)

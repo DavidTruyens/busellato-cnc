@@ -53,6 +53,14 @@ def close(tc, a, b, ordered=False):
 
 
 class PreviewTests(unittest.TestCase):
+    def test_program_entries_name_the_bit(self):
+        plan, progs, s, data = build(rect('a', 1000, 230))
+        (b,) = data['blanks']
+        by = {p['name']: p for p in b['programs']}
+        self.assertEqual(by['B01C']['tool_labels'], ['T66 Router 8'])
+        self.assertEqual(by['B01D']['tool_labels'], ['T1 Drill 6', 'T2 Drill 3'])
+        self.assertEqual([t['label'] for t in b['drill_tools']], ['T1 Drill 6', 'T2 Drill 3'])
+
     def test_blank_holes_equal_drill_ops(self):
         # default y_toward 'front': the SVG numbers of the job view are the program numbers
         plan, progs, s, data = build(rect('a', 1000, 230), rect('b', 900, 200))
@@ -286,8 +294,8 @@ class PreviewTests(unittest.TestCase):
         put_bit(s, 2, plunge_feed=0.75)
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         self.assertEqual(data['blanks'][0]['drill_tools'], [
-            {'holes': 'fixing', 'count': 4, 'tool': 1, 'diameter': 6, 'feed': 2.5, 'depth': 19},
-            {'holes': 'screw', 'count': 2, 'tool': 2, 'diameter': 3, 'feed': 0.75, 'depth': 26}])
+            {'holes': 'fixing', 'count': 4, 'tool': 1, 'label': 'T1 Drill 6', 'diameter': 6, 'feed': 2.5, 'depth': 19},
+            {'holes': 'screw', 'count': 2, 'tool': 2, 'label': 'T2 Drill 3', 'diameter': 3, 'feed': 0.75, 'depth': 26}])
 
     def test_one_drill_program_shows_both_hole_kinds_with_one_tool(self):
         s = Settings()

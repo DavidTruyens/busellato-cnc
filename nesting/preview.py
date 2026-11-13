@@ -81,7 +81,8 @@ def _program_entry(p: Program, settings: Settings) -> dict:
     warnings = list(p.warnings)
     if lines > LINE_WARNING and not any('lines' in w for w in warnings):
         warnings.append(f'{lines} lines, more than {LINE_WARNING}')
-    return {'name': p.name, 'tool': p.tool, 'tools': p.tools, 'kind': p.kind,
+    return {'name': p.name, 'tool': p.tool, 'tools': p.tools,
+            'tool_labels': [settings.tools.label(t) for t in p.tools], 'kind': p.kind,
             'description': p.description, 'ops': len(p.ops), 'lines': lines, 'warnings': warnings}
 
 
@@ -93,7 +94,7 @@ def _drill_tools(fix_ops, screw_ops, tool_of, settings: Settings) -> list[dict]:
                          ('screw', screw_ops, settings.screw_bit)):
         if ops:
             out.append({'holes': what, 'count': len(ops), 'tool': tool_of(ops[0]),
-                        'diameter': b.diameter, 'feed': b.plunge_feed, 'depth': ops[0].depth})
+                        'label': settings.tools.label(tool_of(ops[0])), 'diameter': b.diameter, 'feed': b.plunge_feed, 'depth': ops[0].depth})
     return out
 
 
