@@ -33,7 +33,8 @@ from .importdisk import NAME, size_warning
 REPO = Path(__file__).resolve().parent.parent
 DRIVE_REMOVABLE = 2
 MAX_DISK = 1_600_000          # a 1.44 MB diskette is 1,474,560 bytes
-SKIP = {'system volume information', '$recycle.bin'}    # Windows may put these on any drive
+# folders the OS keeps on any volume (Windows; macOS on a mounted diskette): left alone
+SKIP = {'system volume information', '$recycle.bin', '.fseventsd', '.spotlight-v100', '.trashes'}
 STAMP = re.compile(r'(\d{8}-\d{6})(?:-(\d+))?$')
 
 
