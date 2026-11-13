@@ -27,9 +27,40 @@ The first version assumed the whole 1220 × 2440 panel lies on the scrap plate a
   (default 4 mm) between every two pieces, edge trim at the borders, blanks may turn 90° on the
   panel. Both strip directions are tried (fewest panels, then least waste inside the strips). The
   run sheet prints the ordered cut list per panel.
-- Programs are **per blank**, in blank coordinates: `B<nn>F`, `B<nn>S`, `B<nn>C` (more digits
-  past 99 blanks). Settings `template.*` became `blank.*`; template stock, into-template, template
+- Programs are **per blank**, in blank coordinates: `B<nn>D` (drill), `B<nn>C` (cut) (more
+  digits past 99 blanks; until 2026-11-13 the drills were split into `B<nn>F` / `B<nn>S`, see
+  below). Settings `template.*` became `blank.*`; template stock, into-template, template
   mode and fixed template size were removed.
+
+- **Program coordinates (added 2026-11-13, the user's statement, NOT yet verified on the
+  machine).** The user, who runs the machine: "This looks like the Y axis goes + to the back. The
+  origin should be the top left." So a blank's programs use: X0 Y0 = the blank's back-left corner
+  (top left of the picture, operator at the bottom, against the pins), X to the right, **Y toward
+  the front**. Setting `machine.y_toward` `front` (default) / `back` (the earlier behaviour, Y up
+  from the front-left corner); project files without it load as `front`. The layout stays y-up
+  internally; `program.py` maps it (Y = blank height - y) for drill positions and contours (the
+  cutter offset is made before the mirror, so it stays outward). The direction setting
+  (`ccw` default) is the sense seen from above in the picture; under the mirrored Y it is written
+  as the opposite sense in the numbers (G2 for the default, where it was G3). Whether the machine
+  reads G2/G3 that way with Y toward the front is **not verified: check with an air cut first**,
+  together with where X0 Y0 really is. The Drill job / Cut job views draw the program numbers
+  with Y down; the panel Layout view (saw plan) is unchanged.
+
+- **One drill program per blank (merged by the user's decision, 2026-11-13).** The user, who
+  runs the machine: the fixing holes and the screw holes can always go into one drill program,
+  even with different tools. Evidence: of the 717 programs under
+  `disks/H05/files/CNC90/MOD1/SORG/SRG/*`, 203 name more than one tool (`T01nn`), and 63 have
+  `G81` lines with different tools in one program (for example `A/ERTS140`: `T0104` and `T0101`
+  drills); every block carries its own tool. The "one program per tool" rule came from the Fusion
+  post, not from the machine. So per blank: `B<nn>D` holds the 4 fixing holes and every screw
+  hole, each `G81` line with its own tool and depth; ops are grouped by tool (fixing tool first,
+  stable, so fixing holes come before screw holes when both use one tool); `B<nn>C` is the cut,
+  single tool. `Program.tool` of a drill program is the tool of its first op, `Program.tools`
+  lists all. The settings are unchanged (`drill_fix` / `drill_screw` each keep tool, diameter,
+  feed, depth); diameter and feed are still not written, the run sheet lists them per tool.
+  Sequence per blank: clamp, run `B<nn>D` (all holes), screw the blank down through the fixing
+  holes and each shape through its screw holes, take the clamps off, run `B<nn>C`, unscrew.
+  **Whether the machine runs these particular drill tools mixed in one program is unverified.**
 
 Statements below that this revision changes are marked *(revised 2026-11-09)*.
 
@@ -62,7 +93,8 @@ Fusion round trip for each tweak is too slow. The tool replaces it for this kind
   CNC90 source format: header `G71X<stock X>Y<stock Y>Z<stock Z>…`, `G81` single holes, `G88`
   contour start, `G1`, `G2`/`G3` arcs with radius `U`, `P5` = top face, `G54`/`G55`, `F` in
   m/min, arcs kept as arcs, compensation computed by the program (never `G41`/`G42`), one program
-  per tool.
+  per tool (a Fusion post rule, not the machine's: the machine's own programs mix tools, see the
+  2026-11-13 note in the Revision).
 - `tools/check_cnc90.py` — format checker used on 118 real machine programs; reuse it on the
   generated output.
 - `tools/make-loader.py`, `tools/make-import-disk.py` — put programs on a diskette the machine can
@@ -89,10 +121,10 @@ Fusion round trip for each tweak is too slow. The tool replaces it for this kind
    the blank to a scrap plate on the vacuum cups. Each shape's own holes (2 on the plates) get a
    screw hole through the blank into the scrap, so the shape is screwed down before it is cut
    free. Everything stays fixed when the outlines are cut.
-5. **Several programs per blank, one per tool** *(revised 2026-11-09; was per panel)*: fixing
-   holes, screw holes, then the cut. Drill programs split by drill diameter; if two hole kinds use
-   the same drill they may be one program. The operator screws parts down between the drill and
-   the cut programs. Only shape outlines are cut; the blank's frame is never cut.
+5. **Two programs per blank: drill, then cut** *(revised 2026-11-13; was one per tool, and
+   before 2026-11-09 per panel)*: one drill program with every hole (fixing and screw, each `G81`
+   line with its own tool), then the cut. The operator screws the blank and the parts down between
+   the drill and the cut programs. Only shape outlines are cut; the blank's frame is never cut.
 6. **Settings live in the tool, not on the machine.** The user does not know whether the control
    can take parameters, so the model is: change a value on the laptop, regenerate, copy to
    diskette, register, open-and-save, compile. (Your call to revisit if parameters turn out to
@@ -134,8 +166,8 @@ The tool must show the numbers it will write before writing.
 - Program size and speed: keep arcs as arcs, do not segment; warn above about 250 lines per
   program (the existing post setting) and refuse nothing silently.
 - Program names are 1–8 characters `A-Z 0-9 _ -`; the first character is the folder on the machine
-  (`SRG\<first>\<rest>`). Scheme `B<blank><F|S|C>` (`B01F`, `B01S`, `B01C`) *(revised
-  2026-11-09; was `N<panel><F|S|C>`)*.
+  (`SRG\<first>\<rest>`). Scheme `B<blank><D|C>` (`B01D`, `B01C`) *(revised
+  2026-11-13; was `B<blank><F|S|C>`, before 2026-11-09 `N<panel><F|S|C>`)*.
 - The control's date and the diskette workflow are the user's; the tool writes a folder and a
   batch file and never formats or overwrites a diskette.
 - Fusion Personal limits do not apply (this tool does not use Fusion CAM), but the Fusion
@@ -176,7 +208,9 @@ The tool must show the numbers it will write before writing.
    re-used or re-surfaced.
 7. Machine work frame: `machine.frame_x` / `frame_y` (3072 × 787) are placeholders from a control
    config file; verify them on the machine's axis parameter screens. Also check where X0 Y0 of a
-   blank program lands (the blank's origin corner against the pins is assumed).
+   blank program lands: the back-left corner against the pins with Y toward the front
+   (`machine.y_toward` `front`, the user's statement 2026-11-13) is assumed, and with it the
+   G2/G3 sense of the arcs. Air cut first.
 8. Panel saw kerf (default 4 mm) and trim (10 mm) are guesses; set them to the real saw.
 
 ## Testing

@@ -42,9 +42,9 @@ def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[st
 
 def emit(program: Program, settings: Settings) -> str:
     origin = settings.origin
-    tool = f'T01{program.tool:02d}'
     body: list[str] = ['G150()']
     for op in program.ops:
+        tool = f'T01{program.op_tool(op):02d}'      # every block names its own tool
         if isinstance(op, DrillOp):
             body.append(f'G81G90{origin}P5{tool}{_xy((op.x, op.y))}Z{fmt(op.depth)}')
         else:

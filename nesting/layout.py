@@ -5,8 +5,9 @@ panel saw cuts each 1220 x 2440 panel into rectangular blanks. One blank at a ti
 scrap plate on the vacuum cups, screwed down through 4 fixing holes in its margin; the shapes
 are cut out of the blank and the blank's leftover frame is never cut.
 
-Coordinates: blank coordinates have the origin at the blank's corner, X along the blank's long
-side (machine X). Panel coordinates have the origin at the panel's origin corner, X along the
+Coordinates: blank (layout) coordinates have the origin at the blank's lower-left corner as
+drawn, y up, X along the blank's long side (machine X). The programs use the program frame, which
+program.py maps from these (machine.y_toward). Panel coordinates have the origin at the panel's origin corner, X along the
 panel length. A blank may lie turned 90 degrees on the panel; that only matters for the saw.
 """
 from __future__ import annotations

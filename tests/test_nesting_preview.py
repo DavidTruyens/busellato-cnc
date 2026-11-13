@@ -34,6 +34,15 @@ def build(*shapes, settings=None):
     return plan, progs, s, preview_data(plan, progs, s)
 
 
+def fix_ops(progs, s):
+    """The fixing holes of B01D: the ops with the fixing tool (default settings: tools differ)."""
+    return [o for o in by_name(progs)['B01D'].ops if o.tool == s.drill_fix.tool]
+
+
+def screw_ops(progs, s):
+    return [o for o in by_name(progs)['B01D'].ops if o.tool == s.drill_screw.tool]
+
+
 def close(tc, a, b, ordered=False):
     tc.assertEqual(len(a), len(b))
     for p, q in zip(a if ordered else sorted(a), b if ordered else sorted(b)):
@@ -43,12 +52,26 @@ def close(tc, a, b, ordered=False):
 
 class PreviewTests(unittest.TestCase):
     def test_blank_holes_equal_drill_ops(self):
+        # default y_toward 'front': the SVG numbers of the job view are the program numbers
         plan, progs, s, data = build(rect('a', 1000, 230), rect('b', 900, 200))
         (b,) = data['blanks']
+        self.assertEqual(data['y_toward'], 'front')
+        pr = by_name(progs)
+        self.assertEqual([p.name for p in progs], ['B01D', 'B01C'])
+        self.assertEqual(len(pr['B01D'].ops), len(b['fix']) + len(b['screw']))
+        close(self, [(h['x'], h['y']) for h in b['fix']], [(o.x, o.y) for o in fix_ops(progs, s)])
+        close(self, [(h['x'], h['y']) for h in b['screw']], [(o.x, o.y) for o in screw_ops(progs, s)])
+
+    def test_blank_holes_equal_drill_ops_y_toward_back(self):
+        s = Settings()
+        s.machine.y_toward = 'back'
+        plan, progs, s, data = build(rect('a', 1000, 230), rect('b', 900, 200), settings=s)
+        (b,) = data['blanks']
+        self.assertEqual(data['y_toward'], 'back')
         H = b['height']
         pr = by_name(progs)
-        close(self, [(h['x'], H - h['y']) for h in b['fix']], [(o.x, o.y) for o in pr['B01F'].ops])
-        close(self, [(h['x'], H - h['y']) for h in b['screw']], [(o.x, o.y) for o in pr['B01S'].ops])
+        close(self, [(h['x'], H - h['y']) for h in b['fix']], [(o.x, o.y) for o in fix_ops(progs, s)])
+        close(self, [(h['x'], H - h['y']) for h in b['screw']], [(o.x, o.y) for o in screw_ops(progs, s)])
 
     def test_panel_holes_are_the_drill_ops_mapped_onto_the_panel(self):
         s = Settings()
@@ -59,10 +82,14 @@ class PreviewTests(unittest.TestCase):
         pb = data['panels'][0]['blanks'][0]
         pw = s.panel.width
         pr = by_name(progs)
+        # program Y runs from the back (blank height - layout y): map back, then onto the panel
+        H = blank.height
         close(self, [(h['x'], pw - h['y']) for h in pb['fix']],
-              [to_panel(blank, o.x, o.y) for o in pr['B01F'].ops])
+              [to_panel(blank, o.x, H - o.y) for o in fix_ops(progs, s)])
         close(self, [(h['x'], pw - h['y']) for h in pb['screw']],
-              [to_panel(blank, o.x, o.y) for o in pr['B01S'].ops])
+              [to_panel(blank, o.x, H - o.y) for o in screw_ops(progs, s)])
+        close(self, [(h['x'], pw - h['y']) for h in pb['fix']],
+              [to_panel(blank, h.x, h.y) for h in blank.fix_holes])
         self.assertEqual((pb['w'], pb['h']), footprint(blank))
         self.assertEqual((pb['width'], pb['height']), (blank.width, blank.height))
 
@@ -109,23 +136,35 @@ class PreviewTests(unittest.TestCase):
         shape_ops = [o for o in cut.ops if ' a #1 pass ' in o.label]
         self.assertEqual(len(shape_ops), 3)
         self.assertEqual(len(cut.ops), 3)            # no other contour: no template outline
-        self.match(b['shapes'][0]['cut_path'], shape_ops[-1].segs, b['height'])
+        self.match(b['shapes'][0]['cut_path'], shape_ops[-1].segs, None)
+
+    def test_cut_path_matches_contour_ops_y_toward_back(self):
+        s = Settings()
+        s.machine.y_toward = 'back'
+        plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
+        cut = by_name(progs)['B01C']
+        b = data['blanks'][0]
+        self.match(b['shapes'][0]['cut_path'], cut.ops[-1].segs, b['height'])
 
     def match(self, d, segs, flip):
+        """The SVG path has the program's numbers (flip=None) or the flipped ones (flip=h)."""
+        def fy(y):
+            return y if flip is None else flip - y
         toks = parse(d)
         self.assertEqual(toks[0][0], 'M')
         self.assertEqual(len(toks) - 1, len(segs))
         self.assertAlmostEqual(toks[0][1], segs[0].a[0], delta=0.001)
-        self.assertAlmostEqual(toks[0][2], flip - segs[0].a[1], delta=0.001)
+        self.assertAlmostEqual(toks[0][2], fy(segs[0].a[1]), delta=0.001)
         arcs = 0
         for tok, sg in zip(toks[1:], segs):
             self.assertAlmostEqual(tok[-2], sg.b[0], delta=0.001)
-            self.assertAlmostEqual(tok[-1], flip - sg.b[1], delta=0.001)
+            self.assertAlmostEqual(tok[-1], fy(sg.b[1]), delta=0.001)
             if isinstance(sg, Arc):
                 arcs += 1
                 self.assertEqual(tok[0], 'A')
                 self.assertAlmostEqual(tok[1], sg.radius, delta=0.001)
-                self.assertEqual(tok[3], 0 if sg.ccw else 1)
+                # SVG sweep 1 = increasing angle in the numbers written
+                self.assertEqual(tok[3], int(sg.ccw) if flip is None else int(not sg.ccw))
             else:
                 self.assertEqual(tok[0], 'L')
         self.assertGreater(arcs, 0)          # the offset contour has corner arcs
@@ -164,6 +203,7 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(data['panel'], {'length': 2440, 'width': 1220, 'thickness': 18,
                                          'edge': 10, 'kerf': 4})
         self.assertEqual(data['frame'], {'x': 3072, 'y': 787})
+        self.assertEqual(data['y_toward'], 'front')
 
     def test_saw_cuts_in_the_preview(self):
         plan, progs, s, data = build(rect('a', 1000, 230))
@@ -196,7 +236,10 @@ class PreviewTests(unittest.TestCase):
     def test_programs_lines_and_warning(self):
         plan, progs, s, data = build(rect('a', 1000, 230))
         entry = {p['name']: p for p in data['blanks'][0]['programs']}
-        self.assertEqual(set(entry), {'B01F', 'B01S', 'B01C'})
+        self.assertEqual(set(entry), {'B01D', 'B01C'})
+        self.assertEqual((entry['B01D']['tool'], entry['B01D']['tools']), (1, [1, 2]))
+        self.assertEqual((entry['B01C']['tool'], entry['B01C']['tools']), (66, [66]))
+        self.assertEqual(entry['B01D']['kind'], 'drill')
         from nesting.backends import BACKENDS
         for p in progs:
             n = len(BACKENDS['cnc90'](p, s).splitlines())
@@ -205,10 +248,10 @@ class PreviewTests(unittest.TestCase):
 
     def test_line_warning_added_once(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))
-        fix = by_name(progs)['B01F']
+        fix = by_name(progs)['B01D']
         fix.ops.extend(DrillOp(fix.ops[0].x, fix.ops[0].y, 1, 1) for _ in range(300))     # long program
         data = preview_data(plan, progs, s)
-        w = next(p for p in data['blanks'][0]['programs'] if p['name'] == 'B01F')
+        w = next(p for p in data['blanks'][0]['programs'] if p['name'] == 'B01D')
         self.assertGreater(w['lines'], 250)
         self.assertEqual(len([x for x in w['warnings'] if 'lines' in x]), 1)
         self.assertIn(f"{w['lines']} lines, more than 250", w['warnings'])
@@ -216,24 +259,42 @@ class PreviewTests(unittest.TestCase):
 
     def test_existing_line_warning_not_duplicated(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))
-        fix = by_name(progs)['B01F']
+        fix = by_name(progs)['B01D']
         fix.ops.extend(DrillOp(fix.ops[0].x, fix.ops[0].y, 1, 1) for _ in range(300))
-        fix.warnings.append('B01F: about 303 lines, over 250')
+        fix.warnings.append('B01D: about 303 lines, over 250')
         w = next(p for p in preview_data(plan, progs, s)['blanks'][0]['programs']
-                 if p['name'] == 'B01F')
-        self.assertEqual(w['warnings'], ['B01F: about 303 lines, over 250'])
+                 if p['name'] == 'B01D')
+        self.assertEqual(w['warnings'], ['B01D: about 303 lines, over 250'])
 
     def test_z_values(self):
         plan, progs, s, data = build(rect('a', 1000, 230))
         z = data['blanks'][0]['z']
         pr = by_name(progs)
         self.assertEqual(set(z), {'stack_top', 'fixing', 'screw', 'shape_cut'})
-        self.assertEqual(z['fixing'], pr['B01F'].ops[0].depth)
-        self.assertEqual(z['screw'], pr['B01S'].ops[0].depth)
+        self.assertEqual(z['fixing'], fix_ops(progs, s)[0].depth)
+        self.assertEqual(z['screw'], screw_ops(progs, s)[0].depth)
         self.assertEqual(z['shape_cut'], pr['B01C'].ops[-1].depth)
         self.assertEqual(z['stack_top'], pr['B01C'].stock[2])
         self.assertEqual((z['stack_top'], z['fixing'], z['screw']), (36, 19, 26))
         self.assertAlmostEqual(z['shape_cut'], 18.5)
+
+    def test_drill_tools_per_hole_kind(self):
+        s = Settings()
+        s.drill_fix.feed, s.drill_screw.feed = 2.5, 0.75
+        plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
+        self.assertEqual(data['blanks'][0]['drill_tools'], [
+            {'holes': 'fixing', 'count': 4, 'tool': 1, 'diameter': 6, 'feed': 2.5, 'depth': 19},
+            {'holes': 'screw', 'count': 2, 'tool': 2, 'diameter': 3, 'feed': 0.75, 'depth': 26}])
+
+    def test_one_drill_program_shows_both_hole_kinds_with_one_tool(self):
+        s = Settings()
+        s.drill_screw.tool = s.drill_fix.tool
+        plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
+        b = data['blanks'][0]
+        self.assertEqual([p['name'] for p in b['programs']], ['B01D', 'B01C'])
+        self.assertEqual(b['programs'][0]['tools'], [1])
+        self.assertEqual((len(b['fix']), len(b['screw'])), (4, 2))
+        self.assertEqual([t['tool'] for t in b['drill_tools']], [1, 1])
 
     def test_problems_passed_through(self):
         plan, progs, s, _ = build(rect('a', 1000, 230))

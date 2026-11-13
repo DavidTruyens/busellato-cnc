@@ -1,9 +1,13 @@
 """Preview data for the UI, built from the programs the machine will get.
 
-Hole positions and cut paths come from the programs' DrillOp / ContourOp objects (blank
-coordinates); the panel view maps those same numbers onto the panel. Only the un-offset shape
-outlines and the saw plan come from the layout.
-Y is flipped for SVG (height - y); x, y of a rectangle are its top-left corner.
+Hole positions and cut paths come from the programs' DrillOp / ContourOp objects (program
+frame, see program.py); the panel view maps those same numbers back to the layout frame and onto
+the panel. Only the un-offset shape outlines and the saw plan come from the layout.
+
+SVG y runs down. Blank (job) view: with machine.y_toward 'front' the program frame already has
+Y down from the top-left origin, so the SVG numbers are the program numbers unchanged; with
+'back' they are flipped (height - y). Panel view: always flipped (panel width - y), the panel's
+origin corner is bottom left. x, y of a rectangle are its top-left corner.
 """
 from __future__ import annotations
 
@@ -12,27 +16,38 @@ import math
 from .backends import BACKENDS
 from .geometry import Arc, Line, _sweep, bbox, translate
 from .layout import Blank, PanelPlan, Plan, SawCut, footprint, to_panel
-from .program import LINE_WARNING, ContourOp, DrillOp, Program, base_label, stack_top
+from .program import (LINE_WARNING, ContourOp, DrillOp, Program, base_label, segs_to_program,
+                      stack_top, to_program, y_flipped)
 from .settings import Settings
 
 BACKEND = 'cnc90'
 TOL = 0.001
 
 
-def _path(segs, flip: float) -> str:
-    """SVG path with true arcs. Flipping Y reverses the turning direction, so a
-    counter-clockwise machine arc becomes sweep 0."""
+def _path(segs, flip: float | None) -> str:
+    """SVG path with true arcs. SVG sweep 1 is the direction of increasing angle in the numbers
+    written, so an arc that is counter-clockwise in its own numbers gets sweep 1 unflipped.
+    flip=h writes h - y, which reverses the turning direction: then ccw becomes sweep 0."""
     if not segs:
         return ''
-    out = [f'M{segs[0].a[0]:.3f},{flip - segs[0].a[1]:.3f}']
+
+    def fy(y):
+        return y if flip is None else flip - y
+    out = [f'M{segs[0].a[0]:.3f},{fy(segs[0].a[1]):.3f}']
     for sg in segs:
-        x, y = sg.b[0], flip - sg.b[1]
+        x, y = sg.b[0], fy(sg.b[1])
         if isinstance(sg, Line):
             out.append(f'L{x:.3f},{y:.3f}')
         else:
             large = int(_sweep(sg) > math.pi)
-            out.append(f'A{sg.radius:.3f},{sg.radius:.3f} 0 {large} {int(not sg.ccw)} {x:.3f},{y:.3f}')
+            sweep = int(sg.ccw) if flip is None else int(not sg.ccw)
+            out.append(f'A{sg.radius:.3f},{sg.radius:.3f} 0 {large} {sweep} {x:.3f},{y:.3f}')
     return ' '.join(out)
+
+
+def _job_flip(b: Blank, settings: Settings) -> float | None:
+    """Program frame -> SVG of the blank view: none when Y already runs down (front)."""
+    return None if y_flipped(settings) else b.height
 
 
 def _map_seg(s, b: Blank):
@@ -42,10 +57,11 @@ def _map_seg(s, b: Blank):
     return Arc(to_panel(b, *s.a), to_panel(b, *s.b), to_panel(b, *s.center), s.radius, s.ccw)
 
 
-def _classify(blank: Blank, drills: list[DrillOp]):
+def _classify(blank: Blank, drills: list[DrillOp], settings: Settings):
     """Label each drill op fixing or screw by matching it to the layout's holes."""
     def hit(o, holes):
-        return any(abs(o.x - h.x) <= TOL and abs(o.y - h.y) <= TOL for h in holes)
+        return any(abs(o.x - x) <= TOL and abs(o.y - y) <= TOL
+                   for x, y in (to_program(blank, settings, h.x, h.y) for h in holes))
 
     fix_ops, screw_ops = [], []
     for o in drills:
@@ -62,25 +78,41 @@ def _program_entry(p: Program, settings: Settings) -> dict:
     warnings = list(p.warnings)
     if lines > LINE_WARNING and not any('lines' in w for w in warnings):
         warnings.append(f'{lines} lines, more than {LINE_WARNING}')
-    return {'name': p.name, 'tool': p.tool, 'kind': p.kind, 'description': p.description,
-            'ops': len(p.ops), 'lines': lines, 'warnings': warnings}
+    return {'name': p.name, 'tool': p.tool, 'tools': p.tools, 'kind': p.kind,
+            'description': p.description, 'ops': len(p.ops), 'lines': lines, 'warnings': warnings}
+
+
+def _drill_tools(fix_ops, screw_ops, tool_of, settings: Settings) -> list[dict]:
+    """Per hole kind of the blank's drill program: tool, diameter and feed (the last two from
+    the settings: the emitter writes neither), hole count and depth."""
+    out = []
+    for what, ops, cfg in (('fixing', fix_ops, settings.drill_fix),
+                           ('screw', screw_ops, settings.drill_screw)):
+        if ops:
+            out.append({'holes': what, 'count': len(ops), 'tool': tool_of(ops[0]),
+                        'diameter': cfg.diameter, 'feed': cfg.feed, 'depth': ops[0].depth})
+    return out
 
 
 def _blank_data(b: Blank, programs: list[Program], settings: Settings):
-    """(blank view in blank coordinates, holes as drilled in blank coordinates)."""
-    H = b.height
+    """(blank view: program frame drawn for SVG, holes as drilled in the program frame)."""
+    flip = _job_flip(b, settings)
+
+    def sy(y):
+        return y if flip is None else flip - y
     mine = [p for p in programs if p.blank == b.id]
     drills = [o for p in mine if p.kind == 'drill' for o in p.ops]
+    tool_by_op = {id(o): p.op_tool(o) for p in mine if p.kind == 'drill' for o in p.ops}
     cuts = {base_label(o.label): o for p in mine if p.kind == 'cut' for o in p.ops}
-    fix_ops, screw_ops = _classify(b, drills)
+    fix_ops, screw_ops = _classify(b, drills, settings)
     shapes = []
     for ps in b.shapes:
-        moved = translate(ps.shape.outline, ps.x, ps.y)
+        moved = segs_to_program(b, settings, translate(ps.shape.outline, ps.x, ps.y))
         x0, y0, x1, y1 = bbox(moved)
         op = cuts.get(f'{b.id} {ps.name} #{ps.copy}')
-        shapes.append({'name': ps.name, 'copy': ps.copy, 'path': _path(moved, H),
-                       'cut_path': _path(op.segs, H) if op else '',
-                       'cx': (x0 + x1) / 2, 'cy': H - (y0 + y1) / 2})
+        shapes.append({'name': ps.name, 'copy': ps.copy, 'path': _path(moved, flip),
+                       'cut_path': _path(op.segs, flip) if op else '',
+                       'cx': (x0 + x1) / 2, 'cy': sy((y0 + y1) / 2)})
     ops = [o for p in mine for o in p.ops]
     z = {'stack_top': stack_top(settings),
          'fixing': fix_ops[0].depth if fix_ops else None,
@@ -88,9 +120,10 @@ def _blank_data(b: Blank, programs: list[Program], settings: Settings):
          'shape_cut': next((o.depth for o in reversed(ops) if isinstance(o, ContourOp)), None)}
     data = {'id': b.id, 'panel': b.panel, 'width': b.width, 'height': b.height,
             'rotated': b.rotated, 'shapes': shapes,
-            'fix': [{'x': o.x, 'y': H - o.y} for o in fix_ops],
-            'screw': [{'x': o.x, 'y': H - o.y} for o in screw_ops],
+            'fix': [{'x': o.x, 'y': sy(o.y)} for o in fix_ops],
+            'screw': [{'x': o.x, 'y': sy(o.y)} for o in screw_ops],
             'programs': [_program_entry(p, settings) for p in mine],
+            'drill_tools': _drill_tools(fix_ops, screw_ops, lambda o: tool_by_op[id(o)], settings),
             'z': {k: v for k, v in z.items() if v is not None}}
     return data, fix_ops, screw_ops
 
@@ -120,7 +153,9 @@ def _panel_data(panel: PanelPlan, holes: dict, settings: Settings) -> dict:
         fix_ops, screw_ops = holes[b.id]
 
         def mapped(ops):
-            return [{'x': x, 'y': pw - y} for x, y in (to_panel(b, o.x, o.y) for o in ops)]
+            """Drill ops (program frame) -> layout frame -> panel."""
+            return [{'x': x, 'y': pw - y} for x, y in
+                    (to_panel(b, *to_program(b, settings, o.x, o.y)) for o in ops)]
 
         blanks.append({'id': b.id, 'x': b.x, 'y': pw - (b.y + h), 'w': w, 'h': h,
                        'width': b.width, 'height': b.height, 'rotated': b.rotated,
@@ -142,6 +177,7 @@ def preview_data(plan: Plan, programs: list[Program], settings: Settings) -> dic
     return {'panel': {'length': p.length, 'width': p.width, 'thickness': p.thickness,
                       'edge': p.edge, 'kerf': p.kerf},
             'frame': {'x': m.frame_x, 'y': m.frame_y},
+            'y_toward': m.y_toward,
             'panels': [_panel_data(pp, holes, settings) for pp in plan.panels],
             'blanks': blanks,
             'problems': list(plan.problems)}

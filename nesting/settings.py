@@ -26,6 +26,11 @@ class Machine:
     # control config file, not measured: to verify on the machine's axis parameter screens.
     frame_x: float = 3072
     frame_y: float = 787
+    # Program frame of a blank: X0 Y0 is the blank's corner at the pins, X to the right.
+    # 'front': Y grows toward the front of the machine (origin = back-left corner, top left of
+    # the picture with the operator at the bottom). The user's statement, 2026-11-13; NOT yet
+    # verified on the machine. 'back': Y grows toward the back (origin bottom left of the picture).
+    y_toward: str = "front"
 
 
 @dataclass
@@ -182,6 +187,7 @@ class Settings:
             "origin": ("G54", "G55"),
             "router.direction": ("ccw", "cw"),
             "blank.group_by": ("length", "order"),
+            "machine.y_toward": ("front", "back"),
         }
         for path, allowed in choices.items():
             if self._get(path) not in allowed:

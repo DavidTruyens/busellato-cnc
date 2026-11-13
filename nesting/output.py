@@ -65,11 +65,24 @@ def _panel_svg(data: dict, panel: dict) -> str:
     return '\n'.join(out)
 
 
-def _blank_svg(b: dict) -> str:
+ORIGIN = {
+    'front': ('X0 Y0 is the blank\'s back-left corner (top left in the drawing, black dot), '
+              'against the X and Y pins; X grows to the right, Y grows toward the front '
+              '(down in the drawing)'),
+    'back': ('X0 Y0 is the blank\'s front-left corner (bottom left in the drawing, black dot), '
+             'against the X and Y pins; X grows to the right, Y grows toward the back '
+             '(up in the drawing)'),
+}
+
+
+def _blank_svg(b: dict, y_toward: str) -> str:
+    """The blank as seen from above, operator at the bottom; numbers from preview_data, which
+    already holds the program frame drawn for SVG (y down)."""
     L, W = b['width'], b['height']
+    oy = 0 if y_toward == 'front' else W
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 {_g(L + 40)} {_g(W + 40)}">',
            f'<rect class="blank" x="0" y="0" width="{_g(L)}" height="{_g(W)}"/>',
-           f'<circle class="org" cx="0" cy="{_g(W)}" r="12"/>']
+           f'<circle class="org" cx="0" cy="{_g(oy)}" r="12"/>']
     for s in b['shapes']:
         out.append(f'<path class="shape" d="{escape(s["path"])}"/>')
         out.append(f'<text class="lbl" x="{_g(s["cx"])}" y="{_g(s["cy"])}">{escape(s["name"])}</text>')
@@ -96,23 +109,43 @@ def _cut_table(panel: dict) -> str:
     return ''.join(rows)
 
 
-def _steps(bid: str, names: set[str]) -> list[str]:
-    f, s, c = f'{bid}F', f'{bid}S', f'{bid}C'
-    steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot) '
-             'against the X and Y pins, long side along machine X. Clamp it.']
-    if f in names:
-        steps.append(f'Drill <b>{escape(f)}</b> (fixing holes, through the blank into the scrap).')
-        steps.append('Screw the blank to the scrap plate through the fixing holes; take the clamps off.')
-    if s in names:
-        steps.append(f'Drill <b>{escape(s)}</b> (screw holes at the shapes\' holes, into the scrap).')
-    elif f in names:
-        steps.append(f'Screw holes: no separate program, merged into {escape(f)}.')
-    steps.append('Screw each shape down through its screw holes.')
+def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
+    d, c = f'{bid}D', f'{bid}C'
+    corner = 'back-left' if y_toward == 'front' else 'front-left'
+    steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot, '
+             f'the {corner} corner) against the X and Y pins, long side along machine X. '
+             'Clamp it.']
+    if d in names:
+        steps.append(f'Run <b>{escape(d)}</b>, the blank still clamped: every hole of the blank '
+                     '(fixing holes through the blank into the scrap, screw holes at the '
+                     'shapes\' holes), each with its own tool.')
+        steps.append('Screw the blank to the scrap plate through the fixing holes, and each shape '
+                     'down through its screw holes.')
+    steps.append('Take the clamps off.')
     if c in names:
         steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
                      'blank\'s frame is not cut).')
-    steps.append('Unscrew the shapes and the frame; the frame is left over.')
+    steps.append('Unscrew the shapes and the frame; the frame is left over. Next blank.')
     return steps
+
+
+def _tools(p: dict) -> str:
+    return ', '.join(f'T{t}' for t in p.get('tools') or [p['tool']])
+
+
+def _drill_table(b: dict) -> str:
+    if not b.get('drill_tools'):
+        return ''
+    rows = ['<p><b>Drill tools</b> (diameter and feed are the settings, not written to the '
+            'program: the control uses each tool\'s own feed; check the tool really has that '
+            'diameter)</p><table><tr><th>Holes</th><th>Count</th><th>Tool</th>'
+            '<th>Diameter (mm)</th><th>Feed (m/min, not written)</th><th>Depth (mm)</th></tr>']
+    for t in b['drill_tools']:
+        rows.append(f'<tr><td>{escape(t["holes"])}</td><td class="num">{t["count"]}</td>'
+                    f'<td>T{t["tool"]}</td><td class="num">{t["diameter"]:g}</td>'
+                    f'<td class="num">{t["feed"]:g}</td><td class="num">{round(t["depth"], 3):g}</td></tr>')
+    rows.append('</table>')
+    return ''.join(rows)
 
 
 def _runsheet(data: dict, project: dict) -> str:
@@ -146,17 +179,22 @@ def _runsheet(data: dict, project: dict) -> str:
                          f'<td>{"turned 90°" if b["rotated"] else "long side along the panel length"}</td>'
                          f'<td>{escape(shapes)}</td></tr>')
         parts.append('</table></section>')
+    yt = data['y_toward']
     for b in data['blanks']:
         names = {p['name'] for p in b['programs']}
         parts.append(f'<section><h2>Blank {escape(b["id"])} (from panel {escape(b["panel"])}), '
                      f'{_g(b["width"])} x {_g(b["height"])} mm</h2>')
-        parts.append(_blank_svg(b))
-        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names)) + '</ol>')
-        parts.append('<table><tr><th>Program</th><th>Tool</th><th>Description</th></tr>')
+        parts.append(f'<p>Program coordinates: {escape(ORIGIN[yt])}. Drawing seen from above, '
+                     'operator at the bottom. Not yet verified on the machine.</p>')
+        parts.append(_blank_svg(b, yt))
+        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt))
+                     + '</ol>')
+        parts.append('<table><tr><th>Program</th><th>Tools</th><th>Description</th></tr>')
         for p in b['programs']:
-            parts.append(f'<tr><td>{escape(p["name"])}</td><td>T{p["tool"]}</td>'
+            parts.append(f'<tr><td>{escape(p["name"])}</td><td>{_tools(p)}</td>'
                          f'<td>{escape(p["description"])}</td></tr>')
         parts.append('</table>')
+        parts.append(_drill_table(b))
         parts.append('<p><b>Heights (mm)</b></p><table>')
         for key, label in Z_LABELS:
             if key in b['z']:

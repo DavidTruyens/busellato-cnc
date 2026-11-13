@@ -7,7 +7,7 @@ from nesting.dxf import Hole, Shape, read_dxf
 from nesting.geometry import Arc, Line, OffsetError, bbox
 from nesting.layout import Blank, PanelPlan, PlacedShape, Plan, ShapeEntry, build_plan
 from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, blank_programs,
-                             check_depths, pass_depths, plan_programs, stack_top)
+                             check_depths, group_by_tool, pass_depths, plan_programs, stack_top)
 from nesting.settings import Settings
 
 repo = Path(__file__).resolve().parent.parent
@@ -91,17 +91,30 @@ class CupDepthCheckTests(unittest.TestCase):
                 plan, s = plan_for(rect('a', 1000, 200))
                 if attr == 'screw':
                     s.drill_screw.depth = 18
-                    name = 'B01S'
+                    depth = '36.000'
                 else:
                     s.heights.fix_into_scrap = 18
-                    name = 'B01F'
+                    depth = '36.000'
                 with self.assertRaises(ProgramError) as cm:
                     plan_programs(plan, s)
-                self.assertIn(name, str(cm.exception))
+                self.assertIn('B01D', str(cm.exception))      # the merged drill program
+                self.assertIn(depth, str(cm.exception))
+
+    def test_depth_check_is_per_op_in_the_merged_drill_program(self):
+        # only the screw holes (second tool) are too deep: still refused, naming that drill
+        plan, s = plan_for(rect('a', 1000, 230))
+        s.drill_screw.depth = 18
+        b = plan.blanks[0]
+        with self.assertRaises(ProgramError) as cm:
+            blank_programs(b, s)
+        msg = str(cm.exception)
+        self.assertIn('B01D', msg)
+        sx, sy = b.screw_holes[0].x, b.height - b.screw_holes[0].y
+        self.assertIn(f'X{sx:.3f} Y{sy:.3f}', msg)
 
     def test_default_real_plan_passes(self):
         plan, s = real_plan()
-        self.assertEqual(len(plan_programs(plan, s)), 18)       # 6 blanks x F, S, C
+        self.assertEqual(len(plan_programs(plan, s)), 12)       # 6 blanks x D, C
 
 
 CUTTER_WARNING = re.compile(r'^(B\d+C): cutter reaches X(-?\d+\.\d)\.\.(-?\d+\.\d), '
@@ -132,7 +145,7 @@ class CutterOutsideBlankTests(unittest.TestCase):
         self.assertEqual([float(g) for g in m.group(2, 3, 4, 5)],
                          [round(3 - d, 1), round(603 + d, 1), round(45 - d, 1), round(245 + d, 1)])
         self.assertEqual((m.group(6), m.group(7)), ('690', '290'))
-        self.assertEqual(self.cutter_warnings([progs['B01F'], progs['B01S']]), [])
+        self.assertEqual(self.cutter_warnings([progs['B01D']]), [])
 
     def test_cutter_just_inside_the_blank_is_fine(self):
         s = Settings()
@@ -141,19 +154,64 @@ class CutterOutsideBlankTests(unittest.TestCase):
 
 
 class ProgramTests(unittest.TestCase):
-    def test_three_programs_per_blank_with_names(self):
+    def test_one_drill_and_one_cut_program_per_blank(self):
         plan, s = plan_for(rect('a', 1000, 230))
         progs = plan_programs(plan, s)
-        self.assertEqual([p.name for p in progs], ['B01F', 'B01S', 'B01C'])
-        self.assertEqual([p.tool for p in progs], [1, 2, 66])
-        self.assertEqual([p.kind for p in progs], ['drill', 'drill', 'cut'])
+        self.assertEqual([p.name for p in progs], ['B01D', 'B01C'])
+        self.assertEqual([p.tool for p in progs], [1, 66])
+        self.assertEqual([p.tools for p in progs], [[1, 2], [66]])
+        self.assertEqual([p.kind for p in progs], ['drill', 'cut'])
         self.assertEqual({p.blank for p in progs}, {'B01'})
+        d = progs[0]
+        self.assertEqual(d.description, 'Fixing and screw holes')
+        self.assertEqual(len(d.ops), 4 + 2)
+
+    def test_two_tools_grouped_fixing_tool_first(self):
+        plan, s = plan_for(rect('a', 1000, 230))
+        d = by_name(plan_programs(plan, s))['B01D']
+        b = plan.blanks[0]
+        self.assertEqual([o.tool for o in d.ops], [1] * 4 + [2] * 2)
+        self.assertEqual([o.diameter for o in d.ops], [6] * 4 + [3] * 2)
+        self.assertEqual([o.depth for o in d.ops], [19] * 4 + [26] * 2)
+        # within a tool, the layout's hole order
+        self.assertEqual([(o.x, o.y) for o in d.ops],
+                         [(h.x, b.height - h.y) for h in b.fix_holes + b.screw_holes])
+
+    def test_grouping_is_by_tool_not_by_kind(self):
+        # screw tool listed first would still give one group per tool, in first-seen order
+        ops = [DrillOp(1, 1, 5, 6, 7), DrillOp(2, 1, 5, 3, 9), DrillOp(3, 1, 5, 6, 7),
+               DrillOp(4, 1, 5, 3, 9), DrillOp(5, 1, 5, 8, 4)]
+        got = group_by_tool(ops)
+        self.assertEqual([(o.x, o.tool) for o in got], [(1, 7), (3, 7), (2, 9), (4, 9), (5, 4)])
+        self.assertEqual(group_by_tool(got), got)               # stable, deterministic
+
+    def test_one_tool_is_one_group_fixing_holes_first(self):
+        s = Settings()
+        s.drill_screw.tool = s.drill_fix.tool           # same tool, other diameter: still one
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        progs = by_name(plan_programs(plan, s))
+        self.assertEqual(sorted(progs), ['B01C', 'B01D'])
+        d = progs['B01D']
+        self.assertEqual(d.tools, [1])
+        self.assertEqual([o.depth for o in d.ops], [19] * 4 + [26] * 2)
+
+    def test_no_screw_holes_gives_a_fixing_only_drill(self):
+        plan, s = plan_for(rect('a', 1000, 230, holes=False))
+        d = by_name(plan_programs(plan, s))['B01D']
+        self.assertEqual(d.description, 'Fixing holes')
+        self.assertEqual(d.tools, [1])
+        self.assertEqual(len(d.ops), 4)
+
+    def test_no_fixing_or_screw_program_names(self):
+        plan, s = real_plan()
+        for p in plan_programs(plan, s):
+            self.assertRegex(p.name, r'^B\d{2}[DC]$')
 
     def test_programs_are_per_blank_not_per_panel(self):
         plan, s = real_plan()
         progs = plan_programs(plan, s)
         self.assertEqual([p.name for p in progs],
-                         [f'B0{n}{k}' for n in range(1, 7) for k in 'FSC'])
+                         [f'B0{n}{k}' for n in range(1, 7) for k in 'DC'])
         for p in progs:
             b = next(b for b in plan.blanks if b.id == p.blank)
             self.assertEqual(p.stock, (b.width, b.height, 36))
@@ -163,9 +221,9 @@ class ProgramTests(unittest.TestCase):
         s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
-        self.assertEqual(sorted(progs), ['B01C', 'B01F'])
-        self.assertEqual(len(progs['B01F'].ops), 4 + 2)
-        self.assertEqual({round(o.depth, 6) for o in progs['B01F'].ops}, {19, 26})
+        self.assertEqual(sorted(progs), ['B01C', 'B01D'])
+        self.assertEqual(len(progs['B01D'].ops), 4 + 2)
+        self.assertEqual({round(o.depth, 6) for o in progs['B01D'].ops}, {19, 26})
 
     def test_stack_is_scrap_plus_blank(self):
         s = Settings()
@@ -177,10 +235,10 @@ class ProgramTests(unittest.TestCase):
         plan, s = plan_for(rect('a', 1000, 230))
         progs = by_name(plan_programs(plan, s))
         b = plan.blanks[0]
-        self.assertEqual(progs['B01F'].stock, (b.width, b.height, 36))
+        self.assertEqual(progs['B01D'].stock, (b.width, b.height, 36))
         # fixing: through the 18 blank + 1 into the scrap; screw: 18 + 8
-        self.assertEqual({o.depth for o in progs['B01F'].ops}, {19})
-        self.assertEqual({o.depth for o in progs['B01S'].ops}, {26})
+        self.assertEqual({o.depth for o in progs['B01D'].ops if o.tool == 1}, {19})
+        self.assertEqual({o.depth for o in progs['B01D'].ops if o.tool == 2}, {26})
         cuts = progs['B01C'].ops
         # through the blank from its top, 0.5 into the scrap, three equal passes
         self.assertEqual(len(cuts), 3)
@@ -193,9 +251,9 @@ class ProgramTests(unittest.TestCase):
         s.heights.into_scrap, s.heights.fix_into_scrap, s.drill_screw.depth = 0.7, 2, 9
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
-        self.assertEqual(progs['B01F'].stock[2], 38)
-        self.assertAlmostEqual(progs['B01F'].ops[0].depth, 24)
-        self.assertAlmostEqual(progs['B01S'].ops[0].depth, 31)
+        self.assertEqual(progs['B01D'].stock[2], 38)
+        self.assertAlmostEqual(progs['B01D'].ops[0].depth, 24)
+        self.assertAlmostEqual(progs['B01D'].ops[-1].depth, 31)
         self.assertAlmostEqual(progs['B01C'].ops[-1].depth, 22.7)
         for p in progs.values():
             for op in p.ops:
@@ -229,7 +287,8 @@ class ProgramTests(unittest.TestCase):
             self.assertEqual(a.name, b.name)
             self.assertEqual(a.ops, b.ops)
             self.assertEqual(a.stock, (690, 290, 36))
-        self.assertEqual((flat[0].ops[0].x, flat[0].ops[0].y), (15, 15))
+        # layout hole (15, 15) on a 290 high blank: program Y from the back edge (y_toward front)
+        self.assertEqual((flat[0].ops[0].x, flat[0].ops[0].y), (15, 275))
 
     def test_cuts_stay_inside_the_blank(self):
         plan, s = real_plan()
@@ -262,29 +321,36 @@ class ProgramTests(unittest.TestCase):
         self.assertTrue(str(cm.exception).startswith('B01 slot #1: '), str(cm.exception))
 
     def test_direction_and_arcs(self):
-        for direction in ('ccw', 'cw'):
-            s = Settings()
-            s.router.direction = direction
-            plan, _ = real_plan(s)
-            progs = plan_programs(plan, s)
-            self.assertTrue(progs)
-            for p in progs:
-                for op in p.ops:
-                    if isinstance(op, ContourOp):
-                        for seg in op.segs:
-                            if isinstance(seg, Arc):
-                                self.assertTrue(seg.ccw == (direction == 'ccw'))
+        # every arc of an outside contour turns with the walk; in the program numbers the
+        # sense is the one seen from above when Y grows toward the back, the opposite when
+        # Y grows toward the front (a mirror)
+        for y_toward in ('front', 'back'):
+            for direction in ('ccw', 'cw'):
+                s = Settings()
+                s.router.direction = direction
+                s.machine.y_toward = y_toward
+                plan, _ = real_plan(s)
+                progs = plan_programs(plan, s)
+                self.assertTrue(progs)
+                want = (direction == 'ccw') == (y_toward == 'back')
+                for p in progs:
+                    for op in p.ops:
+                        if isinstance(op, ContourOp):
+                            for seg in op.segs:
+                                if isinstance(seg, Arc):
+                                    self.assertEqual(seg.ccw, want, (y_toward, direction))
 
     def test_every_name_valid_and_unique(self):
         s = Settings()
         blanks = [hand_blank(f'B{n:03d}') for n in range(1, 121)]
         plan = Plan([PanelPlan('P1', blanks)])
         progs = plan_programs(plan, s)
-        self.assertEqual(len(progs), 360)
+        self.assertEqual(len(progs), 240)
         for p in progs:
+            self.assertRegex(p.name, r'^B\d{3}[DC]$')          # same width past 99 blanks
             self.assertRegex(p.name, r'^[A-Z0-9_-]{2,8}$')
             self.assertIn(p.name[0], FOLDER)
-        self.assertEqual(len({p.name for p in progs}), 360)
+        self.assertEqual(len({p.name for p in progs}), 240)
 
     def test_names_from_a_large_real_plan_are_unique(self):
         s = Settings()
@@ -293,10 +359,10 @@ class ProgramTests(unittest.TestCase):
         progs = plan_programs(plan, s)
         names = [p.name for p in progs]
         self.assertEqual(len(plan.blanks), 54)
-        self.assertEqual(len(names), 3 * 54)
+        self.assertEqual(len(names), 2 * 54)
         self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(names[0], 'B01F')
-        self.assertTrue(all(re.fullmatch(r'B\d{2}[FSC]', n) for n in names))
+        self.assertEqual(names[:2], ['B01D', 'B01C'])
+        self.assertTrue(all(re.fullmatch(r'B\d{2}[DC]', n) for n in names))
 
     def test_duplicate_blank_ids_refused(self):
         plan = Plan([PanelPlan('P1', [hand_blank('B01'), hand_blank('B01')])])
@@ -309,7 +375,7 @@ class ProgramTests(unittest.TestCase):
         plan, _ = plan_for(rect('a', 1000, 230), rect('b', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertTrue(progs['B01C'].warnings)
-        self.assertFalse(progs['B01F'].warnings)
+        self.assertFalse(progs['B01D'].warnings)
         self.assertTrue(progs['B01C'].ops)      # never split or refused
         plan2, s2 = plan_for(rect('a', 1000, 230))
         self.assertEqual(by_name(plan_programs(plan2, s2))['B01C'].warnings, [])

@@ -145,7 +145,7 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
       <span class="jobonly"><i style="background:none;border:2px dashed #667085"></i>machine work frame</span>
       <span><i style="background:var(--fix)"></i>fixing hole (blank to scrap)</span>
       <span><i style="background:var(--pilot)"></i>screw hole (shape to scrap)</span>
-      <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre)</span>
+      <span class="cutonly"><i style="background:none;border:2px solid #c0261c"></i>cutter path (tool centre; dot = start, arrows = direction)</span>
     </div>
   </div>
   <div class="banner" id="problems"></div>
@@ -180,7 +180,7 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 
   <h2>Machine</h2>
   <div id="machineFields"></div>
-  <p class="note">Values shown are placeholders until measured at the machine. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
+  <p class="note">Values shown are placeholders until measured at the machine. The panel Layout view is the saw plan (panel corner bottom left), not machine coordinates. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
 </aside>
 </main>
 
@@ -197,7 +197,7 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
       <li>CNC90 file management: register each program, then open and save it once in the editor.</li>
       <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
       <li>Saw each panel into blanks as the cut list says.</li>
-      <li>Per blank: lay it on the scrap against the pins → fixing holes → screw the blank down → screw holes → screw the shapes down → cut the shapes out.</li>
+      <li>Per blank: lay it on the scrap, its origin corner (black dot on the run sheet) against the pins, clamp it → run <code>BnnD</code> (all holes, still clamped) → screw the blank down through the fixing holes and each shape through its screw holes → take the clamps off → run <code>BnnC</code> (cut the shapes out) → unscrew.</li>
       <li>Optional: <code>A:COLLECT</code> copies the compiler output to <code>A:\OUT\</code>.</li>
     </ol>
   </div>
@@ -213,6 +213,7 @@ function fmt(v){
   const s = (Math.round(v * 1000) / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
   return s === '-0' || s === '' ? '0' : s;
 }
+const toolsOf = g => (g.tools || [g.tool]).map(t => 'T' + t).join(' + ');
 const fmtArea = v => (Math.round(v * 10) / 10).toString();
 function el(tag, props, ...kids){
   const e = document.createElement(tag);
@@ -225,9 +226,10 @@ function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, 
 
 // ---- settings controls: every field of Settings -----------------------------------------
 const NOTE_FEED = "not written to the program (the control uses the tool's own feed)";
-const NOTE_DIA = 'used only to decide whether the two drill jobs share one program';
+const NOTE_DIA = 'not written to the program (the tool number picks the drill); listed per tool on the run sheet';
 // [key, label, unit or choices, step, kind, (unused), note under the field]
 const NOTE_FRAME = "placeholder: to verify on the machine's axis parameter screens";
+const NOTE_Y = "Where X0 Y0 is and which way Y grows in the drill and cut programs. Front is the user's statement, not yet verified on the machine: check it, and the arc direction (G2/G3), with an air cut first.";
 const FIELDS = {
   heightFields: [
     ['heights.scrap', 'Scrap plate on cups', 'mm'],
@@ -267,7 +269,8 @@ const FIELDS = {
   machineFields: [
     ['origin', 'Origin', [['G54', 'G54'], ['G55', 'G55']]],
     ['machine.frame_x', 'Work frame X', 'mm', 1, 'num', '', NOTE_FRAME],
-    ['machine.frame_y', 'Work frame Y', 'mm', 1, 'num', '', NOTE_FRAME]]
+    ['machine.frame_y', 'Work frame Y', 'mm', 1, 'num', '', NOTE_FRAME],
+    ['machine.y_toward', 'Y axis grows toward', [['front', 'front of machine (origin top-left)'], ['back', 'back of machine (origin bottom-left)']], 0, 'wide', '', NOTE_Y]]
 };
 const ROUTER_TOOLS = [[66, 8, 'T66 Ø8 (right, 4.5 HP)'], [65, 18, 'T65 Ø18 (left, 7 HP)']];
 const Z_LABELS = [
@@ -305,7 +308,7 @@ function buildFields(){
         input.addEventListener('input', () => { setK(project.settings, key, parseValue(input.value)); changed(); });
       }
       input.dataset.k = key;
-      const f = el('div', {className: Array.isArray(unit) ? 'field half' : 'field'},
+      const f = el('div', {className: kind === 'wide' ? 'field wide' : Array.isArray(unit) ? 'field half' : 'field'},
                    el('label', {htmlFor: id}, label), input);
       if (!Array.isArray(unit)) f.append(el('span', {className: 'unit'}, unit));
       if (note) f.append(el('div', {className: 'fnote'}, note));
@@ -388,7 +391,7 @@ function flush(){
 async function loadPlan(){
   const r = await fetch('/api/plan');
   plan = await r.json();
-  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, frame: {x: 0, y: 0}, panels: [], blanks: [], problems: [plan.error || 'plan failed'], settings_error: null};
+  if (!plan.panels) plan = {panel: {length: 2440, width: 1220}, frame: {x: 0, y: 0}, y_toward: 'front', panels: [], blanks: [], problems: [plan.error || 'plan failed'], settings_error: null};
   if (plan.settings_error) showFieldError(plan.settings_error);
   if (panelIdx >= plan.panels.length) panelIdx = 0;
   const p = plan.panels[panelIdx];
@@ -534,21 +537,27 @@ function renderCutList(){
       el('th', {className: 'num'}, 'At'), el('th', {className: 'num'}, 'From … to'), el('th', {}, 'Frees'), el('th', {className: 'num'}, 'Piece X × Y'))), body));
 }
 function renderJob(){
-  // one blank in blank coordinates: that is what the machine runs
-  const b = blankAt(), fr = plan.frame;
+  // one blank in program coordinates: that is what the machine runs. Seen from above, operator at
+  // the bottom. y_toward 'front': X0 Y0 top left and the numbers below are the program numbers
+  // as they are (Y down); 'back': X0 Y0 bottom left, the server sent height - Y.
+  const b = blankAt(), fr = plan.frame, front = plan.y_toward !== 'back';
   const svg = $('svg');
   if (!b){ svg.setAttribute('viewBox', '0 0 1000 200'); svg.innerHTML = '<text x="500" y="100" font-size="32" text-anchor="middle" fill="#667085">No blank</text>'; $('stats').textContent = ''; return; }
   const H = b.height, X = Math.max(fr.x, b.width), Y = Math.max(fr.y, H);
   const k = X / 2000;          // sizes scale with the drawing, like on the panel view
   const n = v => esc(v * k);
-  let s = `<rect x="0" y="${esc(H - fr.y)}" width="${esc(fr.x)}" height="${esc(fr.y)}" fill="none" stroke="#667085" stroke-width="${n(3)}" stroke-dasharray="${n(18)} ${n(10)}"/>`;
-  s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
+  const oy = front ? 0 : H, ydir = front ? 1 : -1;      // origin and +Y on screen
+  const fy = front ? 0 : H - fr.y;
+  let s = `<defs><marker id="dir" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="${n(16)}" markerHeight="${n(16)}" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,1 L9,5 L0,9 z" fill="#c0261c"/></marker>`;
+  s += `<marker id="go" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="${n(14)}" markerHeight="${n(14)}" markerUnits="userSpaceOnUse"><circle cx="5" cy="5" r="5" fill="#c0261c"/></marker>`;
+  s += `<marker id="ax" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="${n(14)}" markerHeight="${n(14)}" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1c2230"/></marker></defs>`;
+  s += `<rect x="0" y="${esc(fy)}" width="${esc(fr.x)}" height="${esc(fr.y)}" fill="none" stroke="#667085" stroke-width="${n(3)}" stroke-dasharray="${n(18)} ${n(10)}"/>`;
+  s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(front ? fr.y - 12 * k : H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
   s += `<rect x="0" y="0" width="${esc(b.width)}" height="${esc(H)}" fill="var(--tmpl)" stroke="#6b4e16" stroke-width="${n(2.5)}"/>`;
-  s += `<text x="${n(14)}" y="${n(30)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
-  s += `<circle cx="0" cy="${esc(H)}" r="${n(9)}" fill="#1c2230"/><text x="${n(14)}" y="${esc(H + 28 * k)}" font-size="${n(20)}" fill="#1c2230">X0 Y0 (origin corner, at the pins)</text>`;
+  s += `<text x="${n(160)}" y="${esc(front ? H + 26 * k : 30 * k)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
   b.shapes.forEach((q, qi) => {
     s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="${n(2)}"/>`;
-    if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}"/>`;
+    if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}" marker-start="url(#go)" marker-mid="url(#dir)"/>`;
     s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10 * k)}" font-size="${n(28)}" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + (qi + 1) + ')') : ''}</text>`;
   });
   if (view === 'drill'){
@@ -558,9 +567,17 @@ function renderJob(){
     });
     b.screw.forEach(h => s += `<circle cx="${esc(h.x)}" cy="${esc(h.y)}" r="${n(8)}" fill="#fff" stroke="var(--pilot)" stroke-width="${n(3)}"/>`);
   }
-  svg.setAttribute('viewBox', `${-30 * k} ${H - Y - 30 * k} ${X + 60 * k} ${Y + 75 * k}`);
+  // origin and axes on top of everything
+  const ax = 120 * k;
+  s += `<line x1="0" y1="${esc(oy)}" x2="${esc(ax)}" y2="${esc(oy)}" stroke="#1c2230" stroke-width="${n(3)}" marker-end="url(#ax)"/>`;
+  s += `<text x="${esc(ax + 6 * k)}" y="${esc(oy + 8 * k)}" font-size="${n(20)}" fill="#1c2230">X+</text>`;
+  s += `<line x1="0" y1="${esc(oy)}" x2="0" y2="${esc(oy + ydir * ax)}" stroke="#1c2230" stroke-width="${n(3)}" marker-end="url(#ax)"/>`;
+  s += `<text x="${n(8)}" y="${esc(oy + ydir * (ax + 4 * k) + (front ? 16 * k : 0))}" font-size="${n(20)}" fill="#1c2230">Y+</text>`;
+  s += `<circle cx="0" cy="${esc(oy)}" r="${n(9)}" fill="#1c2230"/><text x="${n(14)}" y="${esc(front ? -12 * k : H + 28 * k)}" font-size="${n(20)}" fill="#1c2230">${front ? 'X0 Y0 (origin corner, back-left, at the pins)' : 'X0 Y0 (origin corner, front-left, at the pins)'}</text>`;
+  s += `<text x="${esc(b.width / 2)}" y="${esc(front ? Y + 34 * k : H + 58 * k)}" font-size="${n(18)}" text-anchor="middle" fill="#667085">operator side (front of the machine)</text>`;
+  svg.setAttribute('viewBox', front ? `${-30 * k} ${-45 * k} ${X + 60 * k} ${Y + 90 * k}` : `${-30 * k} ${H - Y - 30 * k} ${X + 60 * k} ${Y + 95 * k}`);
   svg.innerHTML = s;
-  $('stats').textContent = `${b.id}: ${fmt(b.width)} × ${fmt(H)} mm in program coordinates`;
+  $('stats').textContent = `${b.id}: ${fmt(b.width)} × ${fmt(H)} mm in program coordinates (X0 Y0 ${front ? 'top left, Y toward the front' : 'bottom left, Y toward the back'})`;
 }
 
 function renderSel(){
@@ -593,14 +610,14 @@ function renderProgs(){
   tbl.replaceChildren();
   if (!p){ $('codehead').textContent = 'Program text'; $('code').textContent = ''; return; }
   if (!p.programs.some(g => g.name === selProg)) selProg = p.programs.length ? p.programs[0].name : null;
-  tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'Program'), el('th', {}, 'Tool'), el('th', {}, 'Does'),
+  tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'Program'), el('th', {}, 'Tools'), el('th', {}, 'Does'),
                                        el('th', {className: 'num'}, 'Operations'), el('th', {className: 'num'}, 'Lines'))));
   const body = el('tbody');
   p.programs.forEach(g => {
     const does = el('td', {}, g.description);
     g.warnings.forEach(w => does.append(el('br'), el('span', {className: 'wtxt'}, '⚠ ' + w)));
     const tr = el('tr', {className: g.name === selProg ? 'sel' : ''}, el('td', {}, el('b', {}, g.name)),
-                  el('td', {}, 'T' + g.tool), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
+                  el('td', {}, toolsOf(g)), does, el('td', {className: 'num'}, String(g.ops)), el('td', {className: 'num'}, String(g.lines)));
     tr.dataset.name = g.name;
     tr.addEventListener('click', () => { selProg = g.name; view = g.kind; syncView(); renderTabs(); renderPanel(); renderProgs(); });
     body.append(tr);
@@ -661,7 +678,7 @@ $('gen').addEventListener('click', async () => {
     b.files.forEach(n => {
       const g = progs[n];
       body.append(el('tr', {}, el('td', {}, el('b', {}, n)),
-        el('td', {}, g ? `T${g.tool} · ${g.description}` : (NOTES[n] || '')),
+        el('td', {}, g ? `${toolsOf(g)} · ${g.description}` : (NOTES[n] || '')),
         el('td', {}, g ? el('code', {}, `SRG\\${n[0]}\\${n.slice(1)}`) : '')));
     });
     files.append(el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'File'), el('th', {}, 'What'), el('th', {}, 'Machine path'))), body));
