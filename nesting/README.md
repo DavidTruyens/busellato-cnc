@@ -18,7 +18,7 @@ and generated programs pass `tools/check_cnc90.py`. See "Safety" before the firs
 ## Start it
 
 ```
-python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open]
+python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open] [--exit-when-closed]
 ```
 
 Run it from the busellato-cnc folder (the repo folder that holds `nesting/` and `plates/`).
@@ -32,16 +32,46 @@ be missing, use `python3` in its place.
 - `--seed-plates` copies the 12 `plates/*.dxf` into the project's `shapes/`, but only when `shapes/`
   is empty; otherwise it copies nothing and says so.
 - `--open` opens the page in the default browser once the server listens.
+- `--exit-when-closed` stops the server by itself (for the launchers, which have no window to
+  close). The page pings `GET /api/ping` and says so when it closes (`nesting/autostop.py`). The
+  server stops about 20 s after the page was closed; 3 minutes after the last contact when that
+  note did not arrive (browser closed hard; a sleeping PC is allowed for); 10 minutes when no
+  page ever opened. Never while a request (generate, save, upload) runs; a reload does not stop
+  it. The page then shows "The tool has stopped. Start it again with the icon, then reload this
+  page." Without the flag the server runs until it is stopped. `python -m nesting.ping PORT`
+  asks `/api/ping`: exit 0 the tool answers, 1 nothing listens, 2 something else holds the port.
 
 It prints the project folder and the URL (`http://127.0.0.1:8765/`). Open it in a browser, add
 shapes, set quantities and settings, check the preview (it shows the same numbers that are
 written), then Generate. Each Generate writes a new folder `out/<YYYYMMDD-HHMMSS>/`; an existing
 folder is never overwritten and a failed run leaves nothing behind.
 
+## Linux and macOS
+
+**This is not tested on Linux** (the scripts were checked on a Mac with stubs: no real pull, desktop
+or browser). `./start.sh` updates from GitHub (no password prompt, a failed update never stops
+the start), opens the page if the tool already runs, else starts it with `--exit-when-closed` on
+port 8800 with project `~/nesting-project`, and opens the page. It logs to
+`~/nesting-project/start.log` (a second click while the tool runs does not erase the log) and
+shows a desktop notice on failure. It uses the first of `python3.13`, `python3.12`,
+`python3.11`, `python3`, `python` that is 3.11 or newer. Exit codes: 0 ok or already running, 1 cannot open the script's folder, 2 no Python,
+3 Python older than 3.11, 4 port taken by another program, 5 the tool did not start.
+`NESTING_PORT` and `NESTING_PROJECT` change the port and project folder (for tests).
+
+`./install-launcher.sh` writes a desktop entry "Nesting tool" (applications menu and, when
+there is one, the desktop) that runs `start.sh` without a terminal. Run it again if the repo
+folder moves. On macOS there is no icon: use `./start.sh` from a terminal.
+
+The hand-made `~/bin/start-nesting.sh` and `update-nesting.sh` on the CNC PC can be removed by
+the user once this launcher works there.
+
 ## Windows
 
 `WINDOWS.md` (repo root) is the step-by-step for a Windows PC: `start.bat` updates from GitHub,
-starts the tool on port 8800 with project `%USERPROFILE%\nesting-project` and opens the page;
+starts the tool on port 8800 with project `%USERPROFILE%\nesting-project` and opens the page
+(with a window, until it is closed); `make-shortcut.vbs` (run once, by double-click) puts a
+"Nesting tool" icon on the desktop that runs `start-quiet.vbs`: `start.bat` with no window and
+`--exit-when-closed`, a message box on failure, log `%USERPROFILE%\nesting-project\start.log`;
 `copy-to-diskette.bat` writes the newest job's `DISKETTE` folder to the diskette
 (`python -m nesting.diskette [JOB_OR_PROJECT] [A:] [--keep]`: removable drives only, nothing
 larger than a diskette, asks `YES` before erasing, reads every file back). Not tested on Windows.

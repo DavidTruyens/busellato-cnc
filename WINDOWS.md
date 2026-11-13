@@ -23,17 +23,44 @@ the text of the window.
    (in Git Bash use `cd ~`). Git opens a window to sign in to GitHub: sign in in the browser.
    The repo is now in your user folder, `busellato-cnc`. Git remembers the sign-in.
 
+## Once: make the icon
+
+**This step is not tested on Windows.** This gives you an icon on the desktop that starts the tool without a
+black window.
+
+1. Open the `busellato-cnc` folder and double-click **`make-shortcut.vbs`**.
+2. Your antivirus may ask about a script. It only makes one shortcut on the desktop.
+3. A message says "Shortcut made on the desktop: Nesting tool".
+
+Do this again if you move the `busellato-cnc` folder: the icon still points to the old place.
+
+VBScript, which runs `.vbs` files, is an optional Windows feature that Microsoft plans to remove
+in a future version of Windows. When it is gone, the icon stops working: use **`start.bat`**
+(see "Troubleshooting: the old way" below), which still works.
+
 ## Every time: start the tool
 
-Double-click **`start.bat`** in the `busellato-cnc` folder. It
+**This step is not tested on Windows.** Double-click the **Nesting tool** icon on the desktop. There is no
+black window. It
 
-- updates the tool from GitHub (if there is no internet, or you changed files, it says
-  "Update skipped" and starts the version on the PC),
-- shows which version starts (`Version abc1234 of 2026-11-13`),
+- updates the tool from GitHub (if there is no internet, or you changed files, it skips the
+  update and starts the version on the PC; a failed update never stops the start),
 - opens the page `http://127.0.0.1:8800/` in your browser.
 
-Keep the black window open while you work; closing it stops the tool. If the window says the
-tool may already be running, it only opens the page.
+If the tool is already running, a second click on the icon only opens the page.
+
+**It stops by itself.** When you close the page (the browser tab or window), the tool stops
+about 20 seconds later. Reloading the page does not stop it. It never stops while it is busy
+(Generate, save, upload). If the browser was closed without a note (for example it crashed), it
+stops 3 minutes after the last contact; if no page was ever opened, after 10 minutes.
+
+When it has stopped and you still have the page open, the page says "The tool has stopped.
+Start it again with the icon, then reload this page."
+
+**If it cannot start**, a message box says why and shows the end of the log. The whole log is
+in `%USERPROFILE%\nesting-project\start.log`; send a photo or the text of it if you ask for
+help. That log is written only when the tool is started with the icon: the old way below
+(`start.bat`) shows everything in its window and writes no log.
 
 Your work is in `%USERPROFILE%\nesting-project` (the shapes, the settings, and `out\` with
 every generated job). The first start puts the 12 sample plates in it.
@@ -77,4 +104,13 @@ change them or switch a pocket kind off. These numbers are guesses until they ar
 
 ## Update
 
-Nothing to do: `start.bat` updates the tool every time it starts, when there is internet.
+Nothing to do: the icon (and `start.bat`) updates the tool every time it starts, when there is
+internet.
+
+## Troubleshooting: the old way
+
+**This step is not tested on Windows.** If the icon does not work (or you have not made it), double-click
+**`start.bat`** in the `busellato-cnc` folder. It does the same, but with a black window that
+shows what it is doing, and it keeps running until you close that window. Closing the window
+stops the tool. If the window says the tool may already be running, it only opens the page.
+It writes no `start.log`: read the messages in the window.

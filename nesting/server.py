@@ -1,6 +1,6 @@
 """Local web server: the page plus a small JSON API over one project folder.
 
-  python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open]
+  python -m nesting [PROJECT_DIR] [--port N] [--seed-plates] [--open] [--exit-when-closed]
 
 Run it from the busellato-cnc folder (on Windows `py -m nesting` also works).
 
@@ -11,10 +11,13 @@ Binds to 127.0.0.1 only.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
 import shutil
+import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -25,6 +28,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
+from .autostop import IdleWatch, run_watch
 from .backends import BACKENDS
 from .dxf import DxfError, Shape, read_dxf
 from .geometry import OffsetError
@@ -41,6 +45,21 @@ HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
 PAGE = Path(__file__).resolve().parent / 'web' / 'index.html'
 SAFE_NAME = re.compile(r'[A-Za-z0-9._ -]+')
+APP = 'nesting'
+
+
+@functools.cache
+def version() -> str:
+    """Short git hash and date of the checked-out code, 'unknown' if git cannot say."""
+    try:
+        r = subprocess.run(
+            ['git', 'log', '-1', '--format=%h %cs'],
+            cwd=Path(__file__).resolve().parent.parent, capture_output=True,
+            text=True, timeout=5, stdin=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        return (r.stdout.strip() or 'unknown') if r.returncode == 0 else 'unknown'
+    except Exception:
+        return 'unknown'
 
 
 class ApiError(Exception):
@@ -630,6 +649,10 @@ class Handler(BaseHTTPRequestHandler):
             if not url.path.startswith('/api/'):
                 raise ApiError(404, {'error': 'not found'})
             body = self._body() if method in ('PUT', 'POST') else None
+            if route == ('GET', '/api/ping'):
+                return self._json(200, {'app': APP, 'version': version()})
+            if route == ('POST', '/api/closing'):
+                return self._json(200, {'ok': True})
             if route == ('GET', '/api/project'):
                 return self._json(200, self.project.project())
             if route == ('PUT', '/api/project'):
@@ -651,21 +674,54 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:          # never a stack trace to the page
             self._json(500, {'error': f'{type(e).__name__}: {e}'})
 
+    def _tracked(self, method: str):
+        watch = self.server.watch
+        if watch is None:
+            return self._route(method)
+        watch.begin(closing=(method == 'POST'
+                             and urlsplit(self.path).path == '/api/closing'))
+        try:
+            self._route(method)
+        finally:
+            watch.end()
+
     def do_GET(self):
-        self._route('GET')
+        self._tracked('GET')
 
     def do_PUT(self):
-        self._route('PUT')
+        self._tracked('PUT')
 
     def do_POST(self):
-        self._route('POST')
+        self._tracked('POST')
 
 
-def make_server(project_dir: Path, port: int = 8765) -> ThreadingHTTPServer:
+class ExclusiveServer(ThreadingHTTPServer):
+    """Windows: a second bind on a port in use must fail (not tested on Windows).
+
+    socketserver sets SO_REUSEADDR, and on Windows that lets a second socket of the same
+    user bind a port that already listens: two copies could start on one double-click.
+    SO_EXCLUSIVEADDRUSE makes the second bind fail, as it does on Linux and macOS.
+    """
+    allow_reuse_address = False
+
+    def server_bind(self):
+        opt = getattr(socket, 'SO_EXCLUSIVEADDRUSE', None)
+        if opt is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, opt, 1)
+        super().server_bind()
+
+
+def server_class() -> type:
+    return ExclusiveServer if os.name == 'nt' else ThreadingHTTPServer
+
+
+def make_server(project_dir: Path, port: int = 8765,
+                watch: IdleWatch | None = None) -> ThreadingHTTPServer:
     project = Project(Path(project_dir))
     handler = type('ProjectHandler', (Handler,), {'project': project})
-    server = ThreadingHTTPServer((HOST, port), handler)
+    server = server_class()((HOST, port), handler)
     server.daemon_threads = True
+    server.watch = watch
     return server
 
 
@@ -685,6 +741,19 @@ def seed_plates(project_dir: Path, plates_dir: Path | None = None) -> int:
     return len(files)
 
 
+def _serve(server, watch) -> None:
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            if watch:
+                watch.wait_idle()     # let requests still being answered finish
+        finally:
+            server.server_close()
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(
         prog='python -m nesting',
@@ -697,14 +766,18 @@ def main(argv: list[str]) -> int:
                     help="copy plates/*.dxf into the project's shapes/ if that is empty")
     ap.add_argument('--open', action='store_true',
                     help='open the page in the default browser once the server listens')
+    ap.add_argument('--exit-when-closed', action='store_true',
+                    help='stop by itself when the page has been closed (used by the launchers)')
     args = ap.parse_args(argv[1:])
     folder = Path(args.project_dir).resolve()
     (folder / 'shapes').mkdir(parents=True, exist_ok=True)
     if args.seed_plates:
         n = seed_plates(folder)
         print(f'Seeded {n} plate shapes' if n else 'Project already has shapes: nothing seeded')
+    version()     # git runs now, so the first /api/ping answers at once
     try:
-        server = make_server(folder, args.port)
+        watch = IdleWatch() if args.exit_when_closed else None
+        server = make_server(folder, args.port, watch)
     except (OverflowError, OSError) as e:
         print(f'Cannot use port {args.port}: {e}', file=sys.stderr)
         return 1
@@ -712,12 +785,10 @@ def main(argv: list[str]) -> int:
     print(f'Project {folder}\nOpen {url}  (Ctrl+C to stop)', flush=True)
     if args.open:          # the socket is bound and listening: the request waits for serve_forever
         threading.Timer(0.3, webbrowser.open, [url]).start()
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
+    if watch:
+        print('Stops by itself when the page is closed.', flush=True)
+        threading.Thread(target=run_watch, args=(server, watch), daemon=True).start()
+    _serve(server, watch)
     return 0
 
 
