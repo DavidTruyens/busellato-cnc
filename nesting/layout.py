@@ -160,7 +160,7 @@ def _build_blank(group: list[_Item], settings: Settings) -> Blank:
     placed, screws, y = [], [], mside
     for i in group:
         placed.append(PlacedShape(i.shape.name, i.copy, mend, y, i.shape))
-        screws.extend(Hole(mend + h.x, y + h.y, settings.drill_screw.diameter)
+        screws.extend(Hole(mend + h.x, y + h.y, settings.screw_bit.diameter)
                       for h in i.shape.holes)
         y += i.shape.width + gap
     ins = b.fix_inset
@@ -170,11 +170,11 @@ def _build_blank(group: list[_Item], settings: Settings) -> Blank:
         raise _Unfit(f'{names}: blank fixing hole inset {ins:g} mm is less than '
                      f'head_dia/2 + 3 = {min_inset:g} mm: the screw head would reach '
                      f'the blank edge')
-    fix = [Hole(fx, fy, settings.drill_fix.diameter)
+    fix = [Hole(fx, fy, settings.fix_bit.diameter)
            for fx in (ins, W - ins) for fy in (ins, H - ins)]
     # the cutter centre runs a radius outside the shape, so its edge reaches a
     # full diameter from the shape
-    need = settings.router.diameter + b.head_dia / 2 + 3.0
+    need = settings.router_bit.diameter + b.head_dia / 2 + 3.0
     for h in fix:
         for p in placed:
             dx = max(p.x - h.x, 0, h.x - (p.x + p.shape.length))

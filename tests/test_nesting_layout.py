@@ -6,6 +6,7 @@ from nesting.geometry import Line
 from nesting.layout import (MAX_QTY, Blank, LayoutError, Plan, ShapeEntry, build_blanks,
                             build_plan, footprint, saw_plan, to_panel)
 from nesting.settings import Settings
+from helpers import put_bit
 
 repo = Path(__file__).resolve().parent.parent
 EPS = 1e-6
@@ -147,8 +148,8 @@ class BlankGeometry(unittest.TestCase):
         self.assertAlmostEqual(a.x, c.margin_end)
         self.assertAlmostEqual(b.screw_holes[0].x, c.margin_end + 150)
         self.assertAlmostEqual(b.screw_holes[0].y, c.margin_side + 40)
-        self.assertEqual(b.screw_holes[0].diameter, self.s.drill_screw.diameter)
-        self.assertEqual(b.fix_holes[0].diameter, self.s.drill_fix.diameter)
+        self.assertEqual(b.screw_holes[0].diameter, self.s.screw_bit.diameter)
+        self.assertEqual(b.fix_holes[0].diameter, self.s.fix_bit.diameter)
 
     def test_size_is_rounded_up_to_whole_mm(self):
         b = self.one(rect('a', 1000.2, 230.7))
@@ -181,7 +182,8 @@ class ScrewHeadClearance(unittest.TestCase):
 
     def settings(self, tool=66, dia=8, margin=45, inset=15):
         s = Settings()
-        s.router.tool, s.router.diameter = tool, dia
+        put_bit(s, tool, diameter=dia)
+        s.router.tool = tool
         s.blank.margin_end = s.blank.margin_side = margin
         s.blank.fix_inset = inset
         return s
@@ -212,7 +214,7 @@ class ScrewHeadClearance(unittest.TestCase):
     def test_defaults_and_real_plates_keep_clearance(self):
         s = Settings()
         plan = build_plan(real_entries(), s)
-        need = s.router.diameter + s.blank.head_dia / 2 + 3.0     # 18
+        need = s.router_bit.diameter + s.blank.head_dia / 2 + 3.0     # 18
         for b in plan.blanks:
             for h in b.fix_holes:
                 self.assertGreaterEqual(min(h.x, h.y, b.width - h.x, b.height - h.y),

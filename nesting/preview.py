@@ -86,13 +86,13 @@ def _program_entry(p: Program, settings: Settings) -> dict:
 
 def _drill_tools(fix_ops, screw_ops, tool_of, settings: Settings) -> list[dict]:
     """Per hole kind of the blank's drill program: tool, diameter and feed (the last two from
-    the settings: the emitter writes neither), hole count and depth."""
+    the bit in the head: the emitter writes neither), hole count and depth."""
     out = []
-    for what, ops, cfg in (('fixing', fix_ops, settings.drill_fix),
-                           ('screw', screw_ops, settings.drill_screw)):
+    for what, ops, b in (('fixing', fix_ops, settings.fix_bit),
+                         ('screw', screw_ops, settings.screw_bit)):
         if ops:
             out.append({'holes': what, 'count': len(ops), 'tool': tool_of(ops[0]),
-                        'diameter': cfg.diameter, 'feed': cfg.feed, 'depth': ops[0].depth})
+                        'diameter': b.diameter, 'feed': b.plunge_feed, 'depth': ops[0].depth})
     return out
 
 

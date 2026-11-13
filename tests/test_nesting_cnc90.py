@@ -12,6 +12,7 @@ from nesting.geometry import Arc, Line
 from nesting.layout import ShapeEntry, build_plan
 from nesting.program import ContourOp, DrillOp, Program, ProgramError, plan_programs
 from nesting.settings import Settings
+from helpers import put_bit
 from test_nesting_pockets import slot_outline
 
 repo = Path(__file__).resolve().parent.parent
@@ -115,6 +116,7 @@ class Cnc90Tests(unittest.TestCase):
 
     def test_generated_drill_programs_mix_tools_and_pass_the_checker(self):
         s = Settings()
+        put_bit(s, 10)                      # a copy of the 6 mm drill in T10
         s.drill_fix.tool, s.drill_screw.tool = 10, 2
         entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
         progs = plan_programs(build_plan(entries, s), s)

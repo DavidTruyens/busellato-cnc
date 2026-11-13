@@ -18,6 +18,8 @@ from nesting.pockets import find_groups
 from nesting.program import plan_shapes
 from nesting.server import make_server, seed_plates
 from nesting.settings import Settings
+from nesting.tools import ToolTable
+from helpers import put_bit
 from test_nesting_dxf import circle, dxf, line, rect
 
 repo = Path(__file__).resolve().parent.parent
@@ -61,6 +63,17 @@ class ServerTests(unittest.TestCase):
     def assertNoTrace(self, body):
         self.assertNotIn('Traceback', json.dumps(body))
 
+    def default_table(self, head, **numbers):
+        """Until a project can carry its tool table (Task 6), the server plans with the default
+        table: make that default hold a changed bit in `head` for this test."""
+        s = Settings()
+        put_bit(s, head, **numbers)
+        table = s.tools
+        patcher = mock.patch.object(ToolTable, 'default', return_value=table)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return table
+
     def test_project_roundtrip(self):
         self.seed(PLATES[:2])
         status, proj = self.call('GET', '/api/project')
@@ -72,7 +85,7 @@ class ServerTests(unittest.TestCase):
         self.assertGreater(first['length'], first['width'])
         proj['shapes'][0]['qty'] = 3
         proj['shapes'][1]['enabled'] = False
-        proj['settings']['router']['cut_feed'] = 4.5
+        proj['settings']['router']['clearance'] = 4.5
         proj['settings']['machine']['frame_y'] = 800
         proj['settings']['panel']['kerf'] = 3.2
         status, put = self.call('PUT', '/api/project', proj)
@@ -93,17 +106,22 @@ class ServerTests(unittest.TestCase):
         self.seed(PLATES[:1])
         _, proj = self.call('GET', '/api/project')
         good = json.loads(json.dumps(proj))
-        proj['settings']['router']['depth_per_pass'] = -1
+        proj['settings']['router']['clearance'] = -1
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 400)
-        self.assertEqual(body['field'], 'router.depth_per_pass')
+        self.assertEqual(body['field'], 'router.clearance')
         self.assertTrue(body['message'])
         self.assertFalse((self.dir / 'project.json').exists())
         self.assertEqual(self.call('GET', '/api/project')[1], good)
-        proj['settings']['router']['depth_per_pass'] = 9
+        proj['settings']['router']['clearance'] = 4
         proj['settings']['router']['tool'] = 66.5
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual((status, body['field']), (400, 'router.tool'))
+        proj['settings']['router']['tool'] = 65                 # an empty head
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual((status, body['field']), (400, 'router.tool'))
+        self.assertEqual(body['message'], 'router: head T65 holds no bit')
+        self.assertFalse((self.dir / 'project.json').exists())
         proj['settings']['router']['tool'] = 66
         proj['shapes'][0]['qty'] = -2
         status, body = self.call('PUT', '/api/project', proj)
@@ -326,8 +344,8 @@ class ServerTests(unittest.TestCase):
 
     def test_plan_with_offset_error_is_a_problem(self):
         self.seed(PLATES[:1])
+        self.default_table(65, diameter=200)   # cannot follow the outline
         s = Settings().to_dict()
-        s['router']['diameter'] = 200          # cannot follow the outline
         s['router']['tool'] = 65               # (not the pocket tool T66, which is 8 mm)
         s['blank']['fix_inset'] = 300          # (keeps the fixing holes clear of the shape)
         s['blank']['margin_end'] = s['blank']['margin_side'] = 460
@@ -447,11 +465,11 @@ class ServerTests(unittest.TestCase):
     def test_put_non_finite_number_is_400(self):
         self.seed(PLATES[:1])
         _, proj = self.call('GET', '/api/project')
-        raw = json.dumps(proj).replace('"cut_feed": 3', '"cut_feed": 1e400').encode()
+        raw = json.dumps(proj).replace('"clearance": 4', '"clearance": 1e400').encode()
         self.assertIn(b'1e400', raw)
         status, body = self.call('PUT', '/api/project', raw=raw)
         self.assertEqual(status, 400)
-        self.assertEqual(body['field'], 'router.cut_feed')
+        self.assertEqual(body['field'], 'router.clearance')
         self.assertFalse((self.dir / 'project.json').exists())
         raw = json.dumps(proj).replace('"qty": 1', '"qty": 1e400').encode()
         status, body = self.call('PUT', '/api/project', raw=raw)
@@ -1006,16 +1024,16 @@ class ServerTests(unittest.TestCase):
         self.seed(PLATES[:1])
         _, proj = self.call('GET', '/api/project')
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 4)      # blank coordinates
-        proj['settings']['router']['diameter'] = 7.8
+        table = self.default_table(66, diameter=7.8)        # the bit in T66 (Task 6: PUT it)
         proj['settings']['pockets']['diameter'] = 7.8      # the same T66: one diameter
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, body)
-        self.assertEqual((body['settings']['router']['tool'], body['settings']['router']['diameter']),
-                         (66, 7.8))
+        self.assertEqual(body['settings']['router']['tool'], 66)
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 3.9)
-        proj['settings']['router']['diameter'] = 0
+        bit = table.bit_in(66)
+        bit.diameter = 0
         status, body = self.call('PUT', '/api/project', proj)
-        self.assertEqual((status, body['field']), (400, 'router.diameter'))
+        self.assertEqual((status, body['field']), (400, f'tools.bits.{bit.id}.diameter'))
 
     def test_page_router_tool_and_diameter_are_typed_with_a_preset(self):
         status, html = self.call('GET', '/')

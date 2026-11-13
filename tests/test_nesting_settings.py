@@ -1,6 +1,8 @@
 import unittest
 
+from helpers import put_bit
 from nesting.settings import Settings, SettingsError
+from nesting.tools import HeadError
 
 
 def _set(s, path, value):
@@ -17,17 +19,84 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(Settings.from_dict(s.to_dict()), s)
 
     def test_missing_keys_default(self):
-        s = Settings.from_dict({"router": {"diameter": 12}, "bogus": 1})
-        self.assertEqual(s.router.diameter, 12)
+        s = Settings.from_dict({"router": {"clearance": 5}, "bogus": 1})
+        self.assertEqual(s.router.clearance, 5)
         self.assertEqual(s.router.tool, 66)
         self.assertEqual(s.panel.length, 2440)
         self.assertEqual(Settings.from_dict({}), Settings.default())
 
-    def test_gap_is_diameter_plus_clearance(self):
+    def test_gap_follows_the_bit(self):
         s = Settings.default()
         self.assertEqual(s.gap, 12)
-        s.router.diameter = 12
+        put_bit(s, 66, diameter=12)
         self.assertEqual(s.gap, 16)
+
+    def test_settings_carry_the_default_table(self):
+        s = Settings()
+        self.assertEqual(s.router_bit.diameter, 8)
+        self.assertEqual(s.router_bit.depth_per_pass, 9)
+        self.assertEqual(s.fix_bit.diameter, 6)
+        self.assertEqual(s.screw_bit.diameter, 3)
+        d = Settings().to_dict()
+        self.assertNotIn("tools", d)
+        self.assertNotIn("diameter", d["router"])
+        for section in ("drill_fix", "drill_screw"):
+            self.assertNotIn("diameter", d[section])
+            self.assertNotIn("feed", d[section])
+
+    def test_from_dict_takes_a_table(self):
+        s = Settings()
+        put_bit(s, 66, diameter=10)
+        t = Settings.from_dict({"router": {"clearance": 2}}, s.tools)
+        self.assertEqual((t.router_bit.diameter, t.gap), (10, 12))
+        self.assertEqual(Settings.from_dict({}, None).router_bit.diameter, 8)
+
+    def test_old_router_fields_are_ignored(self):
+        s = Settings.from_dict({"router": {"diameter": 12, "tool": 66}})
+        self.assertEqual(s.router_bit.diameter, 8)     # the table, not the old field
+        s = Settings.from_dict({"tools": {"bits": [], "heads": {}}})
+        self.assertEqual(s.tools, Settings.default().tools)    # the table is passed apart
+
+    def test_router_head_errors(self):
+        s = Settings.default()
+        s.router.tool = 65
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "router.tool")
+        self.assertEqual(cm.exception.message, "router: head T65 holds no bit")
+        s = Settings.default()
+        s.drill_fix.tool = 60
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "drill_fix.tool")
+        self.assertIn("programs do not use T60", cm.exception.message)
+        self.assertIn("fixing drill", cm.exception.message)
+        s = Settings.default()
+        s.drill_screw.tool = 66
+        with self.assertRaises(HeadError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "drill_screw.tool")
+        self.assertIn("screw drill", cm.exception.message)
+        s = Settings.default()
+        s.pockets.tool = 1
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "pockets.tool")
+        self.assertIn("T1", cm.exception.message)
+        self.assertIn("T65 or T66", cm.exception.message)
+
+    def test_empty_pocket_default_head_is_not_an_error_here(self):
+        # R2: only the head number is checked; that it holds a bit counts when a pocket uses it
+        s = Settings.default()
+        s.pockets.tool = 65
+        s.validate()
+
+    def test_validate_checks_the_table(self):
+        s = Settings.default()
+        s.tools.bit("b1").diameter = 0
+        with self.assertRaises(SettingsError) as cm:
+            s.validate()
+        self.assertEqual(cm.exception.field, "tools.bits.b1.diameter")
 
     def test_defaults_validate(self):
         Settings.default().validate()
@@ -53,14 +122,14 @@ class SettingsTests(unittest.TestCase):
                     with self.assertRaises(SettingsError) as cm:
                         s.validate()
                     self.assertEqual(cm.exception.field, field)
-            s = Settings.default()
-            _set(s, field, 7)
+            s = Settings.default()          # another whole number of an allowed head
+            head = 65 if field == "router.tool" else 7
+            put_bit(s, head)
+            _set(s, field, head)
             s.validate()
 
     def test_rejected(self):
         cases = [
-            ("router.depth_per_pass", 0),
-            ("router.diameter", 0),
             ("heights.scrap", -1),
             ("origin", "G56"),
             ("blank.group_by", "x"),
@@ -78,7 +147,7 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(cm.exception.field, field)
 
     def test_non_finite_numbers_rejected(self):
-        fields = ["router.cut_feed", "panel.length", "heights.into_scrap",
+        fields = ["panel.length", "heights.into_scrap",
                   "drill_screw.depth", "router.clearance", "machine.frame_x",
                   "machine.frame_y", "panel.kerf", "panel.edge", "panel.thickness"]
         for field in fields:

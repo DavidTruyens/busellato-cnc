@@ -1,4 +1,5 @@
-"""Test helpers: build synthetic 1.44 MB floppy images with mtools."""
+"""Test helpers: build synthetic 1.44 MB floppy images with mtools; put a bit in a head."""
+import dataclasses
 import os
 import subprocess
 import tempfile
@@ -54,3 +55,23 @@ def read_text(path):
 def write_text(path, text):
     with open(path, 'w') as f:
         f.write(text)
+
+
+def put_bit(settings, head: int, **numbers):
+    """Put a new bit in `head` of settings.tools and return it: a copy of the bit now in that
+    head (or of the default table's bit of the head's first allowed type) with `numbers`
+    applied, a new id and the name '<Type> <diameter>'. Only `head` changes: another head
+    holding the old bit keeps it."""
+    from nesting.tools import HEADS, ToolTable
+    table = settings.tools
+    base = table.bit_in(head)
+    if base is None:
+        kind = HEADS[head].allows[0]
+        base = next(b for b in ToolTable.default().bits if b.type == kind)
+    bit = dataclasses.replace(base, **numbers)
+    bit.id = table.new_id()
+    bit.name = f"{bit.type.capitalize()} {bit.diameter:g}"
+    table.bits.append(bit)
+    table.heads[head] = bit.id
+    table.heads = dict(sorted(table.heads.items()))
+    return bit

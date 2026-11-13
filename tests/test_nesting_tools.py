@@ -87,6 +87,7 @@ class Table(unittest.TestCase):
             return field_of(self, d)
 
         self.assertEqual(bad(0, diameter=0).field, 'tools.bits.b1.diameter')
+        self.assertEqual(bad(0, depth_per_pass=0).field, 'tools.bits.b1.depth_per_pass')
         e = bad(0, stepover_pct=5)
         self.assertEqual(e.field, 'tools.bits.b1.stepover_pct')
         self.assertEqual(e.message, STEPOVER_MESSAGE)

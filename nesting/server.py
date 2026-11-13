@@ -41,7 +41,6 @@ HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
 PAGE = Path(__file__).resolve().parent / 'web' / 'index.html'
 SAFE_NAME = re.compile(r'[A-Za-z0-9._ -]+')
-TOOL_FIELDS = ('router.tool', 'drill_fix.tool', 'drill_screw.tool')
 
 
 class ApiError(Exception):
@@ -63,11 +62,9 @@ def _loads(raw: bytes):
 
 
 def validate(settings: Settings) -> None:
+    """Settings.validate: the numbers, the tool table and each operation's head (a HeadError
+    names the operation and the head)."""
     settings.validate()
-    for path in TOOL_FIELDS:
-        v = settings._get(path)
-        if isinstance(v, bool) or not isinstance(v, int):
-            raise SettingsError(path, 'must be a whole tool number')
 
 
 _POCKET_MESSAGES = {'enabled': 'must be true or false',

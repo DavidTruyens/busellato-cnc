@@ -13,6 +13,7 @@ from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_lab
                              check_depths, group_by_tool, pass_depths, plan_programs, stack_top,
                              tool_diameter_conflict)
 from nesting.settings import Settings
+from helpers import put_bit
 
 repo = Path(__file__).resolve().parent.parent
 FOLDER = set('79ABCDEFGHIJKLMNOP' + 'RSTVWXYZ')      # tools/make-loader.py FOLDERS
@@ -145,7 +146,7 @@ class CutterOutsideBlankTests(unittest.TestCase):
         self.assertEqual(m.group(1), 'B01C')
         self.assertIn(ws[0], progs['B01C'].warnings)
         # independent: the centre line runs r outside the shape, the cutter edge 2r
-        d = s.router.diameter
+        d = s.router_bit.diameter
         self.assertEqual([float(g) for g in m.group(2, 3, 4, 5)],
                          [round(3 - d, 1), round(603 + d, 1), round(45 - d, 1), round(245 + d, 1)])
         self.assertEqual((m.group(6), m.group(7)), ('690', '290'))
@@ -191,8 +192,8 @@ class ProgramTests(unittest.TestCase):
 
     def test_one_tool_is_one_group_fixing_holes_first(self):
         s = Settings()
-        # same tool (so the same diameter: one tool number has one diameter): still one group
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        # same head (so the same bit): still one group
+        s.drill_screw.tool = s.drill_fix.tool
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertEqual(sorted(progs), ['B01C', 'B01D'])
@@ -223,7 +224,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_equal_drills_merge(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertEqual(sorted(progs), ['B01C', 'B01D'])
@@ -297,7 +298,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_cuts_stay_inside_the_blank(self):
         plan, s = real_plan()
-        r = s.router.diameter / 2
+        r = s.router_bit.diameter / 2
         for p in plan_programs(plan, s):
             b = next(b for b in plan.blanks if b.id == p.blank)
             for op in p.ops:
@@ -378,7 +379,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_line_warning(self):
         s = Settings()
-        s.router.depth_per_pass = 1       # many passes -> many lines
+        put_bit(s, 66, depth_per_pass=1)  # many passes -> many lines
         plan, _ = plan_for(rect('a', 1000, 230), rect('b', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertTrue(progs['B01C'].warnings)
@@ -407,7 +408,7 @@ class ProgramTests(unittest.TestCase):
 
     def test_large_depth_per_pass_gives_one_pass(self):
         s = Settings()
-        s.router.depth_per_pass = 100
+        put_bit(s, 66, depth_per_pass=100)
         plan, _ = real_plan(s)
         cut = by_name(plan_programs(plan, s))['B01C']
         self.assertEqual(len(cut.ops), 2)
@@ -733,10 +734,14 @@ class ToolDiameterTests(unittest.TestCase):
         self.refused({self.key: {'tool': 1, 'diameter': 8}}, 'T1', '6 and 8 mm', 'fixing drill',
                      'pocket group G1')
 
-    def test_drills_against_each_other(self):
+    def test_drills_on_one_head_share_its_bit(self):
+        # one head holds one bit: two drills on it cannot disagree on the diameter any more
         s = Settings()
         s.drill_screw.tool = s.drill_fix.tool
-        self.refused({}, 'T1', '6 and 3 mm', 'fixing drill', 'screw drill', settings=s)
+        plan = plan_for(self.sh, settings=s)[0]
+        self.assertIsNone(tool_diameter_conflict(s, {}, find_groups([self.sh]), [self.sh]))
+        d = by_name(plan_programs(plan, s))['B01D']
+        self.assertEqual({(o.tool, o.diameter) for o in d.ops}, {(1, 6)})
 
     def test_same_tool_same_diameter_is_fine(self):
         for ov in ({}, {self.key: {'tool': 66, 'diameter': 8}},

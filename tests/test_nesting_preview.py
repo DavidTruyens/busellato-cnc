@@ -8,6 +8,7 @@ from nesting.layout import PanelPlan, Plan, footprint, to_panel
 from nesting.preview import _path, pocket_groups_data, preview_data
 from nesting.program import DrillOp, plan_programs
 from nesting.settings import Settings
+from helpers import put_bit
 from test_nesting_program import (by_name, hand_blank, plan_for, pocket_shape, rect, rect_loop,
                                   slot_loop)
 
@@ -102,7 +103,7 @@ class PreviewTests(unittest.TestCase):
 
     def merged(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, progs, s, _ = build(rect('a', 1000, 230), settings=s)
         return plan, progs, s
 
@@ -281,7 +282,8 @@ class PreviewTests(unittest.TestCase):
 
     def test_drill_tools_per_hole_kind(self):
         s = Settings()
-        s.drill_fix.feed, s.drill_screw.feed = 2.5, 0.75
+        put_bit(s, 1, plunge_feed=2.5)
+        put_bit(s, 2, plunge_feed=0.75)
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         self.assertEqual(data['blanks'][0]['drill_tools'], [
             {'holes': 'fixing', 'count': 4, 'tool': 1, 'diameter': 6, 'feed': 2.5, 'depth': 19},
@@ -289,7 +291,7 @@ class PreviewTests(unittest.TestCase):
 
     def test_one_drill_program_shows_both_hole_kinds_with_one_tool(self):
         s = Settings()
-        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
+        s.drill_screw.tool = s.drill_fix.tool
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         b = data['blanks'][0]
         self.assertEqual([p['name'] for p in b['programs']], ['B01D', 'B01C'])

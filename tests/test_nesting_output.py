@@ -14,6 +14,7 @@ from nesting.output import write_output
 from nesting.preview import pocket_groups_data, preview_data
 from nesting.program import plan_programs
 from nesting.settings import Settings
+from helpers import put_bit
 from test_nesting_program import pocket_shape, rect, rect_loop
 
 repo = Path(__file__).resolve().parent.parent
@@ -161,8 +162,9 @@ class OutputTests(unittest.TestCase):
 
     def test_runsheet_lists_each_drill_tool_with_diameter_and_feed(self):
         m = Settings()
-        m.drill_fix.tool, m.drill_fix.diameter, m.drill_fix.feed = 10, 6, 2.5
-        m.drill_screw.tool, m.drill_screw.diameter, m.drill_screw.feed = 2, 3, 0.75
+        put_bit(m, 10, diameter=6, plunge_feed=2.5)
+        put_bit(m, 2, diameter=3, plunge_feed=0.75)
+        m.drill_fix.tool, m.drill_screw.tool = 10, 2
         plan = build_plan(self.entries, m)
         progs = plan_programs(plan, m)
         html = self._sheet(m, progs, plan)
@@ -177,7 +179,7 @@ class OutputTests(unittest.TestCase):
 
     def test_runsheet_has_no_separate_fixing_or_screw_programs(self):
         same = Settings()
-        same.drill_screw.tool, same.drill_screw.diameter = same.drill_fix.tool, same.drill_fix.diameter
+        same.drill_screw.tool = same.drill_fix.tool
         for st in (self.s, same):
             plan = build_plan(self.entries, st)
             progs = plan_programs(plan, st)

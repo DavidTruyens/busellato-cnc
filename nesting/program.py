@@ -139,9 +139,9 @@ def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
     """Tool-centre path of a layout-frame outline, still in the layout frame. The direction
     setting is the sense seen from above, which is the mathematical sense in the y-up layout
     frame; the offset is outward there."""
-    r = settings.router
-    ccw = r.direction == 'ccw'
-    out = offset_outline(set_direction(segs, ccw), r.diameter / 2, outward=True)
+    ccw = settings.router.direction == 'ccw'
+    out = offset_outline(set_direction(segs, ccw), settings.router_bit.diameter / 2,
+                         outward=True)
     return split_large_arcs(set_direction(out, ccw))
 
 
@@ -179,7 +179,7 @@ def _finish(p: Program, blank: Blank, settings: Settings, radius: float | None =
     """Depth check (hard), cutter-outside-blank and line-count warnings. `radius` is the
     largest cutter radius of the program's contours (default: the outline router's)."""
     check_depths(p)
-    r = settings.router.diameter / 2 if radius is None else radius
+    r = settings.router_bit.diameter / 2 if radius is None else radius
     outside = _outside_blank(p, blank, r)
     if outside:
         p.warnings.append(outside)
@@ -198,7 +198,7 @@ def base_label(label: str) -> str:
 def _pass_ops(segs: list[Seg], label: str, start: float, material: float,
               settings: Settings) -> list[ContourOp]:
     """One ContourOp per pass; passes are counted over the material only."""
-    n = pass_count(material, settings.router.depth_per_pass)
+    n = pass_count(material, settings.router_bit.depth_per_pass)
     return [ContourOp(segs, start + material * k / n, f'{label} pass {k}/{n}')
             for k in range(1, n + 1)]
 
@@ -367,19 +367,20 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
     has one id and key over the whole plan); None computes them from this blank's shapes alone.
     _rings: a cache of pocket rings that plan_programs shares between the blanks.
     """
-    h, r = settings.heights, settings.router
+    h, r, rbit = settings.heights, settings.router, settings.router_bit
     fix, screw = settings.drill_fix, settings.drill_screw
+    fix_bit, screw_bit = settings.fix_bit, settings.screw_bit
     thick = settings.panel.thickness
     top = stack_top(settings)
     stock = (blank.width, blank.height, top)
 
     fix_depth = thick + h.fix_into_scrap          # through the blank, into the scrap
     screw_depth = thick + screw.depth
-    def drill_op(o, depth, d):
-        return DrillOp(*to_program(blank, settings, o.x, o.y), depth, d.diameter, d.tool)
+    def drill_op(o, depth, d, bit):
+        return DrillOp(*to_program(blank, settings, o.x, o.y), depth, bit.diameter, d.tool)
 
-    fix_ops = [drill_op(o, fix_depth, fix) for o in blank.fix_holes]
-    screw_ops = [drill_op(o, screw_depth, screw) for o in blank.screw_holes]
+    fix_ops = [drill_op(o, fix_depth, fix, fix_bit) for o in blank.fix_holes]
+    screw_ops = [drill_op(o, screw_depth, screw, screw_bit) for o in blank.screw_holes]
     cuts: list[ContourOp] = []
     for ps in blank.shapes:
         label = f'{blank.id} {ps.name} #{ps.copy}'
@@ -406,14 +407,15 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
         # own tool, like many of the machine's own programs. Feeds are not written (the
         # control uses each tool's own feed); plunge/cut feed only fill the record.
         progs.append(Program(program_name(blank.id, 'D'), drills[0].tool, 'drill', desc, stock,
-                             drills, None, fix.feed, fix.feed, blank=blank.id))
+                             drills, None, fix_bit.plunge_feed, fix_bit.plunge_feed,
+                             blank=blank.id))
     if pocket:
         progs.append(pocket[0])
         radius[pocket[0].name] = pocket[1]
     if cuts:
         progs.append(Program(program_name(blank.id, 'C'), r.tool, 'cut', 'Shape outlines',
-                             stock, cuts, int(r.spindle_rpm), r.plunge_feed, r.cut_feed,
-                             blank=blank.id))
+                             stock, cuts, int(rbit.spindle_rpm), rbit.plunge_feed,
+                             rbit.cut_feed, blank=blank.id))
     return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
@@ -428,11 +430,10 @@ def tool_diameter_conflict(settings: Settings, overrides: dict, groups: list[Poc
     diameter of its own). A bad override raises ValueError naming the group.
     """
     users: list[tuple[int, float, str, str]] = [
-        (settings.router.tool, settings.router.diameter, 'router', 'router.diameter'),
-        (settings.drill_fix.tool, settings.drill_fix.diameter, 'fixing drill',
-         'drill_fix.diameter'),
-        (settings.drill_screw.tool, settings.drill_screw.diameter, 'screw drill',
-         'drill_screw.diameter')]
+        (settings.router.tool, settings.router_bit.diameter, 'router', 'router.tool'),
+        (settings.drill_fix.tool, settings.fix_bit.diameter, 'fixing drill', 'drill_fix.tool'),
+        (settings.drill_screw.tool, settings.screw_bit.diameter, 'screw drill',
+         'drill_screw.tool')]
     used = {g.id for sh in shapes for pk in sh.pockets if (g := group_for(pk, groups))}
     for g in groups:
         if g.id not in used:
