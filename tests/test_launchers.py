@@ -228,5 +228,120 @@ class StartShTests(unittest.TestCase):
         self.assertTrue(os.access(START_SH, os.X_OK))
 
 
+INSTALL_SH = REPO / 'install-launcher.sh'
+
+
+@unittest.skipIf(os.name != 'posix' or not shutil.which('bash'), 'needs bash')
+class InstallLauncherTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.home = self.tmp / 'home'
+        (self.home / 'Desktop').mkdir(parents=True)
+        self.stubs = self.tmp / 'stubs'
+        self.stubs.mkdir()
+
+    def install(self, name='my repo', stubs=()):
+        repo = self.tmp / name
+        repo.mkdir()
+        for f in ('start.sh', 'install-launcher.sh'):
+            shutil.copy(REPO / f, repo / f)
+        for cmd, body in stubs:
+            write_stub(self.stubs / cmd, body)
+        env = {'HOME': str(self.home), 'PATH': '%s:/usr/bin:/bin' % self.stubs}
+        r = subprocess.run(['bash', str(repo / 'install-launcher.sh')], env=env,
+                           capture_output=True, text=True)
+        return repo, r
+
+    def apps_file(self):
+        return self.home / '.local/share/applications/nesting-tool.desktop'
+
+    def test_install_launcher_path_with_spaces(self):
+        repo, r = self.install()
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        for f in (self.apps_file(), self.home / 'Desktop/nesting-tool.desktop'):
+            self.assertTrue(f.is_file(), f)
+            self.assertTrue(os.access(f, os.X_OK), f)
+            text = f.read_text()
+            self.assertIn('Exec=/bin/bash "%s/start.sh"\n' % repo, text)
+            self.assertIn('Terminal=false\n', text)
+            self.assertIn('Path=%s\n' % repo, text)
+            self.assertTrue(text.startswith('[Desktop Entry]\n'))
+        self.assertIn('Run it again if the folder moves.', r.stdout)
+
+    def test_install_launcher_escapes_dollar(self):
+        repo, r = self.install('a$b')
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        text = self.apps_file().read_text()
+        self.assertIn('Exec=/bin/bash "%s/start.sh"\n' % str(repo).replace('$', '\\\\$'), text)
+        self.assertIn('a\\\\$b', text)
+        self.assertIn('Path=%s\n' % repo, text)
+
+    def test_install_launcher_escapes_quote_backslash_percent(self):
+        repo, r = self.install('q"b`t\\p%')
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        text = self.apps_file().read_text()
+        self.assertIn('q\\\\"b\\\\`t\\\\\\\\p%%/start.sh"\n', text)
+        self.assertIn('Path=%s/q"b`t\\\\p%%\n' % self.tmp, text)
+
+    def test_install_launcher_refuses_newline_in_path(self):
+        repo, r = self.install('a\nb')
+        self.assertNotEqual(0, r.returncode)
+        self.assertIn('newline', r.stdout + r.stderr)
+        self.assertFalse(self.apps_file().exists())
+
+    def test_install_launcher_needs_start_sh(self):
+        repo = self.tmp / 'lonely'
+        repo.mkdir()
+        shutil.copy(REPO / 'install-launcher.sh', repo / 'install-launcher.sh')
+        env = {'HOME': str(self.home), 'PATH': '%s:/usr/bin:/bin' % self.stubs}
+        r = subprocess.run(['bash', str(repo / 'install-launcher.sh')], env=env,
+                           capture_output=True, text=True)
+        self.assertNotEqual(0, r.returncode)
+        self.assertIn('start.sh', r.stdout + r.stderr)
+        self.assertFalse(self.apps_file().exists())
+
+    def test_install_launcher_custom_desktop_folder_and_xdg_data_home(self):
+        custom = self.tmp / 'Schreibtisch'
+        custom.mkdir()
+        repo, r = self.install(stubs=[('xdg-user-dir', 'echo "%s"' % custom)])
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertTrue((custom / 'nesting-tool.desktop').is_file())
+        self.assertFalse((self.home / 'Desktop/nesting-tool.desktop').exists())
+
+    def test_install_launcher_no_desktop_folder_skips(self):
+        (self.home / 'Desktop').rmdir()
+        repo, r = self.install()
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertTrue(self.apps_file().is_file())
+        self.assertIn('desktop', r.stdout.lower())
+
+    def test_install_launcher_gio_failure_is_ignored(self):
+        repo, r = self.install(stubs=[('gio', 'echo "$@" >> "%s/gio.log"; exit 1' % self.tmp),
+                                      ('update-desktop-database', 'exit 1')])
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        log = (self.tmp / 'gio.log').read_text()
+        self.assertIn('metadata::trusted true', log)
+        self.assertIn(str(self.home / 'Desktop/nesting-tool.desktop'), log)
+
+    def test_install_launcher_shellcheck(self):
+        sc = shutil.which('shellcheck')
+        if not sc:
+            self.skipTest('shellcheck not installed')
+        r = subprocess.run([sc, str(INSTALL_SH)], capture_output=True, text=True)
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+
+    def test_install_launcher_validates(self):
+        v = shutil.which('desktop-file-validate')
+        if not v:
+            self.skipTest('desktop-file-validate not installed')
+        self.install()
+        r = subprocess.run([v, str(self.apps_file())], capture_output=True, text=True)
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+
+    def test_install_launcher_is_executable(self):
+        self.assertTrue(os.access(INSTALL_SH, os.X_OK))
+
+
 if __name__ == '__main__':
     unittest.main()
