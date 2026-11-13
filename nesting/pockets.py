@@ -210,6 +210,15 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     than returning rings that would leave material. The band within r of the outline is
     cleared by the wall ring, except sharp convex corners, which no round cutter reaches.
 
+    The above holds for convex outlines (slots, rectangles, circles: the real pockets). For a
+    non-convex outline (is_convex False) offset_outline may refuse an inner offset that does
+    exist (an arm collapsing next to a junction), so the construction proves nothing there:
+    the same rings are built once (no stepover shrinking) and verified over the whole pocket
+    interior by an adaptive check (_uncovered_point, cells of r/4 refined where needed);
+    if any point is left standing (beyond r + 0.01, to within about 0.03 mm) PocketError
+    says the shape is not clearable with this tool by offset rings. Clearing general
+    concave pockets is out of scope.
+
     Every ring keeps the winding of the outline (direction is applied later), lies in the
     same frame, and is at least r from the outline. Arcs stay arcs; arcs over 180 degrees are
     split. A round pocket (an outline of arcs on one centre and radius) gives concentric
@@ -243,8 +252,11 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
             if _offset_any(outline, r - _SNUG) is not None:
                 raise PocketError(f"pocket is about as wide as the {tool_diameter:g} mm tool "
                                   f"but is not a straight slot, so it cannot be cut in one pass")
-            raise PocketError(f"pocket is narrower than the tool ({tool_diameter:g} mm)")
+            raise PocketError(f"pocket, or a part of it such as a finger or neck, is narrower "
+                              f"than the tool ({tool_diameter:g} mm)")
 
+    if not is_convex(outline):
+        return _concave_rings(outline, wall, r, step, tool_diameter)
     for _ in range(_RETRIES):
         levels, rings = [r], [wall]
         while (ring := _offset(outline, levels[-1] + step)) is not None:
@@ -264,6 +276,27 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     raise PocketError("pocket cannot be cleared with this tool: material would be left "
                       "standing, for example where its inner offsets break into separate "
                       "islands")
+
+
+def _concave_rings(outline: list[Seg], wall: list[Seg], r: float, step: float,
+                   tool_diameter: float) -> list[list[Seg]]:
+    """Rings for a non-convex pocket: the same construction, but offset_outline may refuse an
+    inner offset that does exist (an arm collapsing next to a junction), so nothing is
+    assumed about coverage: the result is verified everywhere (_uncovered_point)."""
+    levels, rings = [r], [wall]
+    while (ring := _offset(outline, levels[-1] + step)) is not None:
+        levels.append(levels[-1] + step)
+        rings.append(ring)
+    probe = _offset(outline, levels[-1] + 2 * _BISECT)
+    if probe is not None:
+        level, ring = _deepest(outline, levels[-1] + 2 * _BISECT, probe, levels[-1] + step)
+        levels.append(level)
+        rings.append(ring)
+    if _uncovered_point(outline, rings, r) is not None:
+        raise PocketError(f"pocket shape is not clearable with a {tool_diameter:g} mm tool by "
+                          f"offset rings (concave); use a smaller tool, split the pocket or "
+                          f"use a slot/rectangle/round pocket")
+    return [split_large_arcs(g) for g in reversed(rings)]
 
 
 def _offset_any(outline: list[Seg], d: float) -> list[Seg] | None:
@@ -401,3 +434,128 @@ def _polygon(segs: list[Seg], step: float) -> list[Pt]:
     for s in segs:
         pts += [s.a] if isinstance(s, Line) else sample([s], step)[:-1]
     return pts
+
+
+# --- convexity and the coverage check for non-convex pockets ---------------------
+
+_TURN_EPS = 1e-6
+
+
+def _unit_tangent(s: Seg, at_end: bool) -> Pt:
+    if isinstance(s, Arc):
+        p = s.b if at_end else s.a
+        ux, uy = p[0] - s.center[0], p[1] - s.center[1]
+        n = math.hypot(ux, uy)
+        return (-uy / n, ux / n) if s.ccw else (uy / n, -ux / n)
+    dx, dy = s.b[0] - s.a[0], s.b[1] - s.a[1]
+    n = math.hypot(dx, dy)
+    return dx / n, dy / n
+
+
+def is_convex(outline: list[Seg]) -> bool:
+    """Whether the closed outline bounds a convex region: every arc bends the same way as
+    the outline winds, and no join turns against the winding (tangent joins are fine)."""
+    pts = sample(outline, 1.0)
+    area = 0.5 * sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts, pts[1:]))
+    ccw = area > 0
+    sign = 1.0 if ccw else -1.0
+    turning = 0.0
+    n = len(outline)
+    for i, s in enumerate(outline):
+        if isinstance(s, Arc):
+            if s.ccw != ccw:
+                return False
+        t, w = _unit_tangent(s, True), _unit_tangent(outline[(i + 1) % n], False)
+        cross = sign * (t[0] * w[1] - t[1] * w[0])
+        dot = t[0] * w[0] + t[1] * w[1]
+        if cross < -_TURN_EPS or (abs(cross) <= _TURN_EPS and dot < 0):
+            return False
+    # all turns go one way; a convex outline turns once in total (not a star-like loop)
+    for i in range(len(pts) - 1):
+        a, b, c = pts[i - 1] if i else pts[-2], pts[i], pts[i + 1]
+        u, v = math.atan2(b[1] - a[1], b[0] - a[0]), math.atan2(c[1] - b[1], c[0] - b[0])
+        turning += math.remainder(v - u, 2 * math.pi)
+    return abs(abs(turning) - 2 * math.pi) < 0.1
+
+
+class _RingIndex:
+    """Ring chains cut into short chords, bucketed on a square grid, for fast
+    'is any ring within d of p' queries (pure stdlib)."""
+
+    def __init__(self, rings: list[list[Seg]], cell: float):
+        self.cell = cell
+        self.buckets: dict[tuple[int, int], list[tuple[float, float, float, float, float]]] = {}
+        piece = min(cell, 0.5)
+        for g in rings:
+            for s in g:
+                step = piece if isinstance(s, Line) else min(piece, 0.1)
+                pts = sample([s], step)
+                for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+                    dx, dy = bx - ax, by - ay
+                    key = (math.floor((ax + bx) / 2 / cell), math.floor((ay + by) / 2 / cell))
+                    self.buckets.setdefault(key, []).append((ax, ay, dx, dy, dx * dx + dy * dy))
+
+    def dist(self, x: float, y: float, enough: float, limit: float) -> float:
+        """Distance from (x, y) to the nearest chord; may stop early once a chord within
+        `enough` is found, and returns something > limit when none is within limit."""
+        c = self.cell
+        i0, j0 = math.floor(x / c), math.floor(y / c)
+        best = math.inf
+        k = 0
+        while True:
+            for i in range(i0 - k, i0 + k + 1):
+                for j in ((j0 - k, j0 + k) if 0 < k and abs(i - i0) < k
+                          else range(j0 - k, j0 + k + 1)):
+                    for ax, ay, dx, dy, ll in self.buckets.get((i, j), ()):
+                        t = 0.0 if ll == 0 else ((x - ax) * dx + (y - ay) * dy) / ll
+                        t = 0.0 if t < 0 else 1.0 if t > 1 else t
+                        d = math.hypot(x - ax - t * dx, y - ay - t * dy)
+                        if d < best:
+                            best = d
+                if best <= enough:
+                    return best
+            # chords in buckets not yet visited are at least (k + 0.5) * c - c/2 away
+            if best <= k * c or k * c > limit + c:
+                return best
+            k += 1
+
+
+_CHECK_TOL = 0.01   # mm: allowed excess of the distance to the nearest ring over r
+_CHECK_MIN = 0.02   # mm: smallest cell half-size of the adaptive check
+
+
+def _uncovered_point(outline: list[Seg], rings: list[list[Seg]], r: float) -> Pt | None:
+    """A point of the pocket that no cutter disc along the rings reaches, or None.
+
+    Only points at least r from the outline are tested: a point closer to the wall is either
+    within r of the wall ring or out of reach of any round cutter (a sharp convex corner).
+    Cells of half-size r/8 (a grid of cell r/4) are refined where needed: the distance to
+    the rings changes by at most the cell's half-diagonal inside a cell, so a cell whose
+    centre is within r + _CHECK_TOL - half-diagonal of a ring is covered entirely; one
+    whose centre is farther than r + _CHECK_TOL fails; the rest are split in four, down to
+    a half-size of _CHECK_MIN.
+    """
+    x0, y0, x1, y1 = bbox(outline)
+    poly = _polygon(outline, 0.1)
+    index = _RingIndex(rings, max(r / 2, 0.5))
+    lim = r + _CHECK_TOL
+    half = r / 8
+    nx, ny = math.ceil((x1 - x0) / (2 * half)), math.ceil((y1 - y0) / (2 * half))
+    stack = [(x0 + (2 * i + 1) * half, y0 + (2 * j + 1) * half, half)
+             for i in range(nx) for j in range(ny)]
+    while stack:
+        x, y, h = stack.pop()
+        rho = h * math.sqrt(2)
+        inside = _inside(poly, x, y)
+        level = distance_to_chain((x, y), outline)
+        if (inside and level + rho < r) or (not inside and (rho < r or level > rho)):
+            continue  # no point of the cell is in the pocket at least r from the wall
+        d = index.dist(x, y, lim - rho, lim + rho)
+        if d + rho <= lim:
+            continue
+        if inside and level >= r and d > lim:
+            return (x, y)
+        if h > _CHECK_MIN:
+            q = h / 2
+            stack += [(x - q, y - q, q), (x + q, y - q, q), (x - q, y + q, q), (x + q, y + q, q)]
+    return None

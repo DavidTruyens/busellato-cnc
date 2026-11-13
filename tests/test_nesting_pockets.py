@@ -4,7 +4,7 @@ import unittest
 from nesting.dxf import Pocket, Shape, _inside, _round_pocket
 from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
 from nesting.pockets import (PALETTE, PocketError, effective, find_groups, group_for, group_key,
-                             pocket_rings)
+                             is_convex, pocket_rings)
 from nesting.settings import Pockets
 
 
@@ -351,6 +351,90 @@ class PocketRingTests(unittest.TestCase):
         levels = sorted(_ring_level(g, outline) for g in pocket_rings(outline, 8, 100))
         self.assertAlmostEqual(levels[1] - levels[0], 5.6, places=6)
         self.assertEqual(pocket_rings(outline, 8, 100), pocket_rings(outline, 8, 70))
+
+
+def l_outline(w, n=100):
+    return poly_pocket([(0, 0), (n, 0), (n, w), (w, w), (w, n), (0, n)]).outline
+
+
+def t_outline(w):
+    a = (120 - w) / 2
+    return poly_pocket([(0, 0), (120, 0), (120, w), (a + w, w), (a + w, 100), (a, 100),
+                        (a, w), (0, w)]).outline
+
+
+def polygon_points(outline, r, zone, coarse=0.5, fine=0.2):
+    """Grid points inside a straight-edged pocket: coarse everywhere, fine in zone
+    (x0, y0, x1, y1); points in the r x r square of a convex corner (unreachable) left out."""
+    verts = [s.a for s in outline]
+    n = len(verts)
+    convex = []
+    for i in range(n):
+        a, b, c = verts[i - 1], verts[i], verts[(i + 1) % n]
+        if (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) > 0:
+            convex.append(b)
+    x0, y0, x1, y1 = bbox(outline)
+    pts = []
+    for step, (ax, ay, bx, by) in ((coarse, (x0, y0, x1, y1)), (fine, zone)):
+        nx, ny = int((bx - ax) / step), int((by - ay) / step)
+        pts += [(ax + i * step + 1e-7, ay + j * step + 1e-7)
+                for i in range(nx + 1) for j in range(ny + 1)]
+    return [p for p in pts if _inside(verts, *p)
+            and not any(abs(p[0] - c[0]) < r and abs(p[1] - c[1]) < r for c in convex)]
+
+
+class ConvexTests(unittest.TestCase):
+    def test_is_convex(self):
+        self.assertTrue(is_convex(slot_outline(0, 0, 100)))
+        self.assertTrue(is_convex(rect_outline(0, 0, 60, 40)))
+        self.assertTrue(is_convex(_round_pocket(20, 20, 10).outline))
+        cw = rect_outline(0, 0, 60, 40)
+        self.assertTrue(is_convex([Line(s.b, s.a) for s in reversed(cw)]))
+        self.assertFalse(is_convex(l_outline(40)))
+        self.assertFalse(is_convex(t_outline(40)))
+        r = 5  # rectangle 60 x 40 with rounded corners (tangent arcs)
+        rounded = [Line((r, 0), (60 - r, 0)), Arc((60 - r, 0), (60, r), (60 - r, r), r, True),
+                   Line((60, r), (60, 40 - r)), Arc((60, 40 - r), (60 - r, 40), (60 - r, 40 - r), r, True),
+                   Line((60 - r, 40), (r, 40)), Arc((r, 40), (0, 40 - r), (r, 40 - r), r, True),
+                   Line((0, 40 - r), (0, r)), Arc((0, r), (r, 0), (r, r), r, True)]
+        self.assertTrue(is_convex(rounded))
+        # the same with one corner arc bulging inward is not convex
+        dent = list(rounded)
+        dent[1] = Arc((60 - r, 0), (60, r), (60, 0), r, False)
+        self.assertFalse(is_convex(dent))
+
+
+class ConcavePocketTests(unittest.TestCase):
+    def test_concave_pockets_give_full_coverage_or_raise(self):
+        cases = [("L", 30, 35), ("L", 40, 25), ("L", 40, 40), ("L", 40, 60), ("L", 47, 25),
+                 ("L", 47, 70), ("L", 55, 25), ("L", 55, 40), ("L", 55, 70), ("T", 30, 25),
+                 ("T", 30, 45), ("T", 30, 65), ("T", 40, 40), ("T", 47, 40), ("T", 55, 40)]
+        returned = 0
+        for kind, w, pct in cases:
+            with self.subTest(kind=kind, w=w, pct=pct):
+                if kind == "L":
+                    outline, zone = l_outline(w), (0, 0, w + 10, w + 10)
+                else:
+                    a = (120 - w) / 2
+                    outline, zone = t_outline(w), (a - 10, 0, a + w + 10, w + 10)
+                try:
+                    rings = pocket_rings(outline, 8, pct)
+                except PocketError as e:
+                    self.assertIn("not clearable with a 8 mm tool", str(e))
+                    continue
+                returned += 1
+                pts = polygon_points(outline, 4, zone)
+                self.assertEqual(uncovered(pts, outline, rings, 4), [])
+                for ring in rings:
+                    for p in sample(ring, 0.25):
+                        self.assertGreaterEqual(distance_to_chain(p, outline), 4 - 0.01)
+        self.assertGreater(returned, 0)  # some concave pockets are cleared, not all refused
+
+    def test_finger_narrower_than_tool_message(self):
+        outline = poly_pocket([(0, 0), (100, 0), (100, 50), (52.5, 50), (52.5, 80),
+                               (47.5, 80), (47.5, 50), (0, 50)]).outline
+        with self.assertRaisesRegex(PocketError, "finger or neck, is narrower than the tool"):
+            pocket_rings(outline, 8, 40)
 
 if __name__ == "__main__":
     unittest.main()
