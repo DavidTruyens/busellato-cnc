@@ -20,7 +20,6 @@ import tempfile
 import threading
 import time
 import webbrowser
-from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,10 +31,10 @@ from .geometry import OffsetError
 from .importdisk import NAME as DISKETTE, size_warning
 from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
-from .pockets import GroupSettings, PocketGroup, effective, find_groups, group_for
+from .pockets import GROUP_FIELDS, PocketGroup, effective, find_groups, group_for, merged
 from .preview import pocket_groups_data, preview_data
-from .program import plan_programs, plan_shapes, tool_diameter_conflict
-from .settings import STEPOVER_MESSAGE, Pockets, Settings, SettingsError
+from .program import check_pocket_heads, plan_programs, plan_shapes
+from .settings import Pockets, Settings, SettingsError
 
 HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
@@ -70,32 +69,33 @@ def validate(settings: Settings) -> None:
 _POCKET_MESSAGES = {'enabled': 'must be true or false',
                     'direction': 'must be one of cw, ccw',
                     'tool': 'must be a whole tool number, 1 or more',
-                    'stepover_pct': STEPOVER_MESSAGE}
-_POCKET_FIELDS = {f.name for f in fields(GroupSettings)}
+                    'depth': 'must be a number greater than 0'}
 
 
 def pocket_override_error(key: str, override, settings: Settings,
                           floor: bool = True) -> tuple[str, str] | None:
     """(field below the group, message) for the first bad value of one group's override
-    ('' for the override itself), or None. Checked like pockets.effective, plus (floor True,
-    settings already validated) the floor the depth must leave, like Settings.validate
-    checks the default depth."""
+    ('' for the override itself), or None. Checked like pockets.merged (only enabled, tool,
+    depth and direction; obsolete fields such as the old diameter are ignored, like unknown
+    ones), plus (floor True, settings already validated) the floor the depth must leave, like
+    Settings.validate checks the default depth. The group's head is not checked here
+    (check_pocket_heads: only a switched-on group with a pocket on the plan needs a bit)."""
     if override is None:                            # like effective: no override
         return None
     if not isinstance(override, dict):
         return '', 'must be an object of pocket group settings'
     for name, value in override.items():
-        if name not in _POCKET_FIELDS:
-            continue                                # unknown fields are ignored, like effective
+        if name not in GROUP_FIELDS:
+            continue                                # other fields are ignored, like merged
         try:
-            effective(key, {key: {name: value}}, settings.pockets)
+            merged(key, {key: {name: value}}, settings.pockets)
         except ValueError:
-            return name, _POCKET_MESSAGES.get(name, 'must be a number greater than 0')
+            return name, _POCKET_MESSAGES[name]
     if not floor:
         return None
-    gs = effective(key, {key: override}, settings.pockets)
+    depth = merged(key, {key: override}, settings.pockets)['depth']
     least, thick = settings.pockets.min_floor, settings.panel.thickness
-    if not gs.depth + least <= thick:
+    if not depth + least <= thick:
         return 'depth', (f'depth plus pockets.min_floor ({least:g} mm) must not exceed the '
                          f'panel thickness ({thick:g} mm)')
     return None
@@ -284,11 +284,11 @@ class Project:
                 check_pockets(pockets, settings, groups)
             except SettingsError as e:
                 raise ApiError(400, {'field': e.field, 'message': e.message})
-            # one tool number, one diameter (over the shapes that will be placed)
+            # every switched-on group with a pocket on a placed shape needs a router bit
             placed = [s for s, q, on in rows if on and q > 0]
-            conflict = tool_diameter_conflict(settings, pockets, groups, placed)
-            if conflict:
-                raise ApiError(400, {'field': conflict[1], 'message': conflict[0]})
+            bad = check_pocket_heads(settings, pockets, groups, placed)
+            if bad:
+                raise ApiError(400, {'field': bad[1], 'message': bad[0]})
             self.dir.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -396,7 +396,7 @@ class Project:
                 seen.add(where)
                 g = group_for(pk, groups)
                 try:
-                    on = g is None or effective(g.key, pockets, settings.pockets).enabled
+                    on = g is None or effective(g.key, pockets, settings).enabled
                 except ValueError:
                     on = True
                 if on:

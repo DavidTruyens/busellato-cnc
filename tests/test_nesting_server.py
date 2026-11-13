@@ -610,8 +610,9 @@ class ServerTests(unittest.TestCase):
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, put)
         self.assertEqual(put['pockets'], proj['pockets'])
+        # the old per-group cut feed is not applied: the bit in the group's head gives it
         self.assertEqual((put['pocket_groups'][0]['depth'], put['pocket_groups'][0]['cut_feed']),
-                         (5, 2.5))
+                         (5, 3))
         self.assertEqual(put['pocket_groups'][1]['depth'], Settings().pockets.depth)
         stored = json.loads((self.dir / 'project.json').read_text())
         self.assertEqual(stored['pockets'], proj['pockets'])    # unknown key kept
@@ -702,9 +703,7 @@ class ServerTests(unittest.TestCase):
                  ({key: {'depth': 'deep'}}, 'pockets.G2.depth'),
                  ({key: {'depth': thick}}, 'pockets.G2.depth'),       # leaves no floor
                  ({key: {'tool': 66.5}}, 'pockets.G2.tool'),
-                 ({key: {'stepover_pct': 120}}, 'pockets.G2.stepover_pct'),
-                 ({key: {'stepover_pct': 1e-9}}, 'pockets.G2.stepover_pct'),
-                 ({key: {'stepover_pct': 0.4}}, 'pockets.G2.stepover_pct'),
+                 ({key: {'tool': 0}}, 'pockets.G2.tool'),
                  ({key: {'enabled': 'no'}}, 'pockets.G2.enabled'),
                  ({key: {'direction': 'up'}}, 'pockets.G2.direction'),
                  ({key: 5}, 'pockets.G2'),
@@ -720,68 +719,63 @@ class ServerTests(unittest.TestCase):
                 self.assertTrue(body['message'])
         self.assertFalse((self.dir / 'project.json').exists())
 
-    def test_put_tiny_stepover_is_400_quickly(self):
+    def test_put_obsolete_pocket_numbers_are_ignored_quickly(self):
+        # stepover, diameter, speeds and feeds belong to the bit now: an old value (even a
+        # tiny stepover, which once meant thousands of rings) is ignored, not refused
         self.seed(PLATES[:2])
         _, proj = self.call('GET', '/api/project')
         key = proj['pocket_groups'][0]['key']
-        for where, value in (('settings', 1e-9), ('settings', 0.4), ('group', 1e-9),
-                             ('group', 0.4)):
+        for where, value in (('settings', 1e-9), ('group', 1e-9), ('group', 'bad')):
             with self.subTest(where=where, value=value):
-                bad = json.loads(json.dumps(proj))
+                old = json.loads(json.dumps(proj))
                 if where == 'settings':
-                    bad['settings']['pockets']['stepover_pct'] = value
-                    field = 'pockets.stepover_pct'
+                    old['settings']['pockets']['stepover_pct'] = value
                 else:
-                    bad['pockets'] = {key: {'stepover_pct': value}}
-                    field = 'pockets.G1.stepover_pct'
+                    old['pockets'] = {key: {'stepover_pct': value, 'diameter': value}}
                 t0 = time.monotonic()
-                status, body = self.call('PUT', '/api/project', bad)
-                self.assertLess(time.monotonic() - t0, 5)
-                self.assertEqual(status, 400, body)
-                self.assertEqual(body['field'], field)
-                self.assertIn('between 10 and 100', body['message'])
-        self.assertFalse((self.dir / 'project.json').exists())
+                status, body = self.call('PUT', '/api/project', old)
+                self.assertEqual(status, 200, body)
+                self.assertNotIn('stepover_pct', body['settings']['pockets'])
+                self.assertEqual((body['pocket_groups'][0]['stepover_pct'],
+                                  body['pocket_groups'][0]['diameter']), (40, 8))
+                status, plan = self.call('GET', '/api/plan')
+                self.assertEqual(status, 200, plan)
+                self.assertLess(time.monotonic() - t0, 30)
 
-    def test_put_one_tool_two_diameters_is_400(self):
+    def test_save_refuses_empty_group_head(self):
         self.seed(PLATES[:2])
         _, proj = self.call('GET', '/api/project')
         key = proj['pocket_groups'][0]['key']
-        cases = [({key: {'diameter': 6}}, None, 'pockets.G1.diameter', '8 and 6 mm'),
-                 ({}, ('pockets', 'diameter', 12), 'pockets.diameter', '8 and 12 mm'),
-                 ({key: {'tool': 1}}, None, 'pockets.G1.diameter', '6 and 8 mm')]
-        for pockets, setting, field, dias in cases:
-            with self.subTest(field=field, dias=dias):
-                bad = json.loads(json.dumps(proj))
-                bad['pockets'] = pockets
-                if setting:
-                    bad['settings'][setting[0]][setting[1]] = setting[2]
-                status, body = self.call('PUT', '/api/project', bad)
-                self.assertEqual(status, 400, body)
-                self.assertEqual(body['field'], field)
-                self.assertIn(dias, body['message'])
-                self.assertIn('one tool number must have one diameter', body['message'])
+        bad = json.loads(json.dumps(proj))
+        bad['pockets'] = {key: {'tool': 65}}                # T65 is empty in the default table
+        status, body = self.call('PUT', '/api/project', bad)
+        self.assertEqual(status, 400, body)
+        self.assertEqual(body['field'], 'pockets.G1.tool')
+        self.assertEqual(body['message'], 'pocket group G1: head T65 holds no bit')
         self.assertFalse((self.dir / 'project.json').exists())
+        bad['pockets'] = {}
+        bad['settings']['pockets']['tool'] = 65              # the default head
+        status, body = self.call('PUT', '/api/project', bad)
+        self.assertEqual((status, body['field']), (400, 'pockets.tool'), body)
+        self.assertIn('T65', body['message'])
         ok = json.loads(json.dumps(proj))
-        ok['pockets'] = {key: {'diameter': 6, 'enabled': False}}     # switched off: not used
-        self.assertEqual(self.call('PUT', '/api/project', ok)[0], 200)
-        ok['pockets'] = {key: {'diameter': 6, 'tool': 7}}
+        ok['pockets'] = {key: {'tool': 65, 'enabled': False}}     # switched off: not used
         self.assertEqual(self.call('PUT', '/api/project', ok)[0], 200)
 
-    def test_hand_edited_tool_two_diameters_is_a_problem_and_generates_nothing(self):
+    def test_hand_edited_empty_group_head_is_a_problem_and_generates_nothing(self):
         self.seed(PLATES[:2])
         key = self.call('GET', '/api/project')[1]['pocket_groups'][0]['key']
-        self.write_project({key: {'diameter': 6}})
+        self.write_project({key: {'tool': 65}})
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200, plan)
         self.assertEqual(plan['blanks'], [])
-        self.assertTrue(any('tool T66 is used with diameters 8 and 6 mm' in p
-                            for p in plan['problems']), plan['problems'])
+        self.assertIn('pocket group G1: head T65 holds no bit', plan['problems'])
         status, body = self.call('GET', '/api/program?name=B01P')
         self.assertEqual(status, 400, body)
-        self.assertIn('T66', body['error'])
+        self.assertIn('T65', body['error'])
         status, body = self.call('POST', '/api/generate', {})
         self.assertEqual(status, 400, body)
-        self.assertIn('one tool number must have one diameter', body['error'])
+        self.assertIn('head T65 holds no bit', body['error'])
         self.assertFalse((self.dir / 'out').exists())
 
     def test_hand_edited_bad_pockets_is_a_problem_not_a_500(self):
@@ -1025,7 +1019,6 @@ class ServerTests(unittest.TestCase):
         _, proj = self.call('GET', '/api/project')
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 4)      # blank coordinates
         table = self.default_table(66, diameter=7.8)        # the bit in T66 (Task 6: PUT it)
-        proj['settings']['pockets']['diameter'] = 7.8      # the same T66: one diameter
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, body)
         self.assertEqual(body['settings']['router']['tool'], 66)

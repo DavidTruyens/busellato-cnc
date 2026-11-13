@@ -275,11 +275,15 @@ class PocketSettingsTests(unittest.TestCase):
     def test_pockets_defaults_present(self):
         s = Settings.default()
         p = s.pockets
-        self.assertEqual((p.min_circle_diameter, p.min_floor, p.tool, p.diameter),
-                         (8, 2, 66, 8))
-        self.assertEqual((p.depth, p.depth_per_pass, p.plunge_feed, p.cut_feed),
-                         (8, 4, 1, 3))
-        self.assertEqual((p.spindle_rpm, p.stepover_pct, p.direction), (18000, 40, "cw"))
+        self.assertEqual((p.min_circle_diameter, p.min_floor, p.tool, p.depth, p.direction),
+                         (8, 2, 66, 8, "cw"))
+        self.assertEqual(set(s.to_dict()["pockets"]),
+                         {"min_circle_diameter", "min_floor", "tool", "depth", "direction"})
+        # diameter, speeds, feeds, depth per pass and stepover are the bit's in T66 (R4: the
+        # router's 9 mm per pass, not the old pocket default's 4)
+        b = s.tools.bit_in(p.tool)
+        self.assertEqual((b.diameter, b.depth_per_pass, b.plunge_feed, b.cut_feed,
+                          b.spindle_rpm, b.stepover_pct), (8, 9, 1, 3, 18000, 40))
         self.assertEqual(s.to_dict()["pockets"]["tool"], 66)
         self.assertEqual(Settings.from_dict(s.to_dict()), s)
         s.validate()
@@ -299,21 +303,23 @@ class PocketSettingsTests(unittest.TestCase):
         s.validate()
 
     def test_stepover_out_of_range(self):
+        # the stepover is the bit's: checked with the tool table
         for value in (0, -5, 100.5, float("nan"), "40", True, 1e-9, 0.4, 9.99):
             with self.subTest(value=value):
                 s = Settings.default()
-                s.pockets.stepover_pct = value
+                bit = s.tools.bit_in(s.pockets.tool)
+                bit.stepover_pct = value
                 with self.assertRaises(SettingsError) as cm:
                     s.validate()
-                self.assertEqual(cm.exception.field, "pockets.stepover_pct")
+                self.assertEqual(cm.exception.field, f"tools.bits.{bit.id}.stepover_pct")
         for value in (10, 100):
             s = Settings.default()
-            s.pockets.stepover_pct = value
+            s.tools.bit_in(s.pockets.tool).stepover_pct = value
             s.validate()
 
     def test_stepover_message_names_the_range(self):
         s = Settings.default()
-        s.pockets.stepover_pct = 0.4
+        s.tools.bit_in(s.pockets.tool).stepover_pct = 0.4
         with self.assertRaises(SettingsError) as cm:
             s.validate()
         self.assertIn("between 10 and 100", cm.exception.message)
@@ -328,8 +334,7 @@ class PocketSettingsTests(unittest.TestCase):
                 self.assertEqual(cm.exception.field, "pockets.tool")
 
     def test_pocket_numbers_and_direction_checked(self):
-        for field in ("min_circle_diameter", "diameter", "depth", "depth_per_pass",
-                      "plunge_feed", "cut_feed", "spindle_rpm", "min_floor"):
+        for field in ("min_circle_diameter", "depth", "min_floor"):
             for value in (0, -1, float("inf"), "8"):
                 with self.subTest(field=field, value=value):
                     s = Settings.default()
@@ -347,8 +352,15 @@ class PocketSettingsTests(unittest.TestCase):
         s = Settings.from_dict({"pockets": {"tool": 5}})
         self.assertEqual(s.pockets.tool, 5)
         d = Settings.default().pockets
-        self.assertEqual(s.pockets.diameter, d.diameter)
-        self.assertEqual(s.pockets.stepover_pct, d.stepover_pct)
+        self.assertEqual((s.pockets.depth, s.pockets.direction), (d.depth, d.direction))
+
+    def test_old_pocket_numbers_are_ignored(self):
+        old = {"pockets": {"diameter": 12, "depth_per_pass": 4, "plunge_feed": 2, "cut_feed": 5,
+                           "spindle_rpm": 12000, "stepover_pct": 0.4}}
+        s = Settings.from_dict(old)
+        self.assertEqual(s.pockets, Settings.default().pockets)
+        self.assertNotIn("diameter", s.to_dict()["pockets"])
+        s.validate()
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ from .layout import Blank, Plan
 from .pockets import (PocketError, PocketGroup, effective, find_groups, group_for,
                       memo_pocket_rings)
 from .settings import Settings
+from .tools import HeadError
 
 LINE_WARNING = 250
 KINDS = ('D', 'P', 'C')         # drill (fixing + screw holes, any tools), pockets, cut
@@ -283,7 +284,9 @@ def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
                                    f'(internal error: groups not computed over this shape)')
             if g.id not in found:
                 try:
-                    gs = effective(g.key, overrides, settings.pockets)
+                    gs = effective(g.key, overrides, settings, who=f'pocket group {g.id}')
+                except HeadError as e:
+                    raise ProgramError(e.message) from e
                 except ValueError as e:
                     raise ValueError(f'pocket group {g.id}: {e}') from e
                 found[g.id] = (g, gs, [])
@@ -362,7 +365,8 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
                    _rings: dict | None = None) -> list[Program]:
     """Drill, pocket and cut programs of one blank, in the program frame (see the module doc).
 
-    pocket_overrides: per pocket group key, the settings that differ from settings.pockets.
+    pocket_overrides: per pocket group key, the settings that differ from settings.pockets
+    (enabled, tool, depth, direction; the rest come from the bit in the group's head).
     groups: the plan's or the project's pocket groups (plan_programs passes them, so a group
     has one id and key over the whole plan); None computes them from this blank's shapes alone.
     _rings: a cache of pocket rings that plan_programs shares between the blanks.
@@ -419,44 +423,24 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
     return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
-def tool_diameter_conflict(settings: Settings, overrides: dict, groups: list[PocketGroup],
-                           shapes: list[Shape]) -> tuple[str, str] | None:
-    """(message, settings field) when one tool number is given two diameters, else None.
-
-    A physical tool has one diameter: the router, both drills and every switched-on pocket
-    group that has a pocket on `shapes` (with its effective tool and diameter, so the pocket
-    defaults count only when a group uses them) must agree. The field is the one to fix: the
-    second user's diameter (a group's own, or the pocket default when the group has no tool or
-    diameter of its own). A bad override raises ValueError naming the group.
-    """
-    users: list[tuple[int, float, str, str]] = [
-        (settings.router.tool, settings.router_bit.diameter, 'router', 'router.tool'),
-        (settings.drill_fix.tool, settings.fix_bit.diameter, 'fixing drill', 'drill_fix.tool'),
-        (settings.drill_screw.tool, settings.screw_bit.diameter, 'screw drill',
-         'drill_screw.tool')]
+def check_pocket_heads(settings: Settings, overrides: dict, groups: list[PocketGroup],
+                       shapes: list[Shape]) -> tuple[str, str] | None:
+    """(message, settings field) for the first switched-on pocket group with a pocket on
+    `shapes` whose head does not hold a router bit, else None. The field is the one to fix:
+    pockets.<id>.tool when the group names its own head, else pockets.tool (the default head).
+    A group with no pocket on `shapes`, or switched off, is not checked (R2). A bad override
+    raises ValueError naming the group."""
     used = {g.id for sh in shapes for pk in sh.pockets if (g := group_for(pk, groups))}
     for g in groups:
         if g.id not in used:
             continue
         try:
-            gs = effective(g.key, overrides, settings.pockets)
+            effective(g.key, overrides, settings, who=f'pocket group {g.id}')
+        except HeadError as e:
+            own = overrides.get(g.key) or {}
+            return e.message, (f'pockets.{g.id}.tool' if 'tool' in own else 'pockets.tool')
         except ValueError as e:
             raise ValueError(f'pocket group {g.id}: {e}') from e
-        if not gs.enabled:
-            continue
-        own = overrides.get(g.key) or {}
-        field = (f'pockets.{g.id}.diameter' if 'tool' in own or 'diameter' in own
-                 else 'pockets.diameter')
-        users.append((gs.tool, gs.diameter, f'pocket group {g.id}', field))
-    first: dict[int, tuple[float, str]] = {}
-    for tool, dia, who, field in users:
-        if tool not in first:
-            first[tool] = (dia, who)
-            continue
-        dia0, who0 = first[tool]
-        if abs(dia - dia0) > 1e-9:
-            return (f'tool T{tool} is used with diameters {dia0:g} and {dia:g} mm ({who0}, '
-                    f'{who}); one tool number must have one diameter', field)
     return None
 
 
@@ -465,14 +449,15 @@ def plan_programs(plan: Plan, settings: Settings,
                   groups: list[PocketGroup] | None = None) -> list[Program]:
     """Every blank's programs. groups: the project's pocket groups (ids and colours over
     every shape of the project, switched off too, so they do not change when a shape is
-    switched off); None finds them once over every shape of the plan. One tool number with
-    two diameters (tool_diameter_conflict) is a ProgramError: nothing is planned."""
+    switched off); None finds them once over every shape of the plan. A switched-on pocket
+    group whose head holds no router bit (check_pocket_heads) is a ProgramError: nothing is
+    planned."""
     shapes = plan_shapes(plan)
     if groups is None:
         groups = find_groups(shapes)
-    conflict = tool_diameter_conflict(settings, pocket_overrides or {}, groups, shapes)
-    if conflict:
-        raise ProgramError(conflict[0])
+    bad = check_pocket_heads(settings, pocket_overrides or {}, groups, shapes)
+    if bad:
+        raise ProgramError(bad[0])
     rings: dict = {}
     progs = [p for b in plan.blanks
              for p in blank_programs(b, settings, pocket_overrides, groups, rings)]

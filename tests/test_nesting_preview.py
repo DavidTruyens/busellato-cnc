@@ -329,7 +329,15 @@ class PocketPreviewTests(unittest.TestCase):
         self.assertEqual((g1['id'], g1['width'], g1['height']), ('G1', 40, 30))
         self.assertEqual(set(g1), {'id', 'key', 'width', 'height', 'kind', 'count', 'color',
                                    'enabled', 'tool', 'diameter', 'depth', 'depth_per_pass',
-                                   'plunge_feed', 'cut_feed', 'stepover_pct', 'direction'})
+                                   'plunge_feed', 'cut_feed', 'stepover_pct', 'direction',
+                                   'bit', 'head_label'})
+        bit = s.tools.bit_in(s.pockets.tool)
+        self.assertEqual((g1['bit'], g1['head_label']),
+                         ({'id': bit.id, 'name': bit.name}, f'T{s.pockets.tool} {bit.name}'))
+        self.assertEqual((g1['diameter'], g1['depth_per_pass'], g1['plunge_feed'],
+                          g1['cut_feed'], g1['stepover_pct']),
+                         (bit.diameter, bit.depth_per_pass, bit.plunge_feed, bit.cut_feed,
+                          bit.stepover_pct))
         self.assertEqual([p['name'] for p in data['blanks'][0]['programs']],
                          ['B01D', 'B01P', 'B01C'])
         self.assertEqual(data['blanks'][0]['programs'][1]['tools'], [s.pockets.tool])
@@ -352,6 +360,13 @@ class PocketPreviewTests(unittest.TestCase):
         key = pocket_groups_data(plan, s)[0]['key']
         g = pocket_groups_data(plan, s, {key: {'depth': 5, 'tool': 9, 'enabled': False}})[0]
         self.assertEqual((g['count'], g['depth'], g['tool'], g['enabled']), (3, 5, 9, False))
+        # switched off on a head that cannot hold a router bit: no bit, no numbers, no error
+        self.assertEqual((g['bit'], g['diameter'], g['head_label']), (None, None, 'T9 (empty)'))
+        self.assertNotIn('error', g)
+        bit = put_bit(s, 65, diameter=12)
+        g = pocket_groups_data(plan, s, {key: {'tool': 65}})[0]
+        self.assertEqual((g['bit'], g['diameter'], g['head_label'], g['enabled']),
+                         ({'id': bit.id, 'name': 'Router 12'}, 12, 'T65 Router 12', True))
 
     def test_bad_override_does_not_crash(self):
         plan, s = self.pocket_plan()
@@ -361,9 +376,20 @@ class PocketPreviewTests(unittest.TestCase):
         g = data['pocket_groups'][0]
         self.assertFalse(g['enabled'])
         self.assertEqual(g['depth'], s.pockets.depth)
+        self.assertEqual((g['bit'], g['diameter'], g['stepover_pct']), (None, None, None))
         self.assertIn('depth', g['error'])
+        self.assertTrue(g['error'].startswith('pocket group G1: '), g['error'])
         self.assertIn(g['error'], data['problems'])
         self.assertNotIn('error', data['pocket_groups'][1])
+
+    def test_enabled_group_on_an_empty_head_is_switched_off_with_an_error(self):
+        plan, s = self.pocket_plan()
+        key = pocket_groups_data(plan, s)[0]['key']
+        g = pocket_groups_data(plan, s, {key: {'tool': 65}})[0]
+        self.assertFalse(g['enabled'])
+        self.assertEqual(g['error'], 'pocket group G1: head T65 holds no bit')
+        self.assertEqual((g['tool'], g['bit'], g['diameter'], g['head_label']),
+                         (65, None, None, 'T65 (empty)'))
 
     def test_no_pockets(self):
         plan, progs, s, data = build(rect('a', 1000, 230))

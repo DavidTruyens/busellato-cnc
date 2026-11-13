@@ -63,14 +63,9 @@ class Pockets:
     # All PLACEHOLDERS, to verify on the machine.
     min_circle_diameter: float = 8   # smallest circle that counts as a pocket
     min_floor: float = 2             # material left under a pocket
-    tool: int = 66
-    diameter: float = 8
+    tool: int = 66                   # default head; its bit gives diameter, speeds, feeds,
+                                     # depth per pass and stepover
     depth: float = 8
-    depth_per_pass: float = 4
-    plunge_feed: float = 1
-    cut_feed: float = 3
-    spindle_rpm: float = 18000
-    stepover_pct: float = 40         # of the tool diameter, 10 to 100
     direction: str = "cw"            # turning sense seen from above for pocket walls;
                                      # climb vs conventional is unverified
 
@@ -184,9 +179,7 @@ class Settings:
             "heights.scrap",
             "router.tool", "drill_fix.tool", "drill_screw.tool", "drill_screw.depth",
             "blank.head_dia",
-            "pockets.min_circle_diameter", "pockets.min_floor", "pockets.diameter",
-            "pockets.depth", "pockets.depth_per_pass", "pockets.plunge_feed",
-            "pockets.cut_feed", "pockets.spindle_rpm", "pockets.stepover_pct",
+            "pockets.min_circle_diameter", "pockets.min_floor", "pockets.depth",
         ]
         shapes_per = self.blank.shapes_per
         if (not isinstance(shapes_per, int) or isinstance(shapes_per, bool)
@@ -224,9 +217,6 @@ class Settings:
         for path, allowed in choices.items():
             if self._get(path) not in allowed:
                 raise SettingsError(path, f"must be one of {', '.join(allowed)}")
-        # relies on the positive-number loop above having run: stepover_pct is a number > 0 here
-        if not MIN_STEPOVER_PCT <= self.pockets.stepover_pct <= 100:
-            raise SettingsError("pockets.stepover_pct", STEPOVER_MESSAGE)
         self._validate_heads()
         self._validate_sizes()
         self._validate_depths()

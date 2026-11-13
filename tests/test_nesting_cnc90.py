@@ -269,10 +269,11 @@ class PocketEmitTests(unittest.TestCase):
         check(self, progs, s)
 
     def test_generated_pocket_programs_pass_the_checker(self):
-        for tool, dia in ((66, 8), (67, 12)):
+        for tool, dia in ((66, 8), (65, 12)):
             with self.subTest(diameter=dia):
                 s = Settings()
-                s.pockets.tool, s.pockets.diameter = tool, dia
+                put_bit(s, tool, diameter=dia)
+                s.pockets.tool = tool
                 entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
                 progs = [p for p in plan_programs(build_plan(entries, s), s) if p.kind == 'pocket']
                 self.assertEqual(len(progs), 6)
