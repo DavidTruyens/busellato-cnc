@@ -64,7 +64,7 @@ OPTIONAL = {
 }
 
 _ID_RE = re.compile(r'[A-Za-z0-9_-]{1,20}')
-_HEAD_KEY_RE = re.compile(r'T(\d+)')
+_HEAD_KEY_RE = re.compile(r'T([1-9][0-9]*)')   # one spelling per head: no T01, no non-ASCII digits
 
 
 def _is_number(v) -> bool:

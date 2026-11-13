@@ -273,6 +273,11 @@ class Project:
             table, tools_error = ToolTable.from_dict(tools), None
         except SettingsError as e:
             table, tools_error = None, {'field': e.field, 'message': e.message}
+        if table is not None:
+            try:
+                table.validate()      # a well-formed table can still hold a bad value
+            except SettingsError as e:
+                tools_error = {'field': e.field, 'message': e.message}
         return {'shapes': self._listing(rows), 'settings': settings, 'pockets': pockets,
                 'tools': tools, 'tools_notes': notes, 'tools_error': tools_error,
                 'heads': heads_data(),

@@ -69,6 +69,14 @@ class Table(unittest.TestCase):
         e = field_of(self, with_heads(T70='b1'))
         self.assertEqual(e.field, 'tools.heads.T70')
         self.assertIn('not a machine head', str(e))
+        for key in ('T01', 'T066', 'T0', 't66', 'T\u0661', 'T66 ', '66'):
+            with self.subTest(key=key):
+                e = field_of(self, with_heads(**{key: None}))
+                self.assertEqual(e.field, f'tools.heads.{key}')
+                self.assertIn('not a machine head', str(e))
+        # two spellings of one head never silently replace each other
+        e = field_of(self, with_heads(T1=None, T01=None))
+        self.assertEqual(e.field, 'tools.heads.T01')
         d = copy.deepcopy(base)
         d['bits'] = {}
         self.assertEqual(field_of(self, d).field, 'tools.bits')

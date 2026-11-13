@@ -1052,11 +1052,19 @@ class ServerTests(unittest.TestCase):
         for needle in ("['drill_fix.tool', ", "['drill_screw.tool', ", "['drill_screw.depth', ",
                        "['pockets.tool', ", 'tools: project.tools', 'tools_error',
                        'tools_notes', 'tool_labels', "'listed only: no program uses this head'",
-                       ': empty that head first', "/^tools\\.(bits|heads)\\.",
+                       "/^tools\\.(bits|heads)\\.",
                        'default ('):
             self.assertIn(needle, html)
         # bit names are user text: never markup
         self.assertNotRegex(html, r'innerHTML\s*=\s*[^;]*name')
+        # a refused save never switches pages: a Plan error shows in a banner on Tools
+        self.assertIn('id="toolsSaveErr"', html)
+        self.assertNotIn('showFieldError(saveError, true)', html)
+        self.assertIn("'the settings (Plan page)'", html)
+        self.assertIn('pick another head in', html)
+        # auto-names follow type and diameter; a typed name is kept
+        self.assertIn(r"/^(Router|Drill|Blade) [0-9.]+$/", html)
+        self.assertIn("'those heads' : 'that head'", html)
 
     def test_page_has_a_pockets_section_with_defaults_and_group_rows(self):
         status, html = self.call('GET', '/')
@@ -1386,6 +1394,22 @@ class ServerTests(unittest.TestCase):
                 status, body = self.call('POST', '/api/shapes',
                                          {'filename': 'r.dxf', 'text': dxf(rect(0, 0, 300, 200))})
                 self.assertEqual(status, 200, body)
+
+    def test_tools_error_names_a_bad_value_in_a_well_formed_table(self):
+        # structure and heads fine, a value not: still reported at load, not only on save
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        tools = json.loads(json.dumps(proj['tools']))
+        tools['bits'][0]['diameter'] = 0
+        bit_id = tools['bits'][0]['id']
+        text = json.dumps({'shapes': [], 'settings': Settings().to_dict(), 'tools': tools})
+        (self.dir / 'project.json').write_text(text)
+        status, proj = self.call('GET', '/api/project')
+        self.assertEqual(status, 200, proj)
+        self.assertEqual(proj['tools_error']['field'], f'tools.bits.{bit_id}.diameter')
+        self.assertIn('greater than 0', proj['tools_error']['message'])
+        self.assertEqual(proj['tools'], tools)
+
 
 if __name__ == '__main__':
     unittest.main()

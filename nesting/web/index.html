@@ -220,6 +220,7 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 
 <section id="toolsPage" hidden>
   <div class="banner bad" id="toolsErr"></div>
+  <div class="banner bad" id="toolsSaveErr"></div>
   <div class="banner" id="toolsNotes"></div>
   <div class="tbox">
     <h2>Bits</h2>
@@ -398,10 +399,12 @@ function syncSettingsNotes(){
 // ---- field errors ------------------------------------------------------------------------
 function clearErrors(){
   document.querySelectorAll('.ferr').forEach(e => e.textContent = '');
-  document.querySelectorAll('.bad').forEach(e => e.classList.remove('bad'));
+  // the marked controls; a banner's own 'bad' (its red style) stays
+  document.querySelectorAll('.bad:not(.banner)').forEach(e => e.classList.remove('bad'));
 }
-function showFieldError(err, reveal){
-  // returns true when the field has a control on the page; reveal: switch to the page it is on
+function showFieldError(err){
+  // shows the message under the field and marks its control (never switches pages);
+  // returns the page the field is on ('plan' or 'tools'), or false when it has no place
   let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
   // tools.bits.<id>.<field> and tools.heads.T<n>: the message goes under the bit's or head's
   // row; any other tools field under the tables
@@ -424,8 +427,25 @@ function showFieldError(err, reveal){
   box.textContent = msg;
   const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
   if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
-  if (reveal) showPage($('toolsPage').contains(box) ? 'tools' : 'plan');
-  return true;
+  return $('toolsPage').contains(box) ? 'tools' : 'plan';
+}
+
+function renderSaveBanner(where){
+  // a refused save whose field is not on the Tools page (an operation's head, a setting) is
+  // said on the Tools page too: an edit there is often refused by a head the Plan page picks
+  const err = saveError, box = $('toolsSaveErr');
+  if (!err || where === 'tools'){ box.replaceChildren(); return; }
+  const field = err.field || '', isHead = /(^|\.)tool$/.test(field);
+  const group = /^pockets\.(G\d+)\./.exec(field);
+  const place = group ? `pocket group ${group[1]} (Plan page)` : 'the settings (Plan page)';
+  // 'head T1 holds no bit' / 'head T1 holds drill bit ...': the bit in the head can fix it
+  const holds = /\bhead T(\d+) holds (no )?/.exec(err.message || '');
+  let hint = '';
+  if (isHead) hint = `pick another head in ${place}` +
+    (holds ? ` or put ${holds[2] ? 'a' : 'a suitable'} bit in T${holds[1]}` : '');
+  else if (field) hint = 'fix it on the Plan page';
+  box.replaceChildren(el('b', {}, 'Not saved: '),
+    `${isHead || !field ? '' : field + ': '}${err.message}${hint ? ' — ' + hint : ''}`);
 }
 
 function status(text, bad){ $('status').textContent = text; $('status').classList.toggle('bad', !!bad); }
@@ -453,12 +473,13 @@ function sync(){
         const g = await fetch('/api/project');
         if (g.ok){ const fresh = await g.json(); groups = fresh.pocket_groups || []; serverState(fresh); renderGroups(); }
       } catch (e){ /* the status line below says it is not saved */ }
-      showFieldError(saveError, true);
+      renderSaveBanner(showFieldError(saveError));
       status(`Not saved: ${saveError.field} ${saveError.message}`, true);
       renderProblems();
       return;
     }
     saveError = null;
+    renderSaveBanner();
     groups = b.pocket_groups || [];
     serverState(b);
     renderGroups();
@@ -671,7 +692,7 @@ function renderBits(ok){
     if (!(bit.type in BIT_TYPES)) type.append(el('option', {value: String(bit.type)}, String(bit.type)));
     type.value = String(bit.type);
     type.dataset.k = `${path}.type`;
-    type.addEventListener('change', () => { retype(bit, type.value); renderTools(); changed(); });
+    type.addEventListener('change', () => { retype(bit, type.value); autoName(bit); renderTools(); changed(); });
     const spec = BIT_TYPES[bit.type] || {required: ['diameter'], optional: []};
     const cells = BIT_COLS.map(([k, , step]) => {
       if (!spec.required.includes(k) && !spec.optional.includes(k)) return el('td', {className: 'na'}, '—');
@@ -682,6 +703,7 @@ function renderBits(ok){
       input.addEventListener('input', () => {
         // an optional cell left empty is omitted; a required one is null and the server names it
         if (opt && input.value === '' && !input.validity.badInput) delete bit[k]; else bit[k] = parseValue(input.value);
+        if (k === 'diameter' && autoName(bit)) name.value = bit.name;
         changed();
       });
       return el('td', {className: 'num'}, input);
@@ -691,7 +713,10 @@ function renderBits(ok){
     const del = el('button', {title: 'delete this bit'}, 'Delete');
     del.addEventListener('click', () => {
       const where = headsOf(bit.id);
-      if (where.length){ err.textContent = `${bit.name} sits in ${where.join(', ')}: empty that head first`; return; }
+      if (where.length){
+        err.textContent = `${bit.name} sits in ${where.join(', ')}: empty ${where.length > 1 ? 'those heads' : 'that head'} first`;
+        return;
+      }
       project.tools.bits = project.tools.bits.filter(b => b !== bit);
       renderTools(); changed();
     });
@@ -709,6 +734,19 @@ function retype(bit, type){
   Object.keys(bit).forEach(k => { if (!['id', 'name', 'type', 'diameter'].includes(k)) delete bit[k]; });
   bit.type = type;
   Object.assign(bit, BIT_SEED[type] || {});
+}
+
+// a name the page gave ('Router 8') follows the bit's type and diameter; a typed name is kept
+const AUTO_NAME = /^(Router|Drill|Blade) [0-9.]+$/;
+function autoName(bit){
+  // returns true when it renamed the bit; the diameter as the server's {:g} (8, 12.5)
+  if (typeof bit.name !== 'string' || !AUTO_NAME.test(bit.name) || !(bit.type in BIT_TYPES)) return false;
+  const d = bit.diameter;
+  if (typeof d !== 'number' || !Number.isFinite(d) || !(d > 0)) return false;
+  const name = `${bit.type[0].toUpperCase()}${bit.type.slice(1)} ${Number(d.toPrecision(6))}`;
+  if (name === bit.name) return false;
+  bit.name = name;
+  return true;
 }
 
 function addBit(){

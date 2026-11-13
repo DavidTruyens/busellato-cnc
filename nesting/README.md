@@ -151,15 +151,21 @@ There is no silent default for an empty or wrong head.
 - A hand-edited `tools` in `project.json` that breaks the rules (a head naming a missing bit, a
   router bit in T1, an unknown head, `bits` not a list) is refused with the head or bit named.
   A pocket narrower than its bit is an error, as before.
-- A bit that sits in a head cannot be deleted on the Tools page; the message names the head to
+- A bit that sits in a head cannot be deleted on the Tools page; the message names the heads to
   empty first.
+- A head key is written `T1` to `T66`; `T01` or any other spelling is "not a machine head".
 
 **Saving.** The page sends the table with every save. A save without a `tools` key (a page from
 before the upgrade still open) keeps the stored table. If `project.json` cannot be read, such a
-save is refused with a message to save with a tool table. If the stored table is bad,
-`GET /api/project` returns it as stored with `tools_error` (`field`, `message`); the page shows
+save is refused with a message to save with a tool table. If the stored table is bad (its
+structure, its heads or a value such as a diameter of 0), `GET /api/project` returns it as
+stored with `tools_error` (`field`, `message`); the page shows
 the error and a save writes the table shown on the Tools page ("Start an empty tool table" is
-offered when it cannot be shown).
+offered when it cannot be shown). A refused save never switches pages: an edit on the Tools
+page refused by an operation's head (for example "fixing drill: head T1 holds no bit") is said
+in a banner on the Tools page, and the head field on the Plan page is marked. A new bit is
+named "Router 8"; a name of that form ("Router", "Drill" or "Blade" and a number) follows the
+bit's type and diameter, a name typed by hand is never changed.
 
 **Migration.** A project saved before the tool table has no `tools` key. On load a table is
 built from its old settings, and the page shows the notes (also first in the plan's problem list
