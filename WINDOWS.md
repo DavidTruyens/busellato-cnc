@@ -59,7 +59,8 @@ Start it again with the icon, then reload this page."
 
 **If it cannot start**, a message box says why and shows the end of the log. The whole log is
 in `%USERPROFILE%\nesting-project\start.log`; send a photo or the text of it if you ask for
-help.
+help. That log is written only when the tool is started with the icon: the old way below
+(`start.bat`) shows everything in its window and writes no log.
 
 Your work is in `%USERPROFILE%\nesting-project` (the shapes, the settings, and `out\` with
 every generated job). The first start puts the 12 sample plates in it.
@@ -112,3 +113,4 @@ internet.
 **`start.bat`** in the `busellato-cnc` folder. It does the same, but with a black window that
 shows what it is doing, and it keeps running until you close that window. Closing the window
 stops the tool. If the window says the tool may already be running, it only opens the page.
+It writes no `start.log`: read the messages in the window.

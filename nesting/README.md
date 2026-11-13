@@ -52,8 +52,9 @@ folder is never overwritten and a failed run leaves nothing behind.
 or browser). `./start.sh` updates from GitHub (no password prompt, a failed update never stops
 the start), opens the page if the tool already runs, else starts it with `--exit-when-closed` on
 port 8800 with project `~/nesting-project`, and opens the page. It logs to
-`~/nesting-project/start.log` (a second start only appends to it) and shows a desktop notice on
-failure. Exit codes: 0 ok or already running, 1 cannot open the script's folder, 2 no Python,
+`~/nesting-project/start.log` (a second click while the tool runs does not erase the log) and
+shows a desktop notice on failure. It uses the first of `python3.13`, `python3.12`,
+`python3.11`, `python3`, `python` that is 3.11 or newer. Exit codes: 0 ok or already running, 1 cannot open the script's folder, 2 no Python,
 3 Python older than 3.11, 4 port taken by another program, 5 the tool did not start.
 `NESTING_PORT` and `NESTING_PROJECT` change the port and project folder (for tests).
 

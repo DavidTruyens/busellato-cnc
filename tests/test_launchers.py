@@ -527,6 +527,14 @@ class DocsTests(unittest.TestCase):
         for s in ('--exit-when-closed', 'install-launcher.sh', 'not tested on Linux'):
             self.assertIn(s, readme)
 
+    def test_docs_say_which_start_writes_the_log(self):
+        win = ' '.join(self.read('WINDOWS.md').split())
+        self.assertIn('written only when the tool is started with the icon', win)
+        self.assertIn('It writes no `start.log`', win)
+        readme = ' '.join(self.read('nesting/README.md').split())
+        self.assertIn('does not erase the log', readme)
+        self.assertNotIn('only appends to it', readme)
+
 
 if __name__ == '__main__':
     unittest.main()
