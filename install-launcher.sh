@@ -52,6 +52,8 @@ Categories=Utility;
     desktop=""
     if command -v xdg-user-dir >/dev/null 2>&1; then
         desktop=$(xdg-user-dir DESKTOP 2>/dev/null)
+        # It answers the home folder itself when no desktop folder is set up.
+        [ "${desktop%/}" = "${HOME%/}" ] && desktop=""
         [ -d "$desktop" ] || desktop=""
     fi
     if [ -z "$desktop" ] && [ -d "$HOME/Desktop" ]; then
@@ -60,10 +62,11 @@ Categories=Utility;
     if [ -n "$desktop" ]; then
         printf '%s' "$entry" > "$desktop/nesting-tool.desktop" || die "Cannot write $desktop/nesting-tool.desktop"
         chmod 755 "$desktop/nesting-tool.desktop"
-        if command -v gio >/dev/null 2>&1; then
-            gio set "$desktop/nesting-tool.desktop" metadata::trusted true >/dev/null 2>&1 || true
-        fi
         echo "Wrote $desktop/nesting-tool.desktop"
+        if ! { command -v gio >/dev/null 2>&1 &&
+               gio set "$desktop/nesting-tool.desktop" metadata::trusted true >/dev/null 2>&1; }; then
+            echo "If the desktop icon does not start, right-click it and choose Allow Launching."
+        fi
     else
         echo "No desktop folder found; skipped the desktop icon."
     fi

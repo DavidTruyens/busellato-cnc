@@ -281,14 +281,14 @@ class InstallLauncherTests(unittest.TestCase):
         self.stubs = self.tmp / 'stubs'
         self.stubs.mkdir()
 
-    def install(self, name='my repo', stubs=()):
+    def install(self, name='my repo', stubs=(), env=None):
         repo = self.tmp / name
         repo.mkdir()
         for f in ('start.sh', 'install-launcher.sh'):
             shutil.copy(REPO / f, repo / f)
         for cmd, body in stubs:
             write_stub(self.stubs / cmd, body)
-        env = {'HOME': str(self.home), 'PATH': '%s:/usr/bin:/bin' % self.stubs}
+        env = {'HOME': str(self.home), 'PATH': '%s:/usr/bin:/bin' % self.stubs, **(env or {})}
         r = subprocess.run(['bash', str(repo / 'install-launcher.sh')], env=env,
                            capture_output=True, text=True)
         return repo, r
@@ -344,10 +344,29 @@ class InstallLauncherTests(unittest.TestCase):
     def test_install_launcher_custom_desktop_folder_and_xdg_data_home(self):
         custom = self.tmp / 'Schreibtisch'
         custom.mkdir()
-        repo, r = self.install(stubs=[('xdg-user-dir', 'echo "%s"' % custom)])
+        data = self.tmp / 'data home'
+        repo, r = self.install(stubs=[('xdg-user-dir', 'echo "%s"' % custom)],
+                               env={'XDG_DATA_HOME': str(data)})
         self.assertEqual(0, r.returncode, r.stdout + r.stderr)
         self.assertTrue((custom / 'nesting-tool.desktop').is_file())
         self.assertFalse((self.home / 'Desktop/nesting-tool.desktop').exists())
+        self.assertTrue((data / 'applications/nesting-tool.desktop').is_file())
+        self.assertFalse(self.apps_file().exists())
+
+    def test_install_launcher_desktop_dir_answering_home_falls_back(self):
+        # xdg-user-dir answers the home folder when no desktop folder is set up
+        repo, r = self.install(stubs=[('xdg-user-dir', 'echo "$HOME"')])
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertTrue((self.home / 'Desktop/nesting-tool.desktop').is_file())
+        self.assertFalse((self.home / 'nesting-tool.desktop').exists())
+
+    def test_install_launcher_trusted_hint(self):
+        hint = 'right-click it and choose Allow Launching'
+        repo, r = self.install(stubs=[('gio', 'exit 0')])
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertNotIn(hint, r.stdout)
+        repo, r = self.install('other', stubs=[('gio', 'exit 1')])
+        self.assertIn(hint, r.stdout)
 
     def test_install_launcher_no_desktop_folder_skips(self):
         (self.home / 'Desktop').rmdir()
@@ -462,6 +481,12 @@ class WindowsFilesTests(unittest.TestCase):
         self.assertGreater(vbs.index('If LogBusy(logFile) Then WaitForTool', run_bat), run_bat)
         wait = vbs[vbs.index('Sub WaitForTool()'):vbs.index('End Sub')]
         self.assertNotIn('cmd /c', wait)       # never writes into the other start's log
+
+    def test_vbs_ping_goes_direct(self):
+        vbs = self.text(START_VBS)
+        self.assertLess(vbs.index('CreateObject("MSXML2.ServerXMLHTTP")'),
+                        vbs.index('http.setProxy 1'))
+        self.assertLess(vbs.index('http.setProxy 1'), vbs.index('http.send'))
 
     def test_start_bat_update_cannot_hang(self):
         bat = self.text(START_BAT)

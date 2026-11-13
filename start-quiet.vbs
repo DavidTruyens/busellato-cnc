@@ -81,6 +81,9 @@ Function ToolRuns(pingUrl)
         Set http = CreateObject("MSXML2.ServerXMLHTTP")
     End If
     If Err.Number <> 0 Then Exit Function
+    ' 1 = direct: a proxy set up on the PC must not answer for 127.0.0.1 (not tested on Windows)
+    http.setProxy 1
+    Err.Clear
     ' resolve, connect, send, receive (milliseconds)
     http.setTimeouts 2000, 2000, 2000, 3000
     http.open "GET", pingUrl, False

@@ -437,6 +437,7 @@ class PageTests(unittest.TestCase):
     def test_page_pings_and_says_when_stopped(self):
         html = self.page()
         for text in ('/api/ping', '/api/closing', 'sendBeacon', 'pagehide',
+                     "addEventListener('pageshow', e => { if (e.persisted) ping(); })",
                      'The tool has stopped. Start it again with the icon, '
                      'then reload this page.'):
             self.assertIn(text, html)
