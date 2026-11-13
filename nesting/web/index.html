@@ -35,7 +35,7 @@ th,td{padding:4px 6px;text-align:left;border-bottom:1px solid #eceff4;font-size:
 th{font-weight:500;color:var(--mute);font-size:12px}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 td.name span{display:inline-block;max-width:100px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
-input[type=number],select{font:inherit;width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
+input[type=number],input[type=text],select{font:inherit;width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--ink)}
 input.qty{width:46px;text-align:right}
 input.bad,select.bad{border-color:var(--err);background:#fff5f4}
 .drop{border:2px dashed #b9c1cf;border-radius:8px;padding:12px;text-align:center;color:var(--mute);margin:8px 0}
@@ -115,12 +115,27 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 .pgrid input.ovr{font-weight:600}
 .pgroup .ferr,.gerr{color:var(--err);font-size:12px;margin-top:3px}
 .gerr:empty{display:none}
+.ghint{color:var(--mute);font-size:12px;margin-top:3px}
+.ghint:empty{display:none}
+[hidden]{display:none !important}
+#toolsPage{flex:1;min-height:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.tbox{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;flex-shrink:0}
+.tbox h2{margin:0 0 6px}
+.tbox input[type=number]{width:86px;text-align:right}
+.tbox input[type=text]{width:160px}
+.tbox select{width:auto;min-width:110px}
+.tbox td.na{color:var(--mute);text-align:center}
+.tbox td.used{white-space:normal;color:var(--mute)}
+.tbox tr.erow td{border-bottom:0;padding:0 6px}
+.tbox tr.erow:has(.ferr:empty){display:none}
+.banner.bad{background:#fff5f4;color:var(--err);border-color:#f3b8b2}
 @media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
 </style>
 </head>
 <body>
 <header>
   <h1>Panel nesting &amp; programs</h1>
+  <div class="bar" id="pages"><span class="tab on" data-p="plan">Plan</span><span class="tab" data-p="tools">Tools</span></div>
   <span class="badge">Not yet run on the machine: check every program in the simulator first</span>
   <span class="spacer"></span>
   <span id="status"></span>
@@ -185,14 +200,13 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <p class="note">All in mm. The program's stock height is the stack height (scrap + blank); every depth is measured down from the top of the stack. This reading of the control is not yet checked on the machine. To change Z at the shop: edit a height here and generate again.</p>
 
   <h2>Router (cut job)</h2>
-  <div class="field wide"><label for="preset">Preset: fills the router tool and Ø</label><select id="preset"></select></div>
-  <div id="routerToolFields"></div>
   <div id="routerFields"></div>
+  <p class="note">The bit in the head sets the Ø, spindle speed, feeds and depth per pass: see the Tools page.</p>
   <p class="note" id="gapNote"></p>
 
   <h2 id="pockets">Pockets</h2>
   <div id="pocketFields"></div>
-  <p class="note">Defaults for every pocket group; all placeholders until measured. Depth is measured from the top of the blank. Pockets are cut by the blank's <code>B..P</code> program, after the screws and before the cut.</p>
+  <p class="note">Defaults for every pocket group; all placeholders until measured. The bit in the head sets the Ø, speed, feeds, depth per pass and stepover (Tools page). Depth is measured from the top of the blank. Pockets are cut by the blank's <code>B..P</code> program, after the screws and before the cut.</p>
   <div id="pocketGroups"></div>
 
   <h2>Drills</h2>
@@ -203,6 +217,26 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <p class="note">Values shown are placeholders until measured at the machine. The panel Layout view is the saw plan (panel corner bottom left), not machine coordinates. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
 </aside>
 </main>
+
+<section id="toolsPage" hidden>
+  <div class="banner bad" id="toolsErr"></div>
+  <div class="banner" id="toolsNotes"></div>
+  <div class="tbox">
+    <h2>Bits</h2>
+    <p class="note">Every bit the machine may hold, with its numbers; all placeholders until measured. A program takes these numbers from the bit in the head it names. Cells a type does not use show —; optional cells may be left empty.</p>
+    <table id="bitsTable"></table>
+    <div class="ferr" data-err="tools.bits"></div>
+    <div class="ferr" data-err="tools"></div>
+    <p><button id="addBit">Add bit</button></p>
+    <div id="bitNotes"></div>
+  </div>
+  <div class="tbox">
+    <h2>Toolheads</h2>
+    <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings.</p>
+    <table id="headsTable"></table>
+    <div class="ferr" data-err="tools.heads"></div>
+  </div>
+</section>
 
 <div id="result"><div class="box">
   <h3 id="rtitle">Programs written</h3>
@@ -233,7 +267,8 @@ function fmt(v){
   const s = (Math.round(v * 1000) / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
   return s === '-0' || s === '' ? '0' : s;
 }
-const toolsOf = g => (g.tools || [g.tool]).map(t => 'T' + t).join(' + ');
+// 'T66 Router 8' from the server; the bare head numbers if it sent no labels
+const toolsOf = g => (g.tool_labels || (g.tools || [g.tool]).map(t => 'T' + t)).join(' + ');
 const fmtArea = v => (Math.round(v * 10) / 10).toString();
 function el(tag, props, ...kids){
   const e = document.createElement(tag);
@@ -248,6 +283,9 @@ function setK(o, k, v){ const ps = k.split('.'), last = ps.pop(); ps.reduce((a, 
 const NOTE_FEED = "not written to the program (the control uses the tool's own feed)";
 const NOTE_DIA = 'not written to the program (the tool number picks the drill); listed per tool on the run sheet';
 // [key, label, unit or choices, step, kind, (unused), note under the field]
+// the heads the programs use (the server refuses any other); the rest are listed only
+const ROUTER_HEADS = [65, 66];
+const DRILL_HEADS = Array.from({length: 30}, (_, i) => i + 1);
 const NOTE_FRAME = "placeholder: to verify on the machine's axis parameter screens";
 const NOTE_Y = "Where X0 Y0 is and which way Y grows in the drill and cut programs. Front is the user's statement, not yet verified on the machine: check it, and the arc direction (G2/G3), with an air cut first.";
 const FIELDS = {
@@ -255,36 +293,20 @@ const FIELDS = {
     ['heights.scrap', 'Scrap plate on cups', 'mm'],
     ['heights.into_scrap', 'Shape cut into scrap', 'mm', 0.1],
     ['heights.fix_into_scrap', 'Fixing holes into scrap', 'mm', 0.5]],
-  routerToolFields: [
-    ['router.tool', 'Router tool', 'T', 1, 'int'],
-    ['router.diameter', 'Router Ø', 'mm', 0.1]],
   routerFields: [
-    ['router.spindle_rpm', 'Spindle', 'rpm', 500],
-    ['router.plunge_feed', 'Plunge feed', 'm/min', 0.5],
-    ['router.cut_feed', 'Cut feed', 'm/min', 0.5],
-    ['router.depth_per_pass', 'Depth per pass', 'mm'],
+    ['router.tool', 'Router head', ROUTER_HEADS, 0, 'head'],
     ['router.clearance', 'Clearance between cuts', 'mm'],
     ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
   pocketFields: [
     ['pockets.min_circle_diameter', 'A circle over this Ø is a pocket (else a hole)', 'mm', 0.5],
     ['pockets.min_floor', 'Least floor left under a pocket', 'mm', 0.5],
-    ['pockets.tool', 'Pocket tool', 'T', 1, 'int'],
-    ['pockets.diameter', 'Pocket tool Ø', 'mm', 0.1],
+    ['pockets.tool', 'Pocket head', ROUTER_HEADS, 0, 'head'],
     ['pockets.depth', 'Pocket depth', 'mm', 0.5],
-    ['pockets.depth_per_pass', 'Depth per pass', 'mm', 0.5],
-    ['pockets.spindle_rpm', 'Spindle', 'rpm', 500],
-    ['pockets.plunge_feed', 'Plunge feed', 'm/min', 0.5],
-    ['pockets.cut_feed', 'Cut feed', 'm/min', 0.5],
-    ['pockets.stepover_pct', 'Stepover (of the Ø)', '%', 5],
     ['pockets.direction', 'Direction', [['cw', 'Clockwise'], ['ccw', 'Counter-clockwise']]]],
   drillFields: [
-    ['drill_fix.tool', 'Fixing drill tool', 'T', 1, 'int'],
-    ['drill_fix.diameter', 'Fixing holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
-    ['drill_fix.feed', 'Fixing drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED],
-    ['drill_screw.tool', 'Screw drill tool', 'T', 1, 'int'],
-    ['drill_screw.diameter', 'Screw holes Ø', 'mm', 0.5, 'num', '', NOTE_DIA],
-    ['drill_screw.depth', 'Screw hole depth into scrap', 'mm'],
-    ['drill_screw.feed', 'Screw drill feed', 'm/min', 0.5, 'num', '', NOTE_FEED]],
+    ['drill_fix.tool', 'Fixing drill head', DRILL_HEADS, 0, 'head'],
+    ['drill_screw.tool', 'Screw drill head', DRILL_HEADS, 0, 'head'],
+    ['drill_screw.depth', 'Screw hole depth into scrap', 'mm']],
   blankFields: [
     ['blank.shapes_per', 'Shapes per blank', '', 1, 'int'],
     ['blank.group_by', 'Group by', [['length', 'Similar length'], ['order', 'List order']]],
@@ -304,7 +326,6 @@ const FIELDS = {
     ['machine.frame_y', 'Work frame Y', 'mm', 1, 'num', '', NOTE_FRAME],
     ['machine.y_toward', 'Y axis grows toward', [['front', 'front of machine (origin top-left)'], ['back', 'back of machine (origin bottom-left)']], 0, 'wide', '', NOTE_Y]]
 };
-const ROUTER_TOOLS = [[66, 8, 'T66 Ø8 (right, 4.5 HP)'], [65, 18, 'T65 Ø18 (left, 7 HP)']];
 const Z_LABELS = [
   ['stack_top', 'Stack height (top of the stack above the cups)'],
   ['fixing', 'Fixing holes: drill depth below the top of the stack'],
@@ -313,10 +334,8 @@ const Z_LABELS = [
 const RUNS = {x: 'along X', y: 'along Y'};
 const FREES = {offcut: 'offcut (trim)', strip: 'strip', rough: 'blank, to trim', blank: 'blank'};
 
-// per pocket group override: [field, label, step]; an empty input uses the default
-const GROUP_FIELDS = [['tool', 'Tool T', 1], ['diameter', 'Ø mm', 0.1], ['depth', 'Depth mm', 0.5],
-  ['depth_per_pass', 'Pass mm', 0.5], ['plunge_feed', 'Plunge m/min', 0.5], ['cut_feed', 'Cut m/min', 0.5],
-  ['stepover_pct', 'Stepover %', 5]];
+// per pocket group override: [field, label, step or 'head']; empty uses the default
+const GROUP_FIELDS = [['tool', 'Head', 'head'], ['depth', 'Depth mm', 0.5]];
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const safeColor = c => typeof c === 'string' && COLOR_RE.test(c) ? c : '#888888';
 
@@ -336,7 +355,12 @@ function buildFields(){
     list.forEach(([key, label, unit, step, kind, only, note]) => {
       let input;
       const id = 'f_' + key.replace('.', '_');
-      if (Array.isArray(unit)){
+      if (kind === 'head'){
+        input = el('select', {id});
+        input.dataset.heads = unit.join(',');
+        fillHeadSelect(input, unit, getK(project.settings, key));
+        input.addEventListener('change', () => { setK(project.settings, key, Number(input.value)); changed(); });
+      } else if (Array.isArray(unit)){
         input = el('select', {id});
         unit.forEach(([v, t]) => input.append(el('option', {value: v}, t)));
         input.value = getK(project.settings, key);
@@ -347,9 +371,10 @@ function buildFields(){
         input.addEventListener('input', () => { setK(project.settings, key, parseValue(input.value)); changed(); });
       }
       input.dataset.k = key;
-      const f = el('div', {className: kind === 'wide' ? 'field wide' : Array.isArray(unit) ? 'field half' : 'field'},
+      const choice = Array.isArray(unit);
+      const f = el('div', {className: kind === 'wide' ? 'field wide' : choice ? 'field half' : 'field'},
                    el('label', {htmlFor: id}, label), input);
-      if (!Array.isArray(unit)) f.append(el('span', {className: 'unit'}, unit));
+      if (!choice) f.append(el('span', {className: 'unit'}, unit));
       if (note) f.append(el('div', {className: 'fnote'}, note));
       const err = el('div', {className: 'ferr'}); err.dataset.err = key;
       f.append(err);
@@ -357,27 +382,17 @@ function buildFields(){
       host.append(f);
     });
   });
-  // router preset: fills the tool and diameter inputs, which save like any other field
-  const sel = $('preset');
-  sel.append(el('option', {value: ''}, 'Typed in'));
-  ROUTER_TOOLS.forEach(([t, d, txt]) => sel.append(el('option', {value: t + '|' + d}, txt)));
-  sel.addEventListener('change', () => {
-    if (!sel.value) return;
-    const [t, d] = sel.value.split('|').map(Number), r = project.settings.router;
-    r.tool = t; r.diameter = d;
-    $('f_router_tool').value = t; $('f_router_diameter').value = d;
-    changed();
-  });
   syncSettingsNotes();
 }
 
 function syncSettingsNotes(){
   const s = project.settings;
-  const preset = ROUTER_TOOLS.find(([t, d]) => t === s.router.tool && d === s.router.diameter);
-  $('preset').value = preset ? preset[0] + '|' + preset[1] : '';
   $('panelNote').textContent = `A blank must fit the work frame ${s.machine.frame_x} × ${s.machine.frame_y} (long side along machine X). Blanks are sawn from ${s.panel.width} × ${s.panel.length} panels; 90° turns on the panel allowed.`;
-  const gap = Number(s.router.diameter) + Number(s.router.clearance);
-  $('gapNote').textContent = `Gap between shapes on a blank: tool Ø + clearance = ${Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
+  const bit = bitIn(s.router.tool), gap = Number(bit && bit.diameter) + Number(s.router.clearance);
+  $('gapNote').textContent = `Gap between shapes on a blank: Ø of the bit in ${headLabel(s.router.tool)} + clearance = ${bit && Number.isFinite(gap) ? fmt(gap) : '?'} mm.`;
+  // head pickers of the settings: the bit names may have changed
+  document.querySelectorAll('select[data-heads]').forEach(sel =>
+    fillHeadSelect(sel, sel.dataset.heads.split(',').map(Number), getK(project.settings, sel.dataset.k)));
 }
 
 // ---- field errors ------------------------------------------------------------------------
@@ -385,9 +400,20 @@ function clearErrors(){
   document.querySelectorAll('.ferr').forEach(e => e.textContent = '');
   document.querySelectorAll('.bad').forEach(e => e.classList.remove('bad'));
 }
-function showFieldError(err){
-  // returns true when the field has a control on the page
+function showFieldError(err, reveal){
+  // returns true when the field has a control on the page; reveal: switch to the page it is on
   let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
+  // tools.bits.<id>.<field> and tools.heads.T<n>: the message goes under the bit's or head's
+  // row; any other tools field under the tables
+  const t = /^tools\.(bits|heads)\.([^.]+)(?:\.(.+))?$/.exec(err.field || '');
+  if (!box && t){
+    box = document.querySelector(`.ferr[data-err="${CSS.escape(`tools.${t[1]}.${t[2]}`)}"]`);
+    if (t[3]) msg = `${t[3]}: ${msg}`;
+  }
+  if (!box && /^tools(\.|$)/.test(err.field || '')){
+    box = document.querySelector('.ferr[data-err="tools"]');
+    msg = `${err.field}: ${msg}`;
+  }
   // pockets.G<n>.<field>: the message goes under the group's row, the input is marked
   const m = /^pockets\.(G\d+)(?:\.(.+))?$/.exec(err.field || '');
   if (!box && m){
@@ -398,6 +424,7 @@ function showFieldError(err){
   box.textContent = msg;
   const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
   if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
+  if (reveal) showPage($('toolsPage').contains(box) ? 'tools' : 'plan');
   return true;
 }
 
@@ -407,13 +434,16 @@ function status(text, bad){ $('status').textContent = text; $('status').classLis
 function changed(){
   syncSettingsNotes();
   updateGroups();
+  updateTools();
   status('Saving…');
   clearTimeout(timer);
   timer = setTimeout(() => { timer = null; sync(); }, 300);
 }
 function sync(){
   queue = queue.then(async () => {
-    const r = await fetch('/api/project', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(project)});
+    // the tool table goes with every save (a save without it keeps the stored one)
+    const body = {shapes: project.shapes, settings: project.settings, pockets: project.pockets, tools: project.tools};
+    const r = await fetch('/api/project', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const b = await r.json();
     clearErrors();
     if (!r.ok){
@@ -421,15 +451,16 @@ function sync(){
       // the group list of what is saved, so an error text of an earlier state does not linger
       try {
         const g = await fetch('/api/project');
-        if (g.ok){ groups = (await g.json()).pocket_groups || []; renderGroups(); }
+        if (g.ok){ const fresh = await g.json(); groups = fresh.pocket_groups || []; serverState(fresh); renderGroups(); }
       } catch (e){ /* the status line below says it is not saved */ }
-      showFieldError(saveError);
+      showFieldError(saveError, true);
       status(`Not saved: ${saveError.field} ${saveError.message}`, true);
       renderProblems();
       return;
     }
     saveError = null;
     groups = b.pocket_groups || [];
+    serverState(b);
     renderGroups();
     status('Saved');
     await loadPlan();
@@ -484,6 +515,7 @@ function renderGroups(){
     shown.forEach(g => host.append(buildGroup(g)));
   }
   updateGroups();
+  updateTools();      // the heads' "used by" names the groups
 }
 function buildGroup(g){
   const ov = isPlainObject(project.pockets[g.key]) ? project.pockets[g.key] : {};
@@ -496,26 +528,36 @@ function buildGroup(g){
   const head = el('div', {className: 'ghead'},
     el('label', {htmlFor: cb.id, title: 'cut this group (off: not cut, shown dimmed)'}, cb, swatch, el('b', {}, g.id)),
     `${fmt(g.width)} × ${fmt(g.height)} ${g.kind}`, count);
-  const grid = el('div', {className: 'pgrid'});
+  const grid = el('div', {className: 'pgrid', style: 'grid-template-columns:2fr 1fr'});
   const inputs = {};
   GROUP_FIELDS.forEach(([name, label, step]) => {
     const id = `pg_${g.id}_${name}`;
-    const input = el('input', {id, type: 'number', step: String(step)});
-    input.value = typeof ov[name] === 'number' ? String(ov[name]) : '';
-    input.classList.toggle('ovr', input.value !== '');
+    let input;
+    if (step === 'head'){
+      // first option: no override, the pocket default head; filled by updateGroups
+      input = el('select', {id});
+      input.addEventListener('change', () => {
+        setOverride(g.key, name, input.value === '' ? undefined : Number(input.value));
+        input.classList.toggle('ovr', input.value !== '');
+      });
+    } else {
+      input = el('input', {id, type: 'number', step: String(step)});
+      input.value = typeof ov[name] === 'number' ? String(ov[name]) : '';
+      input.addEventListener('input', () => {
+        // empty: back to the default; text the browser cannot read: null, the server names it
+        setOverride(g.key, name, input.value === '' && !input.validity.badInput ? undefined : parseValue(input.value));
+        input.classList.toggle('ovr', input.value !== '');
+      });
+    }
+    input.classList.toggle('ovr', ov[name] !== undefined);
     input.dataset.k = `pockets.${g.id}.${name}`;
-    input.addEventListener('input', () => {
-      // empty: back to the default; text the browser cannot read: null, the server names it
-      setOverride(g.key, name, input.value === '' && !input.validity.badInput ? undefined : parseValue(input.value));
-      input.classList.toggle('ovr', input.value !== '');
-    });
     inputs[name] = input;
     grid.append(el('div', {}, el('label', {htmlFor: id}, label), input));
   });
   const err = el('div', {className: 'ferr'}); err.dataset.err = `pockets.${g.id}`;
-  const gerr = el('div', {className: 'gerr'});
-  const card = el('div', {className: 'pgroup'}, head, grid, err, gerr);
-  groupRefs[g.id] = {card, count, inputs, gerr};
+  const gerr = el('div', {className: 'gerr'}), ghint = el('div', {className: 'ghint'});
+  const card = el('div', {className: 'pgroup'}, head, grid, err, gerr, ghint);
+  groupRefs[g.id] = {card, count, inputs, gerr, ghint};
   return card;
 }
 function updateGroups(){
@@ -526,12 +568,208 @@ function updateGroups(){
     const r = groupRefs[g.id];
     if (!r) return;
     const ov = isPlainObject(project.pockets[g.key]) ? project.pockets[g.key] : {};
-    r.card.classList.toggle('dim', !g.count || ov.enabled === false || !!g.error);
+    // the checkbox follows the override: a group the server could not use (enabled false
+    // with an error) is not shown as switched off
+    r.card.classList.toggle('dim', !g.count || ov.enabled === false || (!!g.error && !!g.count));
     r.count.textContent = `${g.count} pocket${g.count === 1 ? '' : 's'}` + (g.count ? '' : ' (shapes off)');
     Object.entries(r.inputs).forEach(([name, input]) => {
-      input.placeholder = typeof d[name] === 'number' ? fmt(d[name]) : '';
+      if (input.tagName === 'SELECT')
+        fillHeadSelect(input, ROUTER_HEADS, ov[name], `default (${headLabel(d.tool)})`);
+      else input.placeholder = typeof d[name] === 'number' ? fmt(d[name]) : '';
     });
-    r.gerr.textContent = g.error || '';
+    // shapes all off: nothing is cut, so the error is a hint for when they are switched on
+    const hint = !!g.error && !g.count && ov.enabled !== false;
+    r.gerr.textContent = g.error && !hint ? g.error : '';
+    r.ghint.textContent = hint ? `When its shapes are switched on: ${g.error}` : '';
+  });
+}
+
+// ---- pages: Plan | Tools -----------------------------------------------------------------------
+function showPage(name){
+  $('pages').querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.p === name));
+  document.querySelector('main').hidden = name !== 'plan';
+  $('toolsPage').hidden = name !== 'tools';
+}
+$('pages').querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showPage(t.dataset.p)));
+
+// ---- the tool table: bits and the heads they sit in (project.tools, saved with the project) --
+// per bit type: the fields it needs, then the ones that may stay empty (as nesting/tools.py)
+const BIT_TYPES = {
+  router: {required: ['diameter', 'spindle_rpm', 'plunge_feed', 'cut_feed', 'depth_per_pass', 'stepover_pct'], optional: []},
+  drill: {required: ['diameter', 'plunge_feed'], optional: ['spindle_rpm']},
+  blade: {required: ['diameter'], optional: ['spindle_rpm', 'cut_feed']}};
+// a new bit's numbers per type (the default router bit's and drill's: placeholders)
+const BIT_SEED = {router: {spindle_rpm: 18000, plunge_feed: 1, cut_feed: 3, depth_per_pass: 9, stepover_pct: 40},
+  drill: {plunge_feed: 1}, blade: {}};
+const BIT_COLS = [['diameter', 'Ø mm', 0.1], ['spindle_rpm', 'Spindle rpm', 500], ['plunge_feed', 'Plunge m/min', 0.5],
+  ['cut_feed', 'Cut m/min', 0.5], ['depth_per_pass', 'Depth/pass mm', 0.5], ['stepover_pct', 'Stepover %', 5]];
+const BIT_NOTES = [{what: 'Drill bit plunge feed', note: NOTE_FEED}, {what: 'Drill bit Ø', note: NOTE_DIA},
+  {what: 'Drill and blade spindle speed', note: 'not written to the program; optional'}];
+let headList = [], toolsError = null, toolsNotes = [], bitRows = [], headRows = [];
+
+function serverState(b){
+  // what the server says about the stored table (a save that went through clears both)
+  toolsError = b.tools_error || null;
+  toolsNotes = Array.isArray(b.tools_notes) ? b.tools_notes : [];
+  $('toolsErr').replaceChildren(...(toolsError ? [el('b', {}, 'The tool table in project.json is not valid: '),
+    `${toolsError.field}: ${toolsError.message}. Fix it here; a save writes the table shown on this page.`] : []));
+  $('toolsNotes').replaceChildren(...(toolsNotes.length ? [el('b', {}, 'Built from the settings of an older project'),
+    el('ul', {}, ...toolsNotes.map(n => el('li', {}, n)))] : []));
+}
+// the table as stored may be bad (tools_error): read it defensively, never fill in defaults
+const tableBits = () => project.tools && Array.isArray(project.tools.bits) ? project.tools.bits.filter(isPlainObject) : [];
+const tableHeads = () => project.tools && isPlainObject(project.tools.heads) ? project.tools.heads : null;
+function bitIn(n){
+  const h = tableHeads(), id = h ? h['T' + n] : null;
+  return id == null ? null : tableBits().find(b => b.id === id) || null;
+}
+const headLabel = n => { const b = bitIn(n); return b ? `T${n} ${b.name}` : `T${n} (empty)`; };
+const headsOf = id => Object.entries(tableHeads() || {}).filter(([, v]) => v === id).map(([k]) => k)
+  .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+
+function fillHeadSelect(sel, numbers, current, first){
+  // options 'T66 Router 8' for the heads an operation may name; a stored value outside them
+  // is kept as an option, so the page shows it and the server names the error
+  const opts = (first !== undefined ? [['', first]] : []).concat(numbers.map(n => [String(n), headLabel(n)]));
+  if (current != null && current !== '' && !numbers.includes(current)) opts.push([String(current), `T${current} (not usable here)`]);
+  const same = sel.options.length === opts.length && opts.every(([v, t], i) => sel.options[i].value === v && sel.options[i].text === t);
+  if (!same) sel.replaceChildren(...opts.map(([v, t]) => el('option', {value: v}, t)));
+  sel.value = current == null ? '' : String(current);
+}
+
+function renderTools(){
+  const tools = project.tools;
+  const ok = isPlainObject(tools) && Array.isArray(tools.bits) && isPlainObject(tools.heads);
+  $('addBit').disabled = !ok;
+  $('addBit').onclick = addBit;
+  renderBits(ok);
+  renderHeads(ok);
+  $('bitNotes').replaceChildren(...BIT_NOTES.map(({what, note}) => el('div', {className: 'note'}, `${what}: ${note}.`)));
+  if (!ok){
+    // nothing to edit in place: the user may start an empty table (never a silent default)
+    const btn = el('button', {}, 'Start an empty tool table');
+    btn.addEventListener('click', () => { project.tools = {bits: [], heads: {}}; renderTools(); changed(); });
+    $('bitsTable').replaceChildren(el('tbody', {}, el('tr', {}, el('td', {className: 'note'},
+      'The stored tool table cannot be shown (see above). ', btn))));
+  }
+}
+
+function renderBits(ok){
+  const tbl = $('bitsTable');
+  bitRows = [];
+  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Name'), el('th', {}, 'Type'),
+    ...BIT_COLS.map(([, label]) => el('th', {className: 'num'}, label)), el('th', {}, 'In heads'), el('th', {}))));
+  if (!ok) return;
+  const body = el('tbody');
+  tableBits().forEach(bit => {
+    const path = `tools.bits.${bit.id}`;
+    const name = el('input', {type: 'text', value: typeof bit.name === 'string' ? bit.name : '', maxLength: 40});
+    name.dataset.k = `${path}.name`;
+    name.addEventListener('input', () => { bit.name = name.value; changed(); });
+    const type = el('select', {});
+    Object.keys(BIT_TYPES).forEach(t => type.append(el('option', {value: t}, t)));
+    if (!(bit.type in BIT_TYPES)) type.append(el('option', {value: String(bit.type)}, String(bit.type)));
+    type.value = String(bit.type);
+    type.dataset.k = `${path}.type`;
+    type.addEventListener('change', () => { retype(bit, type.value); renderTools(); changed(); });
+    const spec = BIT_TYPES[bit.type] || {required: ['diameter'], optional: []};
+    const cells = BIT_COLS.map(([k, , step]) => {
+      if (!spec.required.includes(k) && !spec.optional.includes(k)) return el('td', {className: 'na'}, '—');
+      const opt = spec.optional.includes(k);
+      const input = el('input', {type: 'number', step: String(step), placeholder: opt ? 'optional' : ''});
+      input.value = bit[k] == null ? '' : String(bit[k]);
+      input.dataset.k = `${path}.${k}`;
+      input.addEventListener('input', () => {
+        // an optional cell left empty is omitted; a required one is null and the server names it
+        if (opt && input.value === '' && !input.validity.badInput) delete bit[k]; else bit[k] = parseValue(input.value);
+        changed();
+      });
+      return el('td', {className: 'num'}, input);
+    });
+    const inHeads = el('td', {className: 'used'});
+    const err = el('div', {className: 'ferr'}); err.dataset.err = path;
+    const del = el('button', {title: 'delete this bit'}, 'Delete');
+    del.addEventListener('click', () => {
+      const where = headsOf(bit.id);
+      if (where.length){ err.textContent = `${bit.name} sits in ${where.join(', ')}: empty that head first`; return; }
+      project.tools.bits = project.tools.bits.filter(b => b !== bit);
+      renderTools(); changed();
+    });
+    body.append(el('tr', {}, el('td', {}, name), el('td', {}, type), ...cells, inHeads, el('td', {}, del)),
+      el('tr', {className: 'erow'}, el('td', {colSpan: BIT_COLS.length + 4}, err)));
+    bitRows.push({bit, inHeads});
+  });
+  if (!tableBits().length) body.append(el('tr', {}, el('td', {colSpan: BIT_COLS.length + 4, className: 'note'}, 'No bits yet: add one.')));
+  tbl.append(body);
+  updateTools();
+}
+
+function retype(bit, type){
+  // keeps id, name and diameter; the new type's own fields start from the placeholder numbers
+  Object.keys(bit).forEach(k => { if (!['id', 'name', 'type', 'diameter'].includes(k)) delete bit[k]; });
+  bit.type = type;
+  Object.assign(bit, BIT_SEED[type] || {});
+}
+
+function addBit(){
+  const ids = new Set(tableBits().map(b => b.id));
+  let n = 1;
+  while (ids.has('b' + n)) n++;
+  project.tools.bits.push({id: 'b' + n, name: 'Router 8', type: 'router', diameter: 8, ...BIT_SEED.router});
+  renderTools(); changed();
+}
+
+const usesHead = n => n === 65 || n === 66 || (n >= 1 && n <= 30);
+function renderHeads(ok){
+  const tbl = $('headsTable');
+  headRows = [];
+  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Head'), el('th', {}, 'Where'), el('th', {}, 'Bit'), el('th', {}, 'Used by'))));
+  if (!ok) return;
+  const body = el('tbody');
+  const known = new Set(headList.map(h => 'T' + h.number));
+  // the machine's heads, then any key of a hand-edited table that is not one (to empty it)
+  const rows = headList.map(h => ({key: 'T' + h.number, n: h.number, label: h.label, allows: h.allows}))
+    .concat(Object.keys(project.tools.heads).filter(k => !known.has(k)).map(k => ({key: k, n: null, label: 'not a machine head', allows: []})));
+  rows.forEach(h => {
+    const sel = el('select', {});
+    sel.dataset.k = `tools.heads.${h.key}`;
+    sel.addEventListener('change', () => {
+      if (sel.value === '') delete project.tools.heads[h.key]; else project.tools.heads[h.key] = sel.value;
+      changed();
+    });
+    const used = el('td', {className: 'used'});
+    const err = el('div', {className: 'ferr'}); err.dataset.err = `tools.heads.${h.key}`;
+    body.append(el('tr', {}, el('td', {}, el('b', {}, h.key)),
+      el('td', {}, h.allows.length ? `${h.label} (${h.allows.join(' or ')} bits)` : h.label), el('td', {}, sel), used),
+      el('tr', {className: 'erow'}, el('td', {colSpan: 4}, err)));
+    headRows.push({h, sel, used});
+  });
+  tbl.append(body);
+  updateTools();
+}
+
+function updateTools(){
+  // what changes without rebuilding the rows (and losing the focus): bit names in the head
+  // pickers, which heads a bit sits in, which operation uses a head
+  if (!project || !tableHeads()) return;
+  bitRows.forEach(({bit, inHeads}) => { const w = headsOf(bit.id); inHeads.textContent = w.length ? w.join(', ') : 'none'; });
+  const s = project.settings, bits = tableBits();
+  headRows.forEach(({h, sel, used}) => {
+    const cur = project.tools.heads[h.key];
+    const opts = [['', '— empty —']].concat(bits.filter(b => h.allows.includes(b.type) || b.id === cur)
+      .map(b => [b.id, h.allows.includes(b.type) ? b.name : `${b.name} (${b.type}: not allowed here)`]));
+    if (cur != null && !bits.some(b => b.id === cur)) opts.push([String(cur), `${cur} (not in the table)`]);
+    const same = sel.options.length === opts.length && opts.every(([v, t], i) => sel.options[i].value === v && sel.options[i].text === t);
+    if (!same) sel.replaceChildren(...opts.map(([v, t]) => el('option', {value: v}, t)));
+    sel.value = cur == null ? '' : String(cur);
+    if (h.n === null || !usesHead(h.n)){ used.textContent = 'listed only: no program uses this head'; return; }
+    const who = [];
+    if (s.router && s.router.tool === h.n) who.push('router');
+    if (s.pockets && s.pockets.tool === h.n) who.push('pocket default');
+    groups.forEach(g => { const o = project.pockets[g.key]; if (isPlainObject(o) && o.tool === h.n) who.push('pocket group ' + g.id); });
+    if (s.drill_fix && s.drill_fix.tool === h.n) who.push('fixing drill');
+    if (s.drill_screw && s.drill_screw.tool === h.n) who.push('screw drill');
+    used.textContent = who.join(', ');
   });
 }
 
@@ -785,8 +1023,12 @@ async function renderCode(){
 function renderProblems(){
   const box = $('problems'), items = [];
   if (saveError) items.push(`Not saved: ${saveError.field ? saveError.field + ': ' : ''}${saveError.message}. The drawing shows the last saved settings.`);
-  if (plan && plan.settings_error) items.push(`Setting ${plan.settings_error.field}: ${plan.settings_error.message}`);
+  if (toolsError) items.push(`The tool table in project.json is not valid (${toolsError.field}: ${toolsError.message}). Fix it on the Tools page; a save writes the table shown there.`);
+  const se = plan && plan.settings_error;
+  if (se && !(toolsError && se.field === toolsError.field)) items.push(`Setting ${plan.settings_error.field}: ${plan.settings_error.message}`);
+  // the plan's problems start with the tool table notes; a note it does not carry is added
   if (plan) plan.problems.forEach(p => items.push(p));
+  toolsNotes.forEach(n => { if (!items.includes(n)) items.push(n); });
   box.replaceChildren();
   if (items.length) box.append(el('b', {}, 'Problems'), el('ul', {}, ...items.map(t => el('li', {}, t))));
 }
@@ -851,9 +1093,14 @@ $('result').addEventListener('click', e => { if (e.target.id === 'result') $('re
     project = await r.json();
     if (!r.ok) throw new Error(project.error || 'cannot read the project');
     groups = project.pocket_groups || [];
-    delete project.pocket_groups;          // listed by the server, not saved
+    headList = project.heads || [];
+    serverState(project);
+    // listed by the server, not saved
+    ['pocket_groups', 'heads', 'tools_notes', 'tools_error'].forEach(k => delete project[k]);
     if (!isPlainObject(project.pockets)) project.pockets = {};
     buildFields();
+    renderTools();
+    if (toolsError) showFieldError(toolsError);
     renderShapes();
     renderGroups();
     status('Loaded');

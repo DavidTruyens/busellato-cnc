@@ -986,9 +986,9 @@ class ServerTests(unittest.TestCase):
         for text in (html, readme):
             self.assertIn(feed, text)
             self.assertIn(dia, text)
-        for key, note in (('drill_fix.feed', 'NOTE_FEED'), ('drill_screw.feed', 'NOTE_FEED'),
-                          ('drill_fix.diameter', 'NOTE_DIA'), ('drill_screw.diameter', 'NOTE_DIA')):
-            self.assertRegex(html, r"\['%s',[^\]]*%s\]" % (re.escape(key), note))
+        # the drill bits' plunge feed and diameter carry the notes on the Tools page
+        self.assertIn("note: NOTE_FEED", html)
+        self.assertIn("note: NOTE_DIA", html)
         self.assertIn(f"const NOTE_FEED = \"{feed}\"", html)
         self.assertIn(f"const NOTE_DIA = '{dia}'", html)
         for row in ('| drill_fix |', '| drill_screw |'):
@@ -1025,27 +1025,48 @@ class ServerTests(unittest.TestCase):
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual((status, body['field']), (400, f'tools.bits.{bid}.diameter'))
 
-    def test_page_router_tool_and_diameter_are_typed_with_a_preset(self):
+    def test_page_router_picks_a_head_without_a_preset(self):
         status, html = self.call('GET', '/')
         self.assertNotIn('<select id="tool"', html)
-        self.assertRegex(html, r"\['router\.tool', [^\]]*'int'\]")
-        self.assertRegex(html, r"\['router\.diameter', ")
-        self.assertIn('<select id="preset"', html)
-        self.assertIn("[66, 8, 'T66 Ø8 (right, 4.5 HP)']", html)
-        self.assertIn("[65, 18, 'T65 Ø18 (left, 7 HP)']", html)
+        self.assertRegex(html, r"\['router\.tool', [^\]]*'head'")
+        self.assertNotRegex(html, r"\['router\.diameter', ")
+        self.assertNotIn('<select id="preset"', html)
+        self.assertNotIn('ROUTER_TOOLS', html)
+
+    def test_page_has_a_tools_page_with_bits_and_heads(self):
+        status, html = self.call('GET', '/')
+        self.assertEqual(status, 200)
+        for needle in ('id="toolsPage"', 'id="bitsTable"', 'id="headsTable"'):
+            self.assertIn(needle, html)
+        for gone in ('router.spindle_rpm', 'router.plunge_feed', 'router.cut_feed',
+                     'router.depth_per_pass', 'router.diameter', 'pockets.diameter',
+                     'pockets.depth_per_pass', 'pockets.spindle_rpm', 'pockets.plunge_feed',
+                     'pockets.cut_feed', 'pockets.stepover_pct', 'drill_fix.feed',
+                     'drill_fix.diameter', 'drill_screw.feed', 'drill_screw.diameter',
+                     'ROUTER_TOOLS'):
+            self.assertNotIn(gone, html)
+        group_fields = html.split('const GROUP_FIELDS')[1].split(';')[0]
+        for gone in ('diameter', 'depth_per_pass', 'plunge_feed', 'cut_feed', 'stepover_pct'):
+            self.assertNotIn(gone, group_fields)
+        # heads by fixed label, bits by type; every save sends the table; its errors map
+        for needle in ("['drill_fix.tool', ", "['drill_screw.tool', ", "['drill_screw.depth', ",
+                       "['pockets.tool', ", 'tools: project.tools', 'tools_error',
+                       'tools_notes', 'tool_labels', "'listed only: no program uses this head'",
+                       ': empty that head first', "/^tools\\.(bits|heads)\\.",
+                       'default ('):
+            self.assertIn(needle, html)
+        # bit names are user text: never markup
+        self.assertNotRegex(html, r'innerHTML\s*=\s*[^;]*name')
 
     def test_page_has_a_pockets_section_with_defaults_and_group_rows(self):
         status, html = self.call('GET', '/')
         self.assertEqual(status, 200)
         self.assertIn('<h2 id="pockets">Pockets</h2>', html)
         self.assertIn('<div id="pocketGroups">', html)
-        for key in ('min_circle_diameter', 'min_floor', 'tool', 'diameter', 'depth',
-                    'depth_per_pass', 'spindle_rpm', 'plunge_feed', 'cut_feed', 'stepover_pct',
-                    'direction'):
+        for key in ('min_circle_diameter', 'min_floor', 'tool', 'depth', 'direction'):
             self.assertRegex(html, r"\['pockets\.%s', " % key)
         self.assertRegex(html, r"\['pockets\.min_circle_diameter', '[^']*pocket[^']*hole")
-        for name in ('tool', 'diameter', 'depth', 'depth_per_pass', 'plunge_feed', 'cut_feed',
-                     'stepover_pct'):
+        for name in ('tool', 'depth'):
             self.assertIn(f"['{name}', ", html.split('const GROUP_FIELDS')[1].split(';')[0])
         # overrides by group key, saved with the project; field errors of a group's row
         self.assertIn('project.pockets[key]', html)
