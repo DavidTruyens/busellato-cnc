@@ -5,10 +5,11 @@ import unittest
 from nesting.dxf import Hole
 from nesting.geometry import Arc
 from nesting.layout import PanelPlan, Plan, footprint, to_panel
-from nesting.preview import _path, preview_data
+from nesting.preview import _path, pocket_groups_data, preview_data
 from nesting.program import DrillOp, plan_programs
 from nesting.settings import Settings
-from test_nesting_program import by_name, hand_blank, plan_for, rect
+from test_nesting_program import (by_name, hand_blank, plan_for, pocket_shape, rect, rect_loop,
+                                  slot_loop)
 
 
 def parse(d):
@@ -300,6 +301,103 @@ class PreviewTests(unittest.TestCase):
         plan, progs, s, _ = build(rect('a', 1000, 230))
         plan.problems.append('x')
         self.assertEqual(preview_data(plan, progs, s)['problems'], ['x'])
+
+
+class PocketPreviewTests(unittest.TestCase):
+    def pocket_plan(self, y_toward='front'):
+        s = Settings()
+        s.machine.y_toward = y_toward
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30), slot_loop(300, 60, 120, 20)])
+        plan, s = plan_for(sh, settings=s)
+        return plan, s
+
+    def test_shape_pockets_and_groups(self):
+        plan, s = self.pocket_plan()
+        progs = plan_programs(plan, s)
+        data = preview_data(plan, progs, s)
+        sh = data['blanks'][0]['shapes'][0]
+        self.assertEqual([(p['group'], p['color']) for p in sh['pockets']],
+                         [('G1', data['pocket_groups'][0]['color']),
+                          ('G2', data['pocket_groups'][1]['color'])])
+        self.assertTrue(all(p['path'].startswith('M') for p in sh['pockets']))
+        g1, g2 = data['pocket_groups']
+        for g in (g1, g2):
+            self.assertEqual((g['count'], g['enabled'], g['tool'], g['depth'], g['direction']),
+                             (1, True, s.pockets.tool, s.pockets.depth, s.pockets.direction))
+        self.assertEqual((g1['id'], g1['width'], g1['height']), ('G1', 40, 30))
+        self.assertEqual(set(g1), {'id', 'key', 'width', 'height', 'kind', 'count', 'color',
+                                   'enabled', 'tool', 'diameter', 'depth', 'depth_per_pass',
+                                   'plunge_feed', 'cut_feed', 'stepover_pct', 'direction'})
+        self.assertEqual([p['name'] for p in data['blanks'][0]['programs']],
+                         ['B01D', 'B01P', 'B01C'])
+        self.assertEqual(data['blanks'][0]['programs'][1]['tools'], [s.pockets.tool])
+
+    def test_pocket_outline_matches_shape_mapping(self):
+        plan, s = self.pocket_plan('back')
+        data = preview_data(plan, plan_programs(plan, s), s)
+        b = data['blanks'][0]
+        ps = plan.blanks[0].shapes[0]
+        x0, y0 = ps.x, ps.y
+        pts = points(b['shapes'][0]['pockets'][0]['path'])
+        self.assertEqual(pts[0], (x0 + 100, b['height'] - (y0 + 50)))
+
+    def test_counts_include_copies_and_overrides_are_effective(self):
+        s = Settings()
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
+        plan, s = plan_for(sh, settings=s)
+        from nesting.layout import ShapeEntry, build_plan
+        plan = build_plan([ShapeEntry(sh, 3)], s)
+        key = pocket_groups_data(plan, s)[0]['key']
+        g = pocket_groups_data(plan, s, {key: {'depth': 5, 'tool': 9, 'enabled': False}})[0]
+        self.assertEqual((g['count'], g['depth'], g['tool'], g['enabled']), (3, 5, 9, False))
+
+    def test_bad_override_does_not_crash(self):
+        plan, s = self.pocket_plan()
+        key = pocket_groups_data(plan, s)[0]['key']
+        progs = plan_programs(plan, s)
+        data = preview_data(plan, progs, s, {key: {'depth': 'deep'}})
+        g = data['pocket_groups'][0]
+        self.assertFalse(g['enabled'])
+        self.assertEqual(g['depth'], s.pockets.depth)
+        self.assertIn('depth', g['error'])
+        self.assertIn(g['error'], data['problems'])
+        self.assertNotIn('error', data['pocket_groups'][1])
+
+    def test_no_pockets(self):
+        plan, progs, s, data = build(rect('a', 1000, 230))
+        self.assertEqual(data['pocket_groups'], [])
+        self.assertEqual(data['blanks'][0]['pocket_rings'], [])
+        self.assertEqual(data['blanks'][0]['shapes'][0]['pockets'], [])
+
+    def check_rings_equal_program(self, y_toward):
+        plan, s = self.pocket_plan(y_toward)
+        progs = plan_programs(plan, s)
+        b = preview_data(plan, progs, s)['blanks'][0]
+        H = b['height']
+        pk = by_name(progs)['B01P']
+        first = [o for o in pk.ops if ' pass 1/' in o.label]
+        self.assertGreater(len(first), 2)
+        self.assertEqual(len(b['pocket_rings']), len(first))
+        for r, o in zip(b['pocket_rings'], first):
+            self.assertEqual(r['group'], o.label.split()[3])
+            exp = [o.segs[0].a] + [sg.b for sg in o.segs]
+            got = points(r['path'])
+            if y_toward == 'back':
+                got = [(x, H - y) for x, y in got]
+            close(self, got, exp, ordered=True)
+            arcs = [sg for sg in o.segs if isinstance(sg, Arc)]
+            self.assertEqual(len([t for t in parse(r['path']) if t[0] == 'A']), len(arcs))
+
+    def test_ring_paths_equal_program_front(self):
+        self.check_rings_equal_program('front')
+
+    def test_ring_paths_equal_program_back(self):
+        self.check_rings_equal_program('back')
+
+    def test_z_shape_cut_unchanged_by_pockets(self):
+        plan, s = self.pocket_plan()
+        z = preview_data(plan, plan_programs(plan, s), s)['blanks'][0]['z']
+        self.assertAlmostEqual(z['shape_cut'], 18.5)
 
 
 if __name__ == '__main__':
