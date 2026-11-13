@@ -132,7 +132,7 @@ and dashed).
 |---|---|
 | `min_circle_diameter` 8 | Circles above this Ø are pockets. |
 | `min_floor` 2 | Material that must stay under a pocket: depth may not exceed panel thickness minus this (hard error). |
-| `tool` 66, `diameter` 8 | Pocket cutter number and diameter. |
+| `tool` 66, `diameter` 8 | Pocket cutter number and diameter. One tool number has one diameter: the router, both drills and every switched-on pocket group with a pocket on the plan must agree, or saving and planning stop with an error naming the tool and both diameters. |
 | `depth` 8, `depth_per_pass` 4 | Depth from the top face of the blank, in equal passes. |
 | `plunge_feed` 1, `cut_feed` 3, `spindle_rpm` 18000 | m/min, m/min, rpm. |
 | `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, from 10 to 100; **capped at 70** when used. |
@@ -166,7 +166,7 @@ names its own tool, spindle speed and feeds (the file header takes the first). R
 blank: drill `B<nn>D` -> screw the blank and shapes down -> pockets `B<nn>P` -> cut `B<nn>C`.
 The programs are in the job's folder and `DISKETTE`; the preview shows `B<nn>P` in its Cut view,
 which also draws the pocket cutter path, and the run sheet (a pocket table per blank: group,
-colour, size, count, tool, depth, passes). The server remembers pocket rings between plans (a
+colour, size, count, tool, tool diameter, depth, passes). The server remembers pocket rings between plans (a
 long pocket takes about half a second to compute).
 
 **Warnings** (a warning, not a stop): a screw or fixing hole whose centre is inside a pocket or

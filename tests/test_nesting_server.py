@@ -328,6 +328,7 @@ class ServerTests(unittest.TestCase):
         self.seed(PLATES[:1])
         s = Settings().to_dict()
         s['router']['diameter'] = 200          # cannot follow the outline
+        s['router']['tool'] = 65               # (not the pocket tool T66, which is 8 mm)
         s['blank']['fix_inset'] = 300          # (keeps the fixing holes clear of the shape)
         s['blank']['margin_end'] = s['blank']['margin_side'] = 460
         s['machine']['frame_y'] = 1200
@@ -723,6 +724,48 @@ class ServerTests(unittest.TestCase):
                 self.assertIn('between 10 and 100', body['message'])
         self.assertFalse((self.dir / 'project.json').exists())
 
+    def test_put_one_tool_two_diameters_is_400(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        key = proj['pocket_groups'][0]['key']
+        cases = [({key: {'diameter': 6}}, None, 'pockets.G1.diameter', '8 and 6 mm'),
+                 ({}, ('pockets', 'diameter', 12), 'pockets.diameter', '8 and 12 mm'),
+                 ({key: {'tool': 1}}, None, 'pockets.G1.diameter', '6 and 8 mm')]
+        for pockets, setting, field, dias in cases:
+            with self.subTest(field=field, dias=dias):
+                bad = json.loads(json.dumps(proj))
+                bad['pockets'] = pockets
+                if setting:
+                    bad['settings'][setting[0]][setting[1]] = setting[2]
+                status, body = self.call('PUT', '/api/project', bad)
+                self.assertEqual(status, 400, body)
+                self.assertEqual(body['field'], field)
+                self.assertIn(dias, body['message'])
+                self.assertIn('one tool number must have one diameter', body['message'])
+        self.assertFalse((self.dir / 'project.json').exists())
+        ok = json.loads(json.dumps(proj))
+        ok['pockets'] = {key: {'diameter': 6, 'enabled': False}}     # switched off: not used
+        self.assertEqual(self.call('PUT', '/api/project', ok)[0], 200)
+        ok['pockets'] = {key: {'diameter': 6, 'tool': 7}}
+        self.assertEqual(self.call('PUT', '/api/project', ok)[0], 200)
+
+    def test_hand_edited_tool_two_diameters_is_a_problem_and_generates_nothing(self):
+        self.seed(PLATES[:2])
+        key = self.call('GET', '/api/project')[1]['pocket_groups'][0]['key']
+        self.write_project({key: {'diameter': 6}})
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200, plan)
+        self.assertEqual(plan['blanks'], [])
+        self.assertTrue(any('tool T66 is used with diameters 8 and 6 mm' in p
+                            for p in plan['problems']), plan['problems'])
+        status, body = self.call('GET', '/api/program?name=B01P')
+        self.assertEqual(status, 400, body)
+        self.assertIn('T66', body['error'])
+        status, body = self.call('POST', '/api/generate', {})
+        self.assertEqual(status, 400, body)
+        self.assertIn('one tool number must have one diameter', body['error'])
+        self.assertFalse((self.dir / 'out').exists())
+
     def test_hand_edited_bad_pockets_is_a_problem_not_a_500(self):
         self.seed(PLATES[:2])
         key = self.call('GET', '/api/project')[1]['pocket_groups'][0]['key']
@@ -937,6 +980,7 @@ class ServerTests(unittest.TestCase):
         _, proj = self.call('GET', '/api/project')
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 4)      # blank coordinates
         proj['settings']['router']['diameter'] = 7.8
+        proj['settings']['pockets']['diameter'] = 7.8      # the same T66: one diameter
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, body)
         self.assertEqual((body['settings']['router']['tool'], body['settings']['router']['diameter']),

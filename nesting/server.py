@@ -34,7 +34,7 @@ from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
 from .pockets import GroupSettings, PocketGroup, effective, find_groups, group_for
 from .preview import pocket_groups_data, preview_data
-from .program import plan_programs, plan_shapes
+from .program import plan_programs, plan_shapes, tool_diameter_conflict
 from .settings import STEPOVER_MESSAGE, Pockets, Settings, SettingsError
 
 HOST = '127.0.0.1'
@@ -282,10 +282,16 @@ class Project:
         stored = {'shapes': shapes, 'settings': settings.to_dict(), 'pockets': pockets}
         with self.lock:
             rows = self._merged(stored)[0]          # group ids as the new project gives them
+            groups = self._groups(rows)
             try:
-                check_pockets(pockets, settings, self._groups(rows))
+                check_pockets(pockets, settings, groups)
             except SettingsError as e:
                 raise ApiError(400, {'field': e.field, 'message': e.message})
+            # one tool number, one diameter (over the shapes that will be placed)
+            placed = [s for s, q, on in rows if on and q > 0]
+            conflict = tool_diameter_conflict(settings, pockets, groups, placed)
+            if conflict:
+                raise ApiError(400, {'field': conflict[1], 'message': conflict[0]})
             self.dir.mkdir(parents=True, exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
             with os.fdopen(fd, 'w', encoding='utf-8') as f:

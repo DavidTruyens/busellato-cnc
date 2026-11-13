@@ -10,7 +10,8 @@ from nesting.layout import Blank, PanelPlan, PlacedShape, Plan, ShapeEntry, buil
 import nesting.pockets as pockets
 from nesting.pockets import PocketError, find_groups, memo_pocket_rings, pocket_rings
 from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, blank_programs,
-                             check_depths, group_by_tool, pass_depths, plan_programs, stack_top)
+                             check_depths, group_by_tool, pass_depths, plan_programs, stack_top,
+                             tool_diameter_conflict)
 from nesting.settings import Settings
 
 repo = Path(__file__).resolve().parent.parent
@@ -190,7 +191,8 @@ class ProgramTests(unittest.TestCase):
 
     def test_one_tool_is_one_group_fixing_holes_first(self):
         s = Settings()
-        s.drill_screw.tool = s.drill_fix.tool           # same tool, other diameter: still one
+        # same tool (so the same diameter: one tool number has one diameter): still one group
+        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
         plan, _ = plan_for(rect('a', 1000, 230), settings=s)
         progs = by_name(plan_programs(plan, s))
         self.assertEqual(sorted(progs), ['B01C', 'B01D'])
@@ -692,6 +694,68 @@ class PocketProgramTests(unittest.TestCase):
 
 
 
+class ToolDiameterTests(unittest.TestCase):
+    """One tool number has one diameter over router, drills and switched-on pocket groups."""
+
+    def setUp(self):
+        self.s = Settings()
+        self.sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
+        self.plan, _ = plan_for(self.sh, settings=self.s)
+        self.key = find_groups([self.sh])[0].key
+
+    def refused(self, ov, *needles, settings=None):
+        s = settings or self.s
+        plan = self.plan if settings is None else plan_for(self.sh, settings=s)[0]
+        with self.assertRaises(ProgramError) as cm:
+            plan_programs(plan, s, ov)
+        msg = str(cm.exception)
+        for n in needles + ('one tool number must have one diameter',):
+            self.assertIn(n, msg)
+        return msg
+
+    def test_group_override_diameter_against_router(self):
+        msg = self.refused({self.key: {'diameter': 6}}, 'T66', '8 and 6 mm', 'router',
+                           'pocket group G1')
+        self.assertEqual(msg, 'tool T66 is used with diameters 8 and 6 mm (router, pocket '
+                              'group G1); one tool number must have one diameter')
+        got = tool_diameter_conflict(self.s, {self.key: {'diameter': 6}}, find_groups([self.sh]),
+                                     [self.sh])
+        self.assertEqual(got[1], 'pockets.G1.diameter')
+
+    def test_pocket_default_diameter_against_router(self):
+        s = Settings()
+        s.pockets.diameter = 12                         # tool left at T66 (8 mm)
+        self.refused({}, 'T66', '8 and 12 mm', 'router', 'pocket group G1', settings=s)
+        got = tool_diameter_conflict(s, {}, find_groups([self.sh]), [self.sh])
+        self.assertEqual(got[1], 'pockets.diameter')
+
+    def test_drill_against_pocket(self):
+        self.refused({self.key: {'tool': 1, 'diameter': 8}}, 'T1', '6 and 8 mm', 'fixing drill',
+                     'pocket group G1')
+
+    def test_drills_against_each_other(self):
+        s = Settings()
+        s.drill_screw.tool = s.drill_fix.tool
+        self.refused({}, 'T1', '6 and 3 mm', 'fixing drill', 'screw drill', settings=s)
+
+    def test_same_tool_same_diameter_is_fine(self):
+        for ov in ({}, {self.key: {'tool': 66, 'diameter': 8}},
+                   {self.key: {'tool': 1, 'diameter': 6}}, {self.key: {'tool': 7, 'diameter': 6}}):
+            with self.subTest(ov=ov):
+                self.assertIn('B01P', by_name(plan_programs(self.plan, self.s, ov)))
+
+    def test_switched_off_group_is_ignored(self):
+        progs = by_name(plan_programs(self.plan, self.s,
+                                      {self.key: {'enabled': False, 'diameter': 6}}))
+        self.assertNotIn('B01P', progs)
+
+    def test_pocket_defaults_unused_without_pockets(self):
+        s = Settings()
+        s.pockets.diameter = 12
+        plan, _ = plan_for(rect('a', 1000, 230), settings=s)
+        self.assertIn('B01C', by_name(plan_programs(plan, s)))
+
+
 class RingMemoTests(unittest.TestCase):
     """Process-wide memo of pocket rings: keyed on the exact segment numbers, tool diameter
     and stepover, so a repeated plan (every /api/plan) does not recompute them."""
@@ -743,7 +807,7 @@ class RingMemoTests(unittest.TestCase):
             again = by_name(plan_programs(plan, s))
             self.assertEqual(again['B01P'].ops, first['B01P'].ops)
             s6 = Settings()
-            s6.pockets.diameter = 6
+            s6.pockets.tool, s6.pockets.diameter = 7, 6
             with self.assertRaises(AssertionError):
                 plan_programs(plan, s6)
         other = by_name(plan_programs(plan, s6))

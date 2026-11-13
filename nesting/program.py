@@ -417,14 +417,61 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
     return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
+def tool_diameter_conflict(settings: Settings, overrides: dict, groups: list[PocketGroup],
+                           shapes: list[Shape]) -> tuple[str, str] | None:
+    """(message, settings field) when one tool number is given two diameters, else None.
+
+    A physical tool has one diameter: the router, both drills and every switched-on pocket
+    group that has a pocket on `shapes` (with its effective tool and diameter, so the pocket
+    defaults count only when a group uses them) must agree. The field is the one to fix: the
+    second user's diameter (a group's own, or the pocket default when the group has no tool or
+    diameter of its own). A bad override raises ValueError naming the group.
+    """
+    users: list[tuple[int, float, str, str]] = [
+        (settings.router.tool, settings.router.diameter, 'router', 'router.diameter'),
+        (settings.drill_fix.tool, settings.drill_fix.diameter, 'fixing drill',
+         'drill_fix.diameter'),
+        (settings.drill_screw.tool, settings.drill_screw.diameter, 'screw drill',
+         'drill_screw.diameter')]
+    used = {g.id for sh in shapes for pk in sh.pockets if (g := group_for(pk, groups))}
+    for g in groups:
+        if g.id not in used:
+            continue
+        try:
+            gs = effective(g.key, overrides, settings.pockets)
+        except ValueError as e:
+            raise ValueError(f'pocket group {g.id}: {e}') from e
+        if not gs.enabled:
+            continue
+        own = overrides.get(g.key) or {}
+        field = (f'pockets.{g.id}.diameter' if 'tool' in own or 'diameter' in own
+                 else 'pockets.diameter')
+        users.append((gs.tool, gs.diameter, f'pocket group {g.id}', field))
+    first: dict[int, tuple[float, str]] = {}
+    for tool, dia, who, field in users:
+        if tool not in first:
+            first[tool] = (dia, who)
+            continue
+        dia0, who0 = first[tool]
+        if abs(dia - dia0) > 1e-9:
+            return (f'tool T{tool} is used with diameters {dia0:g} and {dia:g} mm ({who0}, '
+                    f'{who}); one tool number must have one diameter', field)
+    return None
+
+
 def plan_programs(plan: Plan, settings: Settings,
                   pocket_overrides: dict | None = None,
                   groups: list[PocketGroup] | None = None) -> list[Program]:
     """Every blank's programs. groups: the project's pocket groups (ids and colours over
     every shape of the project, switched off too, so they do not change when a shape is
-    switched off); None finds them once over every shape of the plan."""
+    switched off); None finds them once over every shape of the plan. One tool number with
+    two diameters (tool_diameter_conflict) is a ProgramError: nothing is planned."""
+    shapes = plan_shapes(plan)
     if groups is None:
-        groups = find_groups(plan_shapes(plan))
+        groups = find_groups(shapes)
+    conflict = tool_diameter_conflict(settings, pocket_overrides or {}, groups, shapes)
+    if conflict:
+        raise ProgramError(conflict[0])
     rings: dict = {}
     progs = [p for b in plan.blanks
              for p in blank_programs(b, settings, pocket_overrides, groups, rings)]

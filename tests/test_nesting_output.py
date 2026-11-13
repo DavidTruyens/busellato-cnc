@@ -177,7 +177,7 @@ class OutputTests(unittest.TestCase):
 
     def test_runsheet_has_no_separate_fixing_or_screw_programs(self):
         same = Settings()
-        same.drill_screw.tool = same.drill_fix.tool
+        same.drill_screw.tool, same.drill_screw.diameter = same.drill_fix.tool, same.drill_fix.diameter
         for st in (self.s, same):
             plan = build_plan(self.entries, st)
             progs = plan_programs(plan, st)
@@ -228,6 +228,8 @@ class OutputTests(unittest.TestCase):
         self.assertIn('<b>Pockets</b>', html)
         g = data['pocket_groups'][0]
         self.assertIn(f'<td>{g["id"]}</td><td><span class="sw" style="background:{g["color"]}">', html)
+        self.assertIn('<th>Tool</th><th>Tool Ø (mm)</th><th>Depth (mm)</th>', html)
+        self.assertIn(f'<td>T{g["tool"]}</td><td class="num">{g["diameter"]:g}</td>', html)
         self.assertIn(f'<path class="pocket" fill="{g["color"]}"', html)
 
     def test_runsheet_without_pockets_has_no_pocket_table(self):

@@ -149,13 +149,15 @@ def _pocket_table(b: dict, groups: dict) -> str:
     if not seen:
         return ''
     rows = ['<p><b>Pockets</b></p><table><tr><th>Group</th><th>Colour</th><th>Size (mm)</th>'
-            '<th>Pockets</th><th>Tool</th><th>Depth (mm)</th><th>Passes</th></tr>']
+            '<th>Pockets</th><th>Tool</th><th>Tool Ø (mm)</th><th>Depth (mm)</th><th>Passes</th>'
+            '</tr>']
     for gid, n in seen.items():
         g = groups[gid]
         rows.append(f'<tr><td>{escape(gid)}</td>'
                     f'<td><span class="sw" style="background:{escape(g["color"])}"></span></td>'
                     f'<td>{_g(g["width"])} x {_g(g["height"])}</td><td class="num">{n}</td>'
-                    f'<td>T{g["tool"]}</td><td class="num">{round(g["depth"], 3):g}</td>'
+                    f'<td>T{g["tool"]}</td><td class="num">{round(g["diameter"], 3):g}</td>'
+                    f'<td class="num">{round(g["depth"], 3):g}</td>'
                     f'<td class="num">{pass_count(g["depth"], g["depth_per_pass"])}</td></tr>')
     rows.append('</table>')
     return ''.join(rows)

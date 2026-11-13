@@ -289,7 +289,7 @@ class PreviewTests(unittest.TestCase):
 
     def test_one_drill_program_shows_both_hole_kinds_with_one_tool(self):
         s = Settings()
-        s.drill_screw.tool = s.drill_fix.tool
+        s.drill_screw.tool, s.drill_screw.diameter = s.drill_fix.tool, s.drill_fix.diameter
         plan, progs, s, data = build(rect('a', 1000, 230), settings=s)
         b = data['blanks'][0]
         self.assertEqual([p['name'] for p in b['programs']], ['B01D', 'B01C'])
