@@ -756,6 +756,62 @@ class ToolDiameterTests(unittest.TestCase):
         self.assertIn('B01C', by_name(plan_programs(plan, s)))
 
 
+class RealPlatePocketTests(unittest.TestCase):
+    """Plate 3-1 of the real plates, default settings: the slot's B..P lines pinned, derived
+    from the DXF and the placement (8 mm tool, 40 % stepover: wall ring 6 mm from the slot's
+    centre line, inner ring 2.8 mm; depth 8 in two passes)."""
+
+    def test_plate_3_1_slot_rings(self):
+        from nesting.backends.cnc90 import emit, fmt
+        dxf = read_dxf(repo / 'plates' / '3-1.dxf')
+        self.assertEqual(len(dxf.pockets), 1)
+        arcs = [s for s in dxf.pockets[0].outline if isinstance(s, Arc)]
+        self.assertEqual(len(arcs), 2)
+        half = arcs[0].radius                           # slot half-width (10)
+        (lx, cy), (rx, _) = sorted(a.center for a in arcs)
+        for y_toward in ('front', 'back'):
+            with self.subTest(y_toward=y_toward):
+                s = Settings()
+                s.machine.y_toward = y_toward
+                plan, _ = real_plan(s)
+                blank, ps = next((b, p) for b in plan.blanks for p in b.shapes if p.name == '3-1')
+                self.assertEqual((blank.id, ps.x, ps.y, blank.height), ('B06', 45, 45, 560))
+                X0, X1, Y = lx + ps.x, rx + ps.x, cy + ps.y          # layout frame
+                self.assertEqual((X0, X1, Y), (85, 1540, 135))
+                r = s.pockets.diameter / 2
+                wall = half - r
+                inner = wall - s.pockets.diameter * s.pockets.stepover_pct / 100
+                self.assertEqual((round(wall, 6), round(inner, 6)), (6, 2.8))
+                front = y_toward == 'front'
+
+                def y(v):
+                    return blank.height - v if front else v
+                arc = 'G3' if front else 'G2'           # cw from above; mirrored with front
+                lines = []
+                for z in (4, 8):
+                    for u in (inner, wall):
+                        top, bot = fmt(y(Y + u)), fmt(y(Y - u))
+                        lines += [f'G88G90G54P5T0166S18000F1X{fmt(X0)}Y{top}Z{z}',
+                                  f'G1G90F3X{fmt(X1)}Y{top}Z{z}',
+                                  f'{arc}G90G17X{fmt(X1)}Y{bot}U{fmt(u)}',
+                                  f'G1G90X{fmt(X0)}Y{bot}Z{z}',
+                                  f'{arc}G90G17X{fmt(X0)}Y{top}U{fmt(u)}']
+                pk = by_name(plan_programs(plan, s))['B06P']
+                ops = [o for o in pk.ops if ' 3-1 ' in o.label]
+                one = Program('B06P', pk.tool, 'pocket', '', pk.stock, ops, pk.spindle_rpm,
+                              pk.plunge_feed, pk.cut_feed)
+                got = emit(one, s).split('\r\n')[2:-2]
+                self.assertEqual(got, lines)
+                text = '\n'.join(got)
+                if front:
+                    for v in ('Y419', 'Y431', 'Y422.2', 'Y427.8'):
+                        self.assertIn(v, text)
+                else:
+                    for v in ('Y129', 'Y141', 'Y132.2', 'Y137.8'):
+                        self.assertIn(v, text)
+                self.assertEqual(set(re.findall(r'U[\d.]+', text)), {'U6', 'U2.8'})
+
+
 class RingMemoTests(unittest.TestCase):
     """Process-wide memo of pocket rings: keyed on the exact segment numbers, tool diameter
     and stepover, so a repeated plan (every /api/plan) does not recompute them."""
