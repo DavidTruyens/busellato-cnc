@@ -450,6 +450,31 @@ class PocketProgramTests(unittest.TestCase):
         b = plan.blanks[0]
         self.assertEqual(pk.stock, (b.width, b.height, 36))
 
+    def test_project_groups_keep_their_ids_on_a_plan_without_some_shapes(self):
+        from nesting.preview import pocket_groups_data, preview_data
+        a = pocket_shape('a', [rect_loop(100, 50, 40, 30)])
+        b = pocket_shape('b', [rect_loop(100, 50, 60, 30)])
+        project = find_groups([a, b])                   # G1 is a's pocket, G2 b's
+        plan, s = plan_for(b)                           # a switched off: only b placed
+        ids = lambda progs: {re.search(r' (G\d+) pocket ', o.label).group(1)
+                             for p in progs if p.kind == 'pocket' for o in p.ops}
+        # without groups: as before, numbered over the plan's shapes
+        self.assertEqual(ids(plan_programs(plan, s)), {'G1'})
+        self.assertEqual([g['id'] for g in pocket_groups_data(plan, s)], ['G1'])
+        # with the project's groups: b's group keeps G2 and its colour everywhere
+        progs = plan_programs(plan, s, None, project)
+        self.assertEqual(ids(progs), {'G2'})
+        listed = pocket_groups_data(plan, s, None, project)
+        self.assertEqual([(g['id'], g['color'], g['count']) for g in listed],
+                         [('G2', project[1].color, 1)])
+        data = preview_data(plan, progs, s, None, project)
+        self.assertEqual(data['pocket_groups'], listed)
+        blank = data['blanks'][0]
+        self.assertEqual({(p['group'], p['color']) for q in blank['shapes'] for p in q['pockets']},
+                         {('G2', project[1].color)})
+        self.assertEqual({(r['group'], r['color']) for r in blank['pocket_rings']},
+                         {('G2', project[1].color)})
+
     def test_no_pocket_program_without_pockets(self):
         plan, s = plan_for(rect('a', 1000, 230))
         self.assertEqual([p.name for p in plan_programs(plan, s)], ['B01D', 'B01C'])

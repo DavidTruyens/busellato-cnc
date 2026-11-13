@@ -13,6 +13,8 @@ from pathlib import Path
 from unittest import mock
 
 from nesting.dxf import read_dxf
+from nesting.pockets import find_groups
+from nesting.program import plan_shapes
 from nesting.server import make_server, seed_plates
 from nesting.settings import Settings
 from test_nesting_dxf import circle, dxf, line, rect
@@ -603,6 +605,64 @@ class ServerTests(unittest.TestCase):
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, put)
         self.assertFalse(put['pocket_groups'][0]['enabled'])
+
+    def plan_group_ids(self):
+        """(plan pocket_groups {key: (id, colour)}, drawn pockets [(id, colour)],
+        rings [(id, colour)], B..P op labels' group ids) of /api/plan and the programs."""
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200, plan)
+        listed = {g['key']: (g['id'], g['color']) for g in plan['pocket_groups']}
+        drawn = [(pk['group'], pk['color']) for b in plan['blanks'] for s in b['shapes']
+                 for pk in s['pockets']]
+        rings = [(r['group'], r['color']) for b in plan['blanks'] for r in b['pocket_rings']]
+        project = self.server.RequestHandlerClass.project
+        programs = project.compute(project.snapshot())[2]
+        labels = {re.search(r' (G\d+) pocket ', o.label).group(1)
+                  for p in programs if p.kind == 'pocket' for o in p.ops}
+        return listed, drawn, rings, labels
+
+    def test_pocket_group_ids_and_colours_do_not_change_when_a_shape_is_off(self):
+        # the settings list numbers the groups of every shape; the plan, the drawing and the
+        # B..P programs use the same ids and colours, whichever shapes are switched on
+        self.assertEqual(seed_plates(self.dir), 12)
+        _, proj = self.call('GET', '/api/project')
+        everyone = {g['key']: (g['id'], g['color']) for g in proj.pop('pocket_groups')}
+        by_id = {i: c for i, c in everyone.values()}
+        self.assertGreater(len(everyone), 2)
+        first, _, _, _ = self.plan_group_ids()
+        self.assertEqual(first, everyone)
+        # switch off the first shape: with groups of the placed shapes only it shifted the ids
+        off = next(s for s in proj['shapes'] if s['name'] == '3-1')
+        off['enabled'] = False
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        self.assertEqual({g['key']: (g['id'], g['color']) for g in put['pocket_groups']},
+                         everyone)
+        listed, drawn, rings, labels = self.plan_group_ids()
+        self.assertTrue(listed)
+        # numbered over the placed shapes only, some ids would differ: the case is exercised
+        project = self.server.RequestHandlerClass.project
+        placed = find_groups(plan_shapes(project.compute(project.snapshot())[1]))
+        self.assertTrue(any(g.id != everyone[g.key][0] for g in placed))
+        for key, ic in listed.items():
+            self.assertEqual(ic, everyone[key])
+        for gid, colour in drawn + rings:
+            self.assertEqual(colour, by_id[gid])
+        self.assertTrue(labels)
+        self.assertLessEqual(labels, {i for i, _ in listed.values()})
+        # an override keyed by group key still applies to its group, under the same id
+        key = next(k for k in listed if everyone[k][0] != 'G1')
+        proj['pockets'] = {key: {'depth': 5}}
+        status, put = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, put)
+        _, plan = self.call('GET', '/api/plan')
+        g = next(g for g in plan['pocket_groups'] if g['key'] == key)
+        self.assertEqual((g['id'], g['depth']), (everyone[key][0], 5))
+        # and back on: the same ids again
+        off['enabled'] = True
+        proj['pockets'] = {}
+        self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
+        self.assertEqual(self.plan_group_ids()[0], everyone)
 
     def test_missing_pockets_key_means_no_overrides(self):
         self.seed(PLATES[:1])

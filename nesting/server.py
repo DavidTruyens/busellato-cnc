@@ -233,9 +233,9 @@ class Project:
         listed = SimpleNamespace(blanks=[SimpleNamespace(
             shapes=[SimpleNamespace(shape=sh) for sh, _, _ in rows])])
         ok = isinstance(pockets, dict)
-        out = pocket_groups_data(listed, settings, pockets if ok else {})
-        counts = {g['id']: 0 for g in out}
         groups = Project._groups(rows)
+        out = pocket_groups_data(listed, settings, pockets if ok else {}, groups)
+        counts = {g['id']: 0 for g in out}
         for sh, q in on:
             for pk in sh.pockets:
                 if (g := group_for(pk, groups)) is not None:
@@ -295,8 +295,8 @@ class Project:
 
     @staticmethod
     def _groups(rows) -> list[PocketGroup]:
-        """Pocket groups over every shape of the project, switched on or not (the plan's own
-        groups, over the placed shapes, are found by plan_programs)."""
+        """Pocket groups over every shape of the project, switched on or not: the ids and
+        colours of the settings list, the plan, the programs and the run sheet."""
         return find_groups([s for s, _, _ in rows])
 
     # --- shapes ---------------------------------------------------------------------------
@@ -338,30 +338,33 @@ class Project:
             return self._merged()
 
     def compute(self, snap):
-        """(settings, plan, programs, problems) from a snapshot, without the lock.
+        """(settings, plan, programs, problems, groups) from a snapshot, without the lock.
+        groups: the project's pocket groups over every shape (switched off too), so a group's
+        id and colour are the same in the settings list, the plan and the programs.
         Raises SettingsError, OffsetError, ValueError (a bad pocket override in project.json
         is a ValueError naming the field: the page cannot have sent it)."""
         rows, settings_dict, errors, pockets = snap
         settings = Settings.from_dict(settings_dict)
         validate(settings)
+        groups = self._groups(rows)
         try:
-            check_pockets(pockets, settings, self._groups(rows))
+            check_pockets(pockets, settings, groups)
         except SettingsError as e:
             raise ValueError(f'project.json: {e.field}: {e.message}') from None
         entries = [ShapeEntry(s, q, on) for s, q, on in rows]
         plan = build_plan(entries, settings)
-        programs = plan_programs(plan, settings, pockets)
+        programs = plan_programs(plan, settings, pockets, groups)
         problems = errors + list(plan.problems)
-        problems += self._circle_warnings(plan, settings, pockets)
-        return settings, plan, programs, problems
+        problems += self._circle_warnings(plan, settings, pockets, groups)
+        return settings, plan, programs, problems, groups
 
     @staticmethod
-    def _circle_warnings(plan, settings: Settings, pockets: dict) -> list[str]:
+    def _circle_warnings(plan, settings: Settings, pockets: dict,
+                         groups: list[PocketGroup]) -> list[str]:
         """One warning per distinct circle (place and size) per placed shape that is read as
         a pocket, unless its pocket group is switched off (then it is not cut)."""
         mc = settings.pockets.min_circle_diameter
         shapes = plan_shapes(plan)
-        groups = find_groups(shapes)
         out = []
         for shape in shapes:
             seen = set()
@@ -391,8 +394,8 @@ class Project:
             return self._failed(Settings(), [f'project.json: {e}'], None)
         settings = Settings.from_dict(snap[1])
         try:
-            settings, plan, programs, problems = self.compute(snap)
-            data = preview_data(plan, programs, settings, snap[3])
+            settings, plan, programs, problems, groups = self.compute(snap)
+            data = preview_data(plan, programs, settings, snap[3], groups)
         except SettingsError as e:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
         except (OffsetError, DxfError, ValueError) as e:
@@ -414,7 +417,7 @@ class Project:
 
     def program_text(self, name: str) -> str:
         try:
-            settings, _, programs, _ = self.compute(self.snapshot())
+            settings, _, programs, _, _ = self.compute(self.snapshot())
         except (OffsetError, ValueError) as e:      # SettingsError is a ValueError
             raise ApiError(400, {'error': str(e)})
         for p in programs:
@@ -425,7 +428,7 @@ class Project:
     def generate(self) -> dict:
         snap = self.snapshot()
         try:
-            settings, plan, programs, problems = self.compute(snap)
+            settings, plan, programs, problems, groups = self.compute(snap)
         except SettingsError as e:
             raise ApiError(400, {'error': str(e), 'field': e.field})
         except (OffsetError, ValueError) as e:
@@ -437,17 +440,18 @@ class Project:
         stamp = time.strftime('%Y%m%d-%H%M%S')
         project = {'name': self.dir.name, 'shapes': self._listing(snap[0])}
         with self.out_lock:
-            return self._write(out, stamp, plan, programs, settings, project, problems, snap[3])
+            return self._write(out, stamp, plan, programs, settings, project, problems, snap[3],
+                               groups)
 
     def _write(self, out, stamp, plan, programs, settings, project, problems,
-               pockets) -> dict:
+               pockets, groups) -> dict:
         for k in range(1, 1000):
             folder = out / (stamp if k == 1 else f'{stamp}-{k}')
             if folder.exists():
                 continue
             try:
                 files = write_output(folder, plan, programs, settings, project,
-                                     pocket_overrides=pockets)
+                                     pocket_overrides=pockets, groups=groups)
             except FileExistsError:
                 continue
             disk = folder / DISKETTE

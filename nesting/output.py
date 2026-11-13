@@ -241,9 +241,11 @@ def _runsheet(data: dict, project: dict) -> str:
 def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: Settings,
                  project: dict, backend: str = 'cnc90',
                  today: datetime.date | None = None,
-                 pocket_overrides: dict | None = None) -> list[Path]:
+                 pocket_overrides: dict | None = None,
+                 groups: list | None = None) -> list[Path]:
     """Write the job folder `out_dir` (all or nothing). Returns its entries: the program files,
-    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py)."""
+    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py).
+    groups: the project's pocket groups, as given to plan_programs (see preview_data)."""
     out_dir = Path(out_dir)
     if out_dir.exists():
         raise FileExistsError(f'{out_dir} already exists; choose a new folder')
@@ -263,7 +265,7 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
         if r.returncode != 0:
             raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
         write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
-        data = preview_data(plan, programs, settings, pocket_overrides)
+        data = preview_data(plan, programs, settings, pocket_overrides, groups)
         (stage / 'PROJECT.json').write_text(
             json.dumps({'settings': settings.to_dict(), 'project': project,
                         'pockets': pocket_overrides or {},

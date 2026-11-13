@@ -115,11 +115,16 @@ def _pocket_rings(mine: list[Program], colors: dict, flip: float | None) -> list
 
 
 def pocket_groups_data(plan: Plan, settings: Settings,
-                       pocket_overrides: dict | None = None) -> list[dict]:
+                       pocket_overrides: dict | None = None,
+                       groups: list[PocketGroup] | None = None) -> list[dict]:
     """The plan's pocket groups with their effective settings (defaults + overrides), for the
     UI and the run sheet. count is the number of pockets on the plan, copies included. A group
-    whose override is invalid gets enabled False, the default settings and an `error`."""
-    groups = find_groups(plan_shapes(plan))
+    whose override is invalid gets enabled False, the default settings and an `error`.
+    groups: the project's groups (ids and colours over every shape of the project); only
+    those with a pocket on the plan are listed. None: found over the plan's shapes."""
+    given = groups is not None
+    if not given:
+        groups = find_groups(plan_shapes(plan))
     counts = {g.id: 0 for g in groups}
     for b in plan.blanks:
         for ps in b.shapes:
@@ -129,6 +134,8 @@ def pocket_groups_data(plan: Plan, settings: Settings,
                     counts[g.id] += 1
     out = []
     for g in groups:
+        if given and not counts[g.id]:
+            continue
         error = None
         try:
             gs = effective(g.key, pocket_overrides or {}, settings.pockets)
@@ -231,10 +238,14 @@ def _panel_data(panel: PanelPlan, holes: dict, settings: Settings) -> dict:
 
 
 def preview_data(plan: Plan, programs: list[Program], settings: Settings,
-                 pocket_overrides: dict | None = None) -> dict:
+                 pocket_overrides: dict | None = None,
+                 groups: list[PocketGroup] | None = None) -> dict:
+    """groups: the project's pocket groups, as given to plan_programs (None: found over the
+    plan's shapes, as plan_programs does without them)."""
     p, m = settings.panel, settings.machine
-    pocket_groups = pocket_groups_data(plan, settings, pocket_overrides)
-    groups = find_groups(plan_shapes(plan))
+    pocket_groups = pocket_groups_data(plan, settings, pocket_overrides, groups)
+    if groups is None:
+        groups = find_groups(plan_shapes(plan))
     problems = list(plan.problems) + [g['error'] for g in pocket_groups if 'error' in g]
     blanks, holes = [], {}
     for b in plan.blanks:

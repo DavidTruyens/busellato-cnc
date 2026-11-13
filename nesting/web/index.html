@@ -418,6 +418,11 @@ function sync(){
     clearErrors();
     if (!r.ok){
       saveError = b.field ? b : {field: '', message: b.error || 'not saved'};
+      // the group list of what is saved, so an error text of an earlier state does not linger
+      try {
+        const g = await fetch('/api/project');
+        if (g.ok){ groups = (await g.json()).pocket_groups || []; renderGroups(); }
+      } catch (e){ /* the status line below says it is not saved */ }
       showFieldError(saveError);
       status(`Not saved: ${saveError.field} ${saveError.message}`, true);
       renderProblems();
@@ -677,20 +682,15 @@ function renderJob(){
   s += `<text x="${esc(fr.x - 10 * k)}" y="${esc(front ? fr.y - 12 * k : H - fr.y + 30 * k)}" font-size="${n(22)}" text-anchor="end" fill="#667085">machine work frame ${esc(fmt(fr.x))} × ${esc(fmt(fr.y))} (placeholder, to verify)</text>`;
   s += `<rect x="0" y="0" width="${esc(b.width)}" height="${esc(H)}" fill="var(--tmpl)" stroke="#6b4e16" stroke-width="${n(2.5)}"/>`;
   s += `<text x="${n(160)}" y="${esc(front ? H + 26 * k : 30 * k)}" font-size="${n(22)}" fill="#6b4e16">${esc(b.id)} · ${esc(fmt(b.width))} × ${esc(fmt(H))} · from ${esc(b.panel)}</text>`;
-  const gmap = Object.fromEntries((plan.pocket_groups || []).map(g => [g.id, g]));
-  // the plan numbers the groups of the placed shapes only; the settings list numbers the
-  // groups of every shape: with a shape switched off the same group can have two ids
-  const setId = Object.fromEntries(groups.map(g => [g.key, g.id]));
-  const pocketTitle = (id, on) => {
-    const other = gmap[id] && setId[gmap[id].key];
-    return 'pocket group ' + id + (other && other !== id ? ` (${other} in the pocket settings)` : '') + (on ? '' : ' (off: not cut)');
-  };
+  // the server numbers and colours the groups over every shape of the project, so the ids
+  // and colours here are those of the settings list; switched off: from the plan's list
+  const planGroup = Object.fromEntries((plan.pocket_groups || []).map(g => [g.id, g]));
   b.shapes.forEach((q, qi) => {
     s += `<path d="${esc(q.path)}" fill="var(--plate)" stroke="var(--plate-line)" stroke-width="${n(2)}"/>`;
     (q.pockets || []).forEach(pk => {
       // a group switched off is not cut: drawn faint and dashed
-      const c = esc(safeColor(pk.color)), g = gmap[pk.group], on = !g || g.enabled;
-      s += `<path d="${esc(pk.path)}" fill="${c}" fill-opacity="${on ? (view === 'cut' ? .25 : .45) : .12}" stroke="${c}" stroke-width="${n(2)}"${on ? '' : ` stroke-dasharray="${n(6)} ${n(4)}"`}><title>${esc(pocketTitle(pk.group, on))}</title></path>`;
+      const c = esc(safeColor(pk.color)), g = planGroup[pk.group], on = !g || g.enabled;
+      s += `<path d="${esc(pk.path)}" fill="${c}" fill-opacity="${on ? (view === 'cut' ? .25 : .45) : .12}" stroke="${c}" stroke-width="${n(2)}"${on ? '' : ` stroke-dasharray="${n(6)} ${n(4)}"`}><title>${esc('pocket group ' + pk.group + (on ? '' : ' (off: not cut)'))}</title></path>`;
     });
     if (view === 'cut' && q.cut_path) s += `<path d="${esc(q.cut_path)}" fill="none" stroke="#c0261c" stroke-width="${n(2.5)}" marker-start="url(#go)" marker-mid="url(#dir)"/>`;
     s += `<text x="${esc(q.cx)}" y="${esc(q.cy + 10 * k)}" font-size="${n(28)}" text-anchor="middle" fill="#13355f">${esc(q.name)}${view === 'cut' ? esc('  (' + (qi + 1) + ')') : ''}</text>`;

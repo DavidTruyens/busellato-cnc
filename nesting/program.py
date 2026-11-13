@@ -363,8 +363,8 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
     """Drill, pocket and cut programs of one blank, in the program frame (see the module doc).
 
     pocket_overrides: per pocket group key, the settings that differ from settings.pockets.
-    groups: the plan's pocket groups (plan_programs passes them, so a group has one id and
-    key over the whole plan); None computes them from this blank's shapes alone.
+    groups: the plan's or the project's pocket groups (plan_programs passes them, so a group
+    has one id and key over the whole plan); None computes them from this blank's shapes alone.
     _rings: a cache of pocket rings that plan_programs shares between the blanks.
     """
     h, r = settings.heights, settings.router
@@ -418,9 +418,13 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
 
 
 def plan_programs(plan: Plan, settings: Settings,
-                  pocket_overrides: dict | None = None) -> list[Program]:
-    """Every blank's programs. Pocket groups are found once over every shape of the plan."""
-    groups = find_groups(plan_shapes(plan))
+                  pocket_overrides: dict | None = None,
+                  groups: list[PocketGroup] | None = None) -> list[Program]:
+    """Every blank's programs. groups: the project's pocket groups (ids and colours over
+    every shape of the project, switched off too, so they do not change when a shape is
+    switched off); None finds them once over every shape of the plan."""
+    if groups is None:
+        groups = find_groups(plan_shapes(plan))
     rings: dict = {}
     progs = [p for b in plan.blanks
              for p in blank_programs(b, settings, pocket_overrides, groups, rings)]
