@@ -10,6 +10,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from nesting.dxf import read_dxf
 from nesting.server import make_server, seed_plates
@@ -709,6 +710,25 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn(f'Cannot use port {port}', err)
         self.assertNotIn('Traceback', err)
+
+    def test_cli_open_opens_the_page_once_listening(self):
+        server = mock.Mock(server_address=('127.0.0.1', 8800))
+        server.serve_forever.side_effect = KeyboardInterrupt
+        with mock.patch('nesting.server.make_server', return_value=server), \
+                mock.patch('nesting.server.threading.Timer') as timer:
+            code, out, _ = self.run_main(str(self.dir), '--port', '8800', '--open')
+        self.assertEqual(code, 0)
+        timer.assert_called_once()
+        self.assertEqual(timer.call_args.args[2], ['http://127.0.0.1:8800/'])
+        timer.return_value.start.assert_called_once()
+        server.server_close.assert_called_once()
+
+    def test_cli_open_does_nothing_when_the_port_is_taken(self):
+        with mock.patch('nesting.server.make_server', side_effect=OSError('in use')), \
+                mock.patch('nesting.server.threading.Timer') as timer:
+            code, _, _ = self.run_main(str(self.dir), '--port', '8800', '--open')
+        self.assertEqual(code, 1)
+        timer.assert_not_called()
 
 
 if __name__ == '__main__':
