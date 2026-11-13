@@ -1,7 +1,16 @@
+import contextlib
+import http.client
+import io
+import json
+import tempfile
 import threading
+import time
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from nesting.autostop import IdleWatch, run_watch
+from nesting.server import _serve, main, make_server
 
 
 class FakeClock:
@@ -110,6 +119,146 @@ class IdleWatchTests(unittest.TestCase):
         self.assertIn('seconds', reason)
         self.assertEqual(1, server.calls)
         self.assertEqual([f'Stopping: {reason}'], logs)
+
+    def test_run_watch_survives_a_failing_check(self):
+        class Server:
+            def shutdown(self):
+                pass
+
+        class Flaky:
+            calls = 0
+
+            def check(self):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError('boom')
+                return 'done'
+
+        logs = []
+        reason = run_watch(Server(), Flaky(), tick=0, sleep=lambda s: None,
+                           log=logs.append)
+        self.assertEqual('done', reason)
+        self.assertEqual('Auto-stop check failed: boom', logs[0])
+
+
+class ServerAutoStopTests(unittest.TestCase):
+    def start(self, watch=None):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.server = make_server(Path(tmp.name), port=0, watch=watch)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever,
+                                       daemon=True)
+        self.thread.start()
+        self.addCleanup(self.stop)
+
+    def stop(self):
+        self.server.shutdown()
+        self.thread.join(2)
+        self.server.server_close()
+
+    def call(self, method, path, body=None):
+        conn = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)
+        try:
+            headers = {}
+            data = None
+            if body is not None:
+                data = json.dumps(body).encode()
+                headers['Content-Type'] = 'application/json'
+            conn.request(method, path, data, headers)
+            r = conn.getresponse()
+            return r.status, json.loads(r.read().decode())
+        finally:
+            conn.close()
+
+    def test_ping_says_it_is_the_tool(self):
+        self.start()
+        status, body = self.call('GET', '/api/ping')
+        self.assertEqual(200, status)
+        self.assertEqual('nesting', body['app'])
+        self.assertTrue(body['version'])
+        self.assertIsInstance(body['version'], str)
+
+    def test_closing_without_watch_is_harmless(self):
+        self.start()
+        self.assertEqual((200, {'ok': True}),
+                         self.call('POST', '/api/closing', {}))
+        self.assertEqual(200, self.call('GET', '/api/ping')[0])
+
+    def test_requests_are_tracked(self):
+        clock = FakeClock()
+        watch = IdleWatch(clock=clock)
+        self.start(watch)
+        self.call('GET', '/api/ping')
+        self.assertEqual(clock.t, watch.last_seen)
+        self.assertEqual(0, watch.in_flight)
+        clock.advance(5)
+        self.call('POST', '/api/closing', {})
+        self.assertEqual(clock.t, watch.closing_at)
+        self.assertEqual(0, watch.in_flight)
+
+    def test_closing_then_ping_keeps_server(self):
+        watch = IdleWatch(grace=5, closing_grace=0.3, no_page=5)
+        self.start(watch)
+        result = []
+        t = threading.Thread(
+            target=lambda: result.append(run_watch(self.server, watch,
+                                                   tick=0.05)))
+        t.start()
+        self.call('POST', '/api/closing', {})
+        time.sleep(0.1)
+        self.call('GET', '/api/ping')
+        time.sleep(0.6)
+        self.assertEqual(200, self.call('GET', '/api/ping')[0])
+        self.call('POST', '/api/closing', {})
+        t.join(2)
+        self.assertFalse(t.is_alive())
+        self.assertEqual(['the page was closed'], result)
+
+    def test_main_exits_when_no_page(self):
+        out = io.StringIO()
+        code = []
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch('nesting.autostop.NO_PAGE', 0.3), \
+                mock.patch('nesting.autostop.TICK', 0.05), \
+                contextlib.redirect_stdout(out):
+            t = threading.Thread(target=lambda: code.append(
+                main(['nesting', tmp, '--port', '0', '--exit-when-closed'])))
+            t.start()
+            t.join(3)
+            alive = t.is_alive()
+        self.assertFalse(alive)
+        self.assertEqual([0], code)
+        self.assertIn('Stopping: no page connected', out.getvalue())
+        self.assertIn('Stops by itself when the page is closed.',
+                      out.getvalue())
+
+    def test_main_waits_for_in_flight_request(self):
+        class Server:
+            closed = False
+
+            def serve_forever(self):
+                pass
+
+            def server_close(self):
+                self.closed = True
+
+        watch = IdleWatch()
+        watch.begin()
+        threading.Timer(0.2, watch.end).start()
+        server = Server()
+        start = time.monotonic()
+        _serve(server, watch)
+        self.assertGreaterEqual(time.monotonic() - start, 0.15)
+        self.assertTrue(server.closed)
+
+    def test_without_flag_no_watch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            server = make_server(Path(tmp), port=0)
+            try:
+                self.assertIsNone(server.watch)
+            finally:
+                server.server_close()
 
 
 if __name__ == '__main__':

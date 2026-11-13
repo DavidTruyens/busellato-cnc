@@ -99,7 +99,11 @@ def run_watch(server, watch, tick=None, sleep=time.sleep, log=print):
     tick = TICK if tick is None else tick
     while True:
         sleep(tick)
-        reason = watch.check()
+        try:
+            reason = watch.check()
+        except Exception as e:      # a bug here must not go unseen or stop the loop
+            log(f'Auto-stop check failed: {e}')
+            continue
         if reason:
             log(f'Stopping: {reason}')
             server.shutdown()
