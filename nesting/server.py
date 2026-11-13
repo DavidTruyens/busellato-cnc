@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, urlsplit
 from .backends import BACKENDS
 from .dxf import DxfError, Shape, read_dxf
 from .geometry import OffsetError
+from .importdisk import NAME as DISKETTE, size_warning
 from .layout import MAX_QTY, ShapeEntry, build_plan
 from .output import write_output
 from .preview import preview_data
@@ -284,8 +285,10 @@ class Project:
                 files = write_output(folder, plan, programs, settings, project)
             except FileExistsError:
                 continue
+            disk = folder / DISKETTE
             return {'folder': str(folder), 'files': [p.name for p in files],
-                    'programs': [p.name for p in programs], 'problems': problems}
+                    'programs': [p.name for p in programs], 'problems': problems,
+                    'diskette': str(disk), 'diskette_warning': size_warning(disk)}
         raise ApiError(500, {'error': f'no free output folder for {stamp}'})
 
 

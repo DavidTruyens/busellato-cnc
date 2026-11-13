@@ -207,7 +207,7 @@ class OutputTests(unittest.TestCase):
 
     def test_returned_paths_exist_inside_out_dir(self):
         for p in self.write():
-            self.assertTrue(p.is_file())
+            self.assertTrue(p.is_dir() if p.name == 'DISKETTE' else p.is_file(), p)
             self.assertEqual(p.parent, self.out)
 
     def test_heights_say_depth_is_below_top_of_stack(self):

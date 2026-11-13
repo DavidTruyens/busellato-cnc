@@ -628,11 +628,14 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(res['programs'], names)
         for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])
-        programs = [f for f in folder.rglob('*') if f.name in names]
+        programs = [f for f in folder.iterdir() if f.name in names]
         self.assertEqual(sorted(f.name for f in programs), sorted(names))
         r = subprocess.run([sys.executable, str(repo / 'tools' / 'check_cnc90.py'),
                             *map(str, programs)], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(res['diskette'], str(folder / 'DISKETTE'))
+        self.assertIsNone(res['diskette_warning'])
+        self.assertIn('DISKETTE', res['files'])
         # depth per pass must not be ignored: each cut contour is cut in several passes
         text = next(f for f in programs if f.name == 'B01C').read_text(encoding='ascii')
         starts = re.findall(r'^G88\S*?(X-?[\d.]+Y-?[\d.]+)Z(-?[\d.]+)$', text, re.M)
