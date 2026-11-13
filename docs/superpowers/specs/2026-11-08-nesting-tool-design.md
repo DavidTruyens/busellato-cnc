@@ -71,7 +71,7 @@ Busellato S.EASY / TPA CNC90 without drawing a CAM setup per part. The user drop
 outlines. The tool groups parts into **blanks**, plans how a panel saw cuts the blanks from
 1220 × 2440 stock panels *(revised 2026-11-09; was: templates nested on panels)*, and **writes the
 programs** the machine runs, so the person at the
-shop (Yureck) can change heights, tools, feeds and depths on his own laptop and regenerate in
+shop can change heights, tools, feeds and depths on a laptop and regenerate in
 seconds.
 
 Why: the machine has no easy way to set an origin (it was built for panel processing), the router
