@@ -77,6 +77,7 @@ svg text{font-family:inherit}
 .banner{background:var(--warn-bg);color:var(--warn);border:1px solid #f0cf94;border-radius:8px;padding:8px 12px;font-size:13px}
 .banner ul{margin:4px 0 0;padding-left:18px}
 .banner:empty{display:none}
+.banner[hidden]{display:none}
 .progs{background:var(--panel);border:1px solid var(--line);border-radius:8px;flex-shrink:0}
 .progs h2{margin:0;padding:10px 12px 4px}
 .progs table td{padding:6px 12px}
@@ -150,6 +151,7 @@ tr.flash td{background:#fff4e0}
   <span id="status"></span>
   <button class="primary" id="gen">Generate programs</button>
 </header>
+<div class="banner" id="stopped" hidden>The tool has stopped. Start it again with the icon, then reload this page.</div>
 
 <main>
 <aside class="left">
@@ -1309,6 +1311,29 @@ $('result').addEventListener('click', e => { if (e.target.id === 'result') $('re
     status('Loaded');
     await loadPlan();
   } catch (e){ status('Cannot load the project: ' + e.message, true); }
+})();
+// ---- keep the tool running while the page is open ----
+(function keepAlive(){
+  const banner = document.getElementById('stopped');
+  let failures = 0, running = false;
+  async function ping(){
+    if (running) return;
+    running = true;
+    try {
+      const r = await fetch('/api/ping', {cache: 'no-store'});
+      if (!r.ok) throw new Error('ping ' + r.status);
+      failures = 0;
+      banner.hidden = true;
+    } catch (e){
+      failures += 1;
+      if (failures >= 3) banner.hidden = false;
+    } finally { running = false; }
+  }
+  setInterval(ping, 10000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') ping(); });
+  window.addEventListener('pagehide', () => {
+    try { navigator.sendBeacon('/api/closing', new Blob(['{}'], {type: 'application/json'})); } catch (e){}
+  });
 })();
 </script>
 </body>

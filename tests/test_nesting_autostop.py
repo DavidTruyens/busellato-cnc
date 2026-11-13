@@ -3,6 +3,7 @@ import http.client
 import http.server
 import io
 import json
+import shutil
 import socket
 import subprocess
 import sys
@@ -364,6 +365,47 @@ class PingTests(unittest.TestCase):
         start = time.monotonic()
         self.assertEqual(ping.OTHER, ping.probe(s.getsockname()[1], 0.5))
         self.assertLess(time.monotonic() - start, 2)
+
+
+class PageTests(unittest.TestCase):
+    def page(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        server = make_server(Path(tmp.name), port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        def stop():
+            server.shutdown()
+            thread.join(2)
+            server.server_close()
+        self.addCleanup(stop)
+        conn = http.client.HTTPConnection('127.0.0.1', server.server_address[1], timeout=5)
+        self.addCleanup(conn.close)
+        conn.request('GET', '/')
+        resp = conn.getresponse()
+        self.assertEqual(200, resp.status)
+        return resp.read().decode('utf-8')
+
+    def test_page_pings_and_says_when_stopped(self):
+        html = self.page()
+        for text in ('/api/ping', '/api/closing', 'sendBeacon', 'pagehide',
+                     'The tool has stopped. Start it again with the icon, '
+                     'then reload this page.'):
+            self.assertIn(text, html)
+
+    def test_page_script_parses(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node is not installed')
+        html = self.page()
+        script = html.split('<script>', 1)[1].rsplit('</script>', 1)[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'page.js'
+            path.write_text(script, encoding='utf-8')
+            result = subprocess.run([node, '--check', str(path)],
+                                    capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
 
 
 if __name__ == '__main__':
