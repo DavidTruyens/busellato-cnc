@@ -85,7 +85,8 @@ class Bit:
 
     def applicable(self) -> tuple:
         """Fields this bit's type uses (empty for an unknown type)."""
-        return REQUIRED.get(self.type, ()) + OPTIONAL.get(self.type, ())
+        return REQUIRED.get(self.type, ()) + OPTIONAL.get(self.type, ()) \
+            if isinstance(self.type, str) else ()
 
 
 @dataclass
@@ -116,10 +117,15 @@ class ToolTable:
             if not isinstance(rb, dict):
                 raise SettingsError("tools.bits", f"entry {i + 1} must be an object")
             bit_id = rb.get('id', '')
+            if not isinstance(bit_id, str):
+                raise SettingsError("tools.bits", f"entry {i + 1}: id must be text")
             if bit_id in seen:
                 raise SettingsError("tools.bits", f"two bits share the id {bit_id}")
             seen.add(bit_id)
             btype = rb.get('type')
+            if not isinstance(btype, str):
+                raise SettingsError(f"tools.bits.{bit_id}.type",
+                                    f"must be one of {', '.join(BIT_TYPES)}")
             keep = REQUIRED.get(btype, ()) + OPTIONAL.get(btype, ())
             values = {k: rb.get(k) for k in keep if k != 'diameter'}
             bits.append(Bit(id=bit_id, name=rb.get('name', ''), type=btype,
@@ -146,10 +152,10 @@ class ToolTable:
         bits = []
         for b in self.bits:
             item = {'id': b.id, 'name': b.name, 'type': b.type, 'diameter': b.diameter}
-            for k in REQUIRED.get(b.type, ()):
+            for k in (REQUIRED.get(b.type, ()) if isinstance(b.type, str) else ()):
                 if k != 'diameter':
                     item[k] = getattr(b, k)
-            for k in OPTIONAL.get(b.type, ()):
+            for k in (OPTIONAL.get(b.type, ()) if isinstance(b.type, str) else ()):
                 if getattr(b, k) is not None:
                     item[k] = getattr(b, k)
             bits.append(item)
@@ -183,6 +189,8 @@ class ToolTable:
     def validate(self) -> None:
         seen = set()
         for b in self.bits:
+            if not isinstance(b.id, str):
+                raise SettingsError("tools.bits", "every bit id must be text")
             if b.id in seen:
                 raise SettingsError("tools.bits", f"two bits share the id {b.id}")
             seen.add(b.id)

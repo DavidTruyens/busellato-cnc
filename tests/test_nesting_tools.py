@@ -108,6 +108,26 @@ class Table(unittest.TestCase):
         d['heads']['T66'] = 'b 1'
         self.assertEqual(field_of(self, d).field, 'tools.bits.b 1.id')
 
+    def test_unhashable_json_values_are_field_errors(self):
+        d = ToolTable.default().to_dict()
+        d['bits'][0]['id'] = {}
+        self.assertEqual(field_of(self, d).field, 'tools.bits')
+        d = ToolTable.default().to_dict()
+        d['bits'][0]['type'] = []
+        self.assertEqual(field_of(self, d).field, 'tools.bits.b1.type')
+        d = ToolTable.default().to_dict()
+        d['bits'][0]['id'] = []
+        self.assertEqual(field_of(self, d).field, 'tools.bits')
+        t = ToolTable([Bit({}, 'x', 'drill', 6, plunge_feed=1)], {})
+        with self.assertRaises(SettingsError) as cm:
+            t.validate()
+        self.assertEqual(cm.exception.field, 'tools.bits')
+        t = ToolTable([Bit('b1', 'x', [], 6)], {})
+        with self.assertRaises(SettingsError) as cm:
+            t.validate()
+        self.assertEqual(cm.exception.field, 'tools.bits.b1.type')
+        t.to_dict()
+
     def test_blade_optional_fields(self):
         t = ToolTable([Bit('k1', 'Blade', 'blade', 100)], {60: 'k1'})
         t.validate()
