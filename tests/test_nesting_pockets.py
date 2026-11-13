@@ -1,8 +1,10 @@
+import math
 import unittest
 
-from nesting.dxf import Pocket, Shape
-from nesting.geometry import Line
-from nesting.pockets import PALETTE, effective, find_groups, group_for, group_key
+from nesting.dxf import Pocket, Shape, _round_pocket
+from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
+from nesting.pockets import (PALETTE, PocketError, effective, find_groups, group_for, group_key,
+                             pocket_rings)
 from nesting.settings import Pockets
 
 
@@ -134,6 +136,169 @@ class EffectiveTests(unittest.TestCase):
         self.assertEqual(effective("k", {"k": {}}, d).tool, d.tool)
         with self.assertRaises(ValueError):
             effective("k", {"k": [1]}, d)
+
+
+def slot_outline(x0, y0, length, width=20.0):
+    """Closed CCW slot: two parallel lines and two 180-degree end arcs, overall length x width."""
+    r = width / 2
+    xa, xb, yc = x0 + r, x0 + length - r, y0 + r
+    return [Line((xa, y0), (xb, y0)),
+            Arc((xb, y0), (xb, y0 + width), (xb, yc), r, True),
+            Line((xb, y0 + width), (xa, y0 + width)),
+            Arc((xa, y0 + width), (xa, y0), (xa, yc), r, True)]
+
+
+def rect_outline(x0, y0, x1, y1):
+    return rect_pocket(x0, y0, x1, y1).outline
+
+
+def _inside(p, poly):
+    x, y = p
+    inside = False
+    for (x0, y0), (x1, y1) in zip(poly, poly[1:]):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
+def uncovered_points(outline, rings, radius, step=0.5, skip=None):
+    """Grid points inside the pocket farther than radius from every ring."""
+    poly = sample(outline, 0.2)
+    x0, y0, x1, y1 = bbox(outline)
+    out = []
+    nx, ny = int((x1 - x0) / step), int((y1 - y0) / step)
+    for i in range(1, nx):
+        for j in range(1, ny):
+            p = (x0 + i * step, y0 + j * step)
+            if not _inside(p, poly) or (skip and skip(p)):
+                continue
+            if all(distance_to_chain(p, ring) > radius + 0.01 for ring in rings):
+                out.append(p)
+    return out
+
+
+class PocketRingTests(unittest.TestCase):
+    def test_slot_20_wide_tool_12_gives_one_ring_at_offset_6(self):
+        outline = slot_outline(30, 15, 940)
+        rings = pocket_rings(outline, 12, 40)
+        self.assertEqual(len(rings), 1)
+        for p in sample(rings[0], 0.5):
+            self.assertAlmostEqual(distance_to_chain(p, outline), 6, places=2)
+        x0, y0, x1, y1 = bbox(rings[0])
+        self.assertAlmostEqual(y0, 21, places=2)
+        self.assertAlmostEqual(y1, 29, places=2)
+        self.assertAlmostEqual(x0, 36, places=2)
+        self.assertAlmostEqual(x1, 964, places=2)
+        self.assertEqual(sum(isinstance(s, Arc) for s in rings[0]), 2)
+
+    def test_every_point_in_pocket_is_covered_by_cutter(self):
+        slot = slot_outline(0, 0, 200)
+        self.assertEqual(uncovered_points(slot, pocket_rings(slot, 12, 40), 6), [])
+        rect = rect_outline(0, 0, 60, 40)
+        r = 4
+
+        def corner(p):  # a round cutter cannot reach into a sharp corner
+            return min(p[0], 60 - p[0]) < r and min(p[1], 40 - p[1]) < r
+        for pct in (40, 50, 75, 100):
+            with self.subTest(pct=pct):
+                rings = pocket_rings(rect, 2 * r, pct)
+                self.assertEqual(uncovered_points(rect, rings, r, skip=corner), [])
+        # wider than the cutter's reach at full stepover: the core must still be cleared
+        for w in (44, 50, 37):
+            with self.subTest(width=w):
+                s = slot_outline(0, 0, 150, w)
+                self.assertEqual(uncovered_points(s, pocket_rings(s, 10, 100), 5), [])
+        circle = _round_pocket(30, 30, 25).outline
+        for pct in (40, 100):
+            with self.subTest(circle_pct=pct):
+                self.assertEqual(uncovered_points(circle, pocket_rings(circle, 8, pct), 4), [])
+
+    def test_cutter_never_leaves_pocket(self):
+        cases = [(slot_outline(0, 0, 200), 12, 40), (rect_outline(0, 0, 60, 40), 8, 40),
+                 (slot_outline(0, 0, 150, 44), 10, 100), (_round_pocket(30, 30, 25).outline, 8, 60),
+                 (poly_pocket([(0, 0), (60, 0), (60, 30), (30, 30), (30, 50), (0, 50)]).outline, 6, 50)]
+        for outline, d, pct in cases:
+            with self.subTest(d=d, pct=pct):
+                for ring in pocket_rings(outline, d, pct):
+                    for p in sample(ring, 0.25):
+                        self.assertGreaterEqual(distance_to_chain(p, outline), d / 2 - 0.01)
+
+    def test_ring_order_inner_to_outer_wall_last(self):
+        outline = rect_outline(0, 0, 60, 40)
+        rings = pocket_rings(outline, 8, 40)
+        levels = [min(distance_to_chain(p, outline) for p in sample(r, 0.5)) for r in rings]
+        self.assertEqual(levels, sorted(levels, reverse=True))
+        self.assertAlmostEqual(levels[-1], 4, places=2)
+        for p in sample(rings[-1], 0.5):
+            self.assertAlmostEqual(distance_to_chain(p, outline), 4, places=2)
+        # every ring winds the same way as the outline, and stays closed
+        for ring in rings:
+            self.assertGreater(_signed_area(ring), 0)
+            self.assertLess(math.dist(ring[0].a, ring[-1].b), 1e-6)
+            for s, t in zip(ring, ring[1:]):
+                self.assertLess(math.dist(s.b, t.a), 1e-6)
+        cw = [Line(s.b, s.a) for s in reversed(outline)]
+        for ring in pocket_rings(cw, 8, 40):
+            self.assertLess(_signed_area(ring), 0)
+
+    def test_wider_pocket_gets_several_rings_with_stepover(self):
+        outline = rect_outline(0, 0, 60, 40)
+        rings = pocket_rings(outline, 8, 40)
+        levels = sorted(min(distance_to_chain(p, outline) for p in sample(r, 0.5)) for r in rings)
+        self.assertEqual(len(rings), 5)
+        for got, want in zip(levels, [4, 7.2, 10.4, 13.6, 16.8]):
+            self.assertAlmostEqual(got, want, places=2)
+
+    def test_pocket_equal_to_tool_width(self):
+        for width in (12, 12.008, 11.992):
+            with self.subTest(width=width):
+                outline = slot_outline(0, 0, 100, width)
+                rings = pocket_rings(outline, 12, 40)
+                self.assertEqual(len(rings), 1)
+                (a, b) = rings[0]
+                self.assertIsInstance(a, Line)
+                self.assertIsInstance(b, Line)
+                self.assertEqual((a.a, a.b), (b.b, b.a))
+                ends = sorted([a.a, a.b])
+                self.assertAlmostEqual(ends[0][0], width / 2, places=2)
+                self.assertAlmostEqual(ends[1][0], 100 - width / 2, places=2)
+                for p in ends:
+                    self.assertAlmostEqual(p[1], width / 2, places=2)
+        rings = pocket_rings(_round_pocket(20, 20, 6).outline, 12, 40)
+        self.assertEqual(len(rings), 1)
+        for s in rings[0]:
+            self.assertIsInstance(s, Line)
+            for p in (s.a, s.b):
+                self.assertAlmostEqual(p[0], 20, places=3)
+                self.assertAlmostEqual(p[1], 20, places=3)
+
+    def test_pocket_narrower_than_tool_is_an_error(self):
+        for outline in (slot_outline(0, 0, 100, 10), rect_outline(0, 0, 50, 11.9),
+                        _round_pocket(20, 20, 5).outline):
+            with self.assertRaisesRegex(PocketError, "narrower than the tool"):
+                pocket_rings(outline, 12, 40)
+        self.assertTrue(issubclass(PocketError, ValueError))
+
+    def test_round_pocket_rings_are_concentric_arcs(self):
+        outline = _round_pocket(30, 30, 25).outline
+        rings = pocket_rings(outline, 8, 40)
+        radii = []
+        for ring in rings:
+            self.assertEqual(len(ring), 2)
+            for s in ring:
+                self.assertIsInstance(s, Arc)
+                self.assertTrue(s.ccw)
+                self.assertAlmostEqual(s.center[0], 30, places=6)
+                self.assertAlmostEqual(s.center[1], 30, places=6)
+                self.assertAlmostEqual(_sweep(s), math.pi, places=4)
+            self.assertAlmostEqual(ring[0].radius, ring[1].radius, places=6)
+            radii.append(ring[0].radius)
+        self.assertEqual(radii, sorted(radii))
+        self.assertAlmostEqual(radii[-1], 21, places=3)
+        self.assertGreater(radii[0], 0.01)
+        self.assertLessEqual(radii[0], 4 + 1e-6)  # the centre is reached by the innermost ring
+        for a, b in zip(radii, radii[1:]):
+            self.assertLessEqual(b - a, 3.2 + 1e-6)
 
 
 if __name__ == "__main__":
