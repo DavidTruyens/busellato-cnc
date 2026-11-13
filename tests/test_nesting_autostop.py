@@ -205,22 +205,25 @@ class ServerAutoStopTests(unittest.TestCase):
         self.assertEqual(0, watch.in_flight)
 
     def test_closing_then_ping_keeps_server(self):
-        watch = IdleWatch(grace=5, closing_grace=0.3, no_page=5)
+        watch = IdleWatch(grace=5, closing_grace=0.5, no_page=5)
         self.start(watch)
         result = []
+        logs = []
         t = threading.Thread(
             target=lambda: result.append(run_watch(self.server, watch,
-                                                   tick=0.05)))
+                                                   tick=0.05, log=logs.append)),
+            daemon=True)
         t.start()
         self.call('POST', '/api/closing', {})
         time.sleep(0.1)
         self.call('GET', '/api/ping')
-        time.sleep(0.6)
+        time.sleep(1.0)          # twice the closing grace: the ping cancelled it
         self.assertEqual(200, self.call('GET', '/api/ping')[0])
         self.call('POST', '/api/closing', {})
-        t.join(2)
+        t.join(3)
         self.assertFalse(t.is_alive())
         self.assertEqual(['the page was closed'], result)
+        self.assertEqual(['Stopping: the page was closed'], logs)
 
     def test_main_exits_when_no_page(self):
         out = io.StringIO()
@@ -259,6 +262,18 @@ class ServerAutoStopTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - start, 0.15)
         self.assertTrue(server.closed)
 
+    def test_main_reads_the_version_before_binding(self):
+        order = []
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(server_module, 'version',
+                                  lambda: order.append('version') or 'x'), \
+                mock.patch.object(server_module, 'make_server',
+                                  side_effect=lambda *a: order.append('bind') or
+                                  (_ for _ in ()).throw(OSError('taken'))), \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(1, main(['nesting', tmp, '--port', '0']))
+        self.assertEqual(['version', 'bind'], order)
+
     def test_without_flag_no_watch(self):
         with tempfile.TemporaryDirectory() as tmp:
             server = make_server(Path(tmp), port=0)
@@ -266,6 +281,38 @@ class ServerAutoStopTests(unittest.TestCase):
                 self.assertIsNone(server.watch)
             finally:
                 server.server_close()
+
+
+class ServerBindTests(unittest.TestCase):
+    def test_windows_uses_the_exclusive_server(self):
+        self.assertIs(server_module.ThreadingHTTPServer, server_module.server_class())
+        with mock.patch.object(server_module, 'os', mock.Mock(name='os')) as fake_os:
+            fake_os.name = 'nt'
+            self.assertIs(server_module.ExclusiveServer, server_module.server_class())
+
+    def test_exclusive_server_refuses_a_second_bind(self):
+        # On Windows the option is SO_EXCLUSIVEADDRUSE (not tested on Windows); here only
+        # that the class binds without SO_REUSEADDR and a second bind fails.
+        self.assertFalse(server_module.ExclusiveServer.allow_reuse_address)
+        first = server_module.ExclusiveServer(('127.0.0.1', 0), http.server.BaseHTTPRequestHandler)
+        self.addCleanup(first.server_close)
+        port = first.server_address[1]
+        with self.assertRaises(OSError):
+            server_module.ExclusiveServer(('127.0.0.1', port),
+                                          http.server.BaseHTTPRequestHandler).server_close()
+
+    def test_version_is_unknown_when_git_fails(self):
+        def run(stdout, code):
+            done = subprocess.CompletedProcess([], code, stdout=stdout, stderr='')
+            server_module.version.cache_clear()
+            try:
+                with mock.patch.object(server_module.subprocess, 'run', return_value=done):
+                    return server_module.version()
+            finally:
+                server_module.version.cache_clear()
+        self.assertEqual('unknown', run('abc1234 2026-11-13\n', 128))
+        self.assertEqual('unknown', run('', 0))
+        self.assertEqual('abc1234 2026-11-13', run('abc1234 2026-11-13\n', 0))
 
 
 class PingTests(unittest.TestCase):

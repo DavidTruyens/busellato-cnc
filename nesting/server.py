@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -56,7 +57,7 @@ def version() -> str:
             cwd=Path(__file__).resolve().parent.parent, capture_output=True,
             text=True, timeout=5, stdin=subprocess.DEVNULL,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        return r.stdout.strip() or 'unknown' if r.returncode == 0 else 'unknown'
+        return (r.stdout.strip() or 'unknown') if r.returncode == 0 else 'unknown'
     except Exception:
         return 'unknown'
 
@@ -694,11 +695,31 @@ class Handler(BaseHTTPRequestHandler):
         self._tracked('POST')
 
 
+class ExclusiveServer(ThreadingHTTPServer):
+    """Windows: a second bind on a port in use must fail (not tested on Windows).
+
+    socketserver sets SO_REUSEADDR, and on Windows that lets a second socket of the same
+    user bind a port that already listens: two copies could start on one double-click.
+    SO_EXCLUSIVEADDRUSE makes the second bind fail, as it does on Linux and macOS.
+    """
+    allow_reuse_address = False
+
+    def server_bind(self):
+        opt = getattr(socket, 'SO_EXCLUSIVEADDRUSE', None)
+        if opt is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, opt, 1)
+        super().server_bind()
+
+
+def server_class() -> type:
+    return ExclusiveServer if os.name == 'nt' else ThreadingHTTPServer
+
+
 def make_server(project_dir: Path, port: int = 8765,
                 watch: IdleWatch | None = None) -> ThreadingHTTPServer:
     project = Project(Path(project_dir))
     handler = type('ProjectHandler', (Handler,), {'project': project})
-    server = ThreadingHTTPServer((HOST, port), handler)
+    server = server_class()((HOST, port), handler)
     server.daemon_threads = True
     server.watch = watch
     return server
@@ -753,6 +774,7 @@ def main(argv: list[str]) -> int:
     if args.seed_plates:
         n = seed_plates(folder)
         print(f'Seeded {n} plate shapes' if n else 'Project already has shapes: nothing seeded')
+    version()     # git runs now, so the first /api/ping answers at once
     try:
         watch = IdleWatch() if args.exit_when_closed else None
         server = make_server(folder, args.port, watch)
