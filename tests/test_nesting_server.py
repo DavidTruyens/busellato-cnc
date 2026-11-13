@@ -870,6 +870,42 @@ class ServerTests(unittest.TestCase):
         self.assertIn("[66, 8, 'T66 Ø8 (right, 4.5 HP)']", html)
         self.assertIn("[65, 18, 'T65 Ø18 (left, 7 HP)']", html)
 
+    def test_page_has_a_pockets_section_with_defaults_and_group_rows(self):
+        status, html = self.call('GET', '/')
+        self.assertEqual(status, 200)
+        self.assertIn('<h2 id="pockets">Pockets</h2>', html)
+        self.assertIn('<div id="pocketGroups">', html)
+        for key in ('min_circle_diameter', 'min_floor', 'tool', 'diameter', 'depth',
+                    'depth_per_pass', 'spindle_rpm', 'plunge_feed', 'cut_feed', 'stepover_pct',
+                    'direction'):
+            self.assertRegex(html, r"\['pockets\.%s', " % key)
+        self.assertRegex(html, r"\['pockets\.min_circle_diameter', '[^']*pocket[^']*hole")
+        for name in ('tool', 'diameter', 'depth', 'depth_per_pass', 'plunge_feed', 'cut_feed',
+                     'stepover_pct'):
+            self.assertIn(f"['{name}', ", html.split('const GROUP_FIELDS')[1].split(';')[0])
+        # overrides by group key, saved with the project; field errors of a group's row
+        self.assertIn('project.pockets[key]', html)
+        self.assertIn('`pockets.${g.id}.${name}`', html)
+        self.assertIn(r"/^pockets\.(G\d+)(?:\.(.+))?$/", html)
+        # the drawing: pockets in their group colour, the rings in the cut view, B..P listed
+        self.assertIn('q.pockets', html)
+        self.assertIn('b.pocket_rings', html)
+        self.assertIn('pocket (group colour)', html)
+        self.assertIn("pocket: 'cut'", html)
+
+    def test_page_sets_no_html_from_data(self):
+        # only the SVG drawings are built as markup, every value in them through esc();
+        # group colours are checked before they are used
+        status, html = self.call('GET', '/')
+        script = html.split('<script>')[1]
+        uses = re.findall(r'\.innerHTML\s*=\s*([^;]+);', script)
+        self.assertEqual(sorted(set(uses)), sorted({'s', "'<text x=\"500\" y=\"100\" font-size=\"32\" text-anchor=\"middle\" fill=\"#667085\">No blank</text>'"}))
+        self.assertNotIn('insertAdjacentHTML', script)
+        self.assertNotIn('outerHTML', script)
+        self.assertIn('const COLOR_RE = /^#[0-9a-f]{6}$/i;', script)
+        self.assertIn('swatch.style.backgroundColor = safeColor(g.color)', script)
+        self.assertNotRegex(script, r'\$\{(?:pk|r|g)\.color\}')
+
     def test_end_to_end_12_plates(self):
         self.assertEqual(seed_plates(self.dir), 12)
         status, plan = self.call('GET', '/api/plan')
