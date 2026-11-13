@@ -23,7 +23,7 @@ main() {
     local CUR=""          # the file that holds this start's messages ("" when none)
     local TERM_OUT=""     # set when started from a terminal: the log is shown there too
     local TEE_PID=""      # the tee that shows the log in the terminal
-    local here PY c code seed
+    local here PY OLD c code seed
 
     # Move this start's lines onto start.log and keep logging there (append mode).
     # Only for a start or a failure, never when the tool already runs.
@@ -105,19 +105,23 @@ main() {
         fi
 
         # ---- Python -----------------------------------------------------------------------------
+        # The first one that is 3.11 or newer (python3 is 3.10 on Ubuntu 22.04, for example).
         PY=""
-        for c in python3 python; do
-            if "$c" --version >/dev/null 2>&1; then
+        OLD=""          # the first Python found that is too old
+        for c in python3.13 python3.12 python3.11 python3 python; do
+            "$c" --version >/dev/null 2>&1 || continue
+            if "$c" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
                 PY="$c"
                 break
             fi
+            [ -n "$OLD" ] || OLD="$c"
         done
-        if [ -z "$PY" ]; then
+        if [ -z "$PY" ] && [ -z "$OLD" ]; then
             fail 2 "Python 3 was not found. Install Python 3.11 or newer."
             return
         fi
-        if ! "$PY" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
-            fail 3 "This Python is too old (3.11 or newer is needed): $("$PY" --version 2>&1)"
+        if [ -z "$PY" ]; then
+            fail 3 "This Python is too old (3.11 or newer is needed): $("$OLD" --version 2>&1)"
             return
         fi
 

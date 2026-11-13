@@ -21,6 +21,7 @@ from nesting.server import make_server
 
 REPO = Path(__file__).resolve().parent.parent
 START_SH = REPO / 'start.sh'
+PYTHONS = ('python3.13', 'python3.12', 'python3.11', 'python3', 'python')
 
 
 def free_port():
@@ -49,13 +50,18 @@ class StartShTests(unittest.TestCase):
         write_stub(self.bin / 'git', 'echo "$*" >> "$HOME/git-calls"\n'
                    'echo "GIT_TERMINAL_PROMPT=$GIT_TERMINAL_PROMPT" >> "$HOME/git-calls"\nexit 1')
         write_stub(self.bin / 'notify-send', 'echo "$*" >> "$HOME/notified"')
+        # Every Python start.sh looks for is missing unless a test puts one in: a real
+        # python3.1x in /usr/bin must not be found.
+        for name in PYTHONS:
+            write_stub(self.bin / name, 'exit 127')
         self.browser = Path(tmp.name) / 'browser'
         write_stub(self.browser, 'echo "$1" >> "$HOME/opened"')
         self.project = self.home / 'nesting-project'
         self.log = self.project / 'start.log'
 
-    def use_real_python(self):
-        os.symlink(sys.executable, self.bin / 'python3')
+    def use_real_python(self, name='python3'):
+        (self.bin / name).unlink()
+        os.symlink(sys.executable, self.bin / name)
 
     def env(self, port):
         return {'HOME': str(self.home),
@@ -160,6 +166,19 @@ class StartShTests(unittest.TestCase):
         notice = self.read('notified')
         self.assertIn('too old', notice)
         self.assertIn('Python 3.9.0', notice)
+
+    def test_start_sh_finds_a_newer_python(self):
+        # python3 is too old (Ubuntu 22.04), python3.12 is installed beside it.
+        write_stub(self.bin / 'python3',
+                   'if [ "$1" = "--version" ]; then echo "Python 3.10.12"; exit 0; fi\nexit 1')
+        self.use_real_python('python3.12')
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        port = self.serve(make_server(Path(tmp.name), port=0))
+        r = self.run_start(port)
+        self.assertEqual(0, r.returncode, self.log.read_text())
+        self.assertIn('already running', self.log.read_text())
+        self.assertEqual('', self.read('notified'))
 
     def test_start_sh_no_python(self):
         write_stub(self.bin / 'python3', 'exit 127')
