@@ -38,8 +38,8 @@ properties = {
     type: "integer", value: 250, scope: "post"},
   maxDepthBelow: {title: "Max depth below stock (mm)", description: "Deeper cuts than stock thickness + this are refused.",
     type: "number", value: 5, scope: "post"},
-  allowedTools: {title: "Allowed tool numbers", description: "Comma separated numbers and ranges, e.g. 1-30,65,66.",
-    type: "string", value: "1-30,65,66", scope: "post"}
+  allowedTools: {title: "Allowed tool numbers", description: "Comma separated numbers and ranges, e.g. 1-14,65,66.",
+    type: "string", value: "1-14,65,66", scope: "post"}
 };
 
 var TOP = 0.0005;          // mm; at or above this Z counts as "not in the material"

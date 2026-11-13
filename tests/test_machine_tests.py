@@ -9,7 +9,8 @@ sys.path.insert(0, TOOLS)
 import check_cnc90  # noqa: E402
 
 DIR = os.path.join(REPO, 'post', 'machine-tests')
-NAMES = ['ZZT1', 'ZZT1D', 'ZZT1A', 'ZZT1AD', 'ZZT2A', 'ZZT3A', 'ZZT3B', 'ZZT3C', 'ZZT3D']
+NAMES = ['ZZT1', 'ZZT1D', 'ZZT1A', 'ZZT1AD', 'ZZT2A', 'ZZT3A', 'ZZT3B', 'ZZT3C', 'ZZT3D',
+         'ZZT4D']
 REAL = ['ZZT1', 'ZZT1D']  # cut into an 18 mm panel; every other program runs in the air
 
 
@@ -53,6 +54,16 @@ class MachineTestProgramsTest(unittest.TestCase):
         self.assertEqual(real, air)
         self.assertIn('G2', [c for c, _ in real])
         self.assertIn('G3', [c for c, _ in real])
+
+    def test_drill_head_check_calls_each_vertical_drill_once(self):
+        # ZZT4D: one air hole per vertical drill T1..T14, in order, each at its own X, so the
+        # position and the order show which spindle has which number
+        lines = read_lines('ZZT4D')[2:-1]
+        tools = [int(re.search(r'T01(\d\d)', l).group(1)) for l in lines]
+        xs = [float(re.search(r'X([\d.]+)', l).group(1)) for l in lines]
+        self.assertEqual(tools, list(range(1, 15)))
+        self.assertEqual(len(set(xs)), 14)
+        self.assertTrue(all(l.startswith('G81') for l in lines))
 
 
 if __name__ == '__main__':
