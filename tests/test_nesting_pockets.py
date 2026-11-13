@@ -4,7 +4,7 @@ import unittest
 
 from nesting.dxf import Pocket, Shape, _inside, _round_pocket
 from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
-from nesting.pockets import (MAX_RINGS, PALETTE, PocketError, effective, find_groups, group_for, group_key,
+from nesting.pockets import (MAX_RINGS, MIN_ARC, PALETTE, PocketError, effective, find_groups, group_for, group_key,
                              is_convex, pocket_rings)
 from nesting.settings import Pockets
 
@@ -448,6 +448,27 @@ class ConcavePocketTests(unittest.TestCase):
                     for p in sample(ring, 0.25):
                         self.assertGreaterEqual(distance_to_chain(p, outline), 4 - 0.01)
         self.assertGreater(returned, 0)  # some concave pockets are cleared, not all refused
+
+    def test_no_arc_under_min_arc_and_still_covered(self):
+        # 20.8004 wide, 8 mm tool, 40 %: rings at offsets 4, 7.2 and 10.4; the last one is
+        # 0.0004 wide with end arcs of radius 0.0002 (written U0): it becomes the centre line
+        for width in (20.8004, 20.8009, 20.801, 20.81):
+            outline = slot_outline(0, 0, 300, width)
+            rings = pocket_rings(outline, 8, 40)
+            with self.subTest(width=width):
+                for ring in rings:
+                    for s in ring:
+                        if isinstance(s, Arc):
+                            self.assertGreaterEqual(s.radius, MIN_ARC)
+                self.assertEqual(uncovered_points(outline, rings, 4, step=0.25), [])
+                for ring in rings:
+                    for p in sample(ring, 0.25):
+                        self.assertGreaterEqual(distance_to_chain(p, outline), 4 - 0.01)
+        rings = pocket_rings(slot_outline(0, 0, 300, 20.8004), 8, 40)
+        self.assertEqual(len(rings), 3)
+        self.assertTrue(all(isinstance(s, Line) for s in rings[0]))
+        self.assertEqual(len(rings[0]), 2)              # out and back along the centre line
+        self.assertEqual((rings[0][0].a, rings[0][0].b), (rings[0][1].b, rings[0][1].a))
 
     def test_ring_count_is_capped(self):
         # 10 % of a 1 mm tool is 0.1 mm: a 60 mm wide pocket would need about 300 rings

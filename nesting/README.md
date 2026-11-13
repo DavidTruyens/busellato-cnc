@@ -150,7 +150,9 @@ centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
 - Wider: closed rings from the inside out, the wall ring (the outline offset inward by the tool
   radius) **last**. The stepover is a maximum, capped at 70 % of the tool diameter (a larger
   stepover would leave material at sharp corners). For every depth pass all the group's pockets
-  of the blank are cut, each ring after the other.
+  of the blank are cut, each ring after the other. A ring whose arcs would have a radius under
+  0.001 mm (written as `U0`) is cut as a straight line instead (the middle of a slot just wider
+  than a whole number of stepovers); the CNC90 writer refuses any arc it would write as `U0`.
 - Convex pockets (slots, rectangles, circles) are cleared by construction. A pocket that is not
   convex is checked over its whole interior and **refused with an error** that names the blank,
   shape and group when material would be left standing; clearing general concave pockets is out

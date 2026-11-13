@@ -184,6 +184,7 @@ _MAX_STEP_PCT = 70  # stepover cap, % of the tool diameter (see pocket_rings)
 _SHRINK = 0.8      # backstop: stepover factor per retry when the check finds material left
 _RETRIES = 10
 MAX_RINGS = 200    # rings of one pocket; more is refused (a tiny stepover would never end)
+MIN_ARC = 0.001    # mm: an arc of a smaller radius is written as U0 (3 decimals): never kept
 
 
 class PocketError(ValueError):
@@ -282,6 +283,7 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
                 level, ring = _deepest(outline, reach, probe, levels[-1] + step)
                 levels.append(level)
                 rings.append(ring)
+        levels, rings = _snap_rings(levels, rings)
         if _covered(outline, levels, rings, r):
             return [split_large_arcs(g) for g in reversed(rings)]
         step *= _SHRINK
@@ -342,11 +344,50 @@ def _concave_rings(outline: list[Seg], wall: list[Seg], r: float, step: float,
         level, ring = _deepest(outline, levels[-1] + 2 * _BISECT, probe, levels[-1] + step)
         levels.append(level)
         rings.append(ring)
+    levels, rings = _snap_rings(levels, rings)
     if _uncovered_point(outline, rings, r) is not None:
         raise PocketError(f"pocket shape is not clearable with a {tool_diameter:g} mm tool by "
                           f"offset rings (concave); use a smaller tool, split the pocket or "
                           f"use a slot/rectangle/round pocket")
     return [split_large_arcs(g) for g in reversed(rings)]
+
+
+def _snap_rings(levels: list[float], rings: list[list[Seg]]
+                ) -> tuple[list[float], list[list[Seg]]]:
+    """The rings with every arc under MIN_ARC radius removed (_snap_ring); a ring that cannot
+    be snapped is dropped. The caller's coverage check then proves the result."""
+    out_l, out_r = [], []
+    for level, ring in zip(levels, rings):
+        got = _snap_ring(ring)
+        if got is not None:
+            out_l.append(level)
+            out_r.append(got)
+    return out_l, out_r
+
+
+def _snap_ring(ring: list[Seg]) -> list[Seg] | None:
+    """A ring without arcs of radius under MIN_ARC (the control would get U0).
+
+    Such an arc is at most 2 * MIN_ARC long: it becomes a straight line between its ends. A
+    ring of lines only then has its vertices closer than _MIN_RING merged (moving the path by
+    less than MIN_ARC); when fewer than three are left the ring is a centre line traversed out
+    and back, [Line(p, q), Line(q, p)] (the innermost ring of a slot whose width is just over
+    a whole number of stepovers). A ring that keeps other arcs is dropped (None)."""
+    if not any(isinstance(s, Arc) and s.radius < MIN_ARC for s in ring):
+        return ring
+    segs = [Line(s.a, s.b) if isinstance(s, Arc) and s.radius < MIN_ARC else s for s in ring]
+    if any(isinstance(s, Arc) for s in segs):
+        return None
+    pts: list[Pt] = []
+    for s in segs:
+        if not pts or math.dist(pts[-1], s.a) >= _MIN_RING:
+            pts.append(s.a)
+    while len(pts) > 1 and math.dist(pts[-1], pts[0]) < _MIN_RING:
+        pts.pop()
+    if len(pts) < 3:
+        p, q = pts[0], pts[-1]
+        return [Line(p, q), Line(q, p)]
+    return [Line(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
 
 
 def _offset_any(outline: list[Seg], d: float) -> list[Seg] | None:

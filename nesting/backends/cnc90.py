@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..geometry import Arc
-from ..program import ContourOp, DrillOp, Program
+from ..program import ContourOp, DrillOp, Program, ProgramError
 from ..settings import Settings
 
 
@@ -41,7 +41,11 @@ def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[st
         first = False
         if isinstance(seg, Arc):
             code = 'G3' if seg.ccw else 'G2'
-            out.append(f'{code}G90G17{_xy(seg.b)}U{fmt(seg.radius)}')
+            u = fmt(seg.radius)
+            if u == '0':        # the control would get an arc of radius 0
+                raise ProgramError(f'{program.name}: {op.label}: arc of radius {seg.radius:.6f} '
+                                   f'mm would be written as U0; nothing is generated')
+            out.append(f'{code}G90G17{_xy(seg.b)}U{u}')
         else:
             out.append(f'G1G90{f}{_xy(seg.b)}{z}')
     return out

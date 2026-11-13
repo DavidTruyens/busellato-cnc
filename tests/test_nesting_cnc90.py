@@ -7,11 +7,12 @@ from pathlib import Path
 
 from nesting.backends import BACKENDS
 from nesting.backends.cnc90 import emit, fmt
-from nesting.dxf import read_dxf
+from nesting.dxf import Pocket, Shape, read_dxf
 from nesting.geometry import Arc, Line
 from nesting.layout import ShapeEntry, build_plan
-from nesting.program import ContourOp, DrillOp, Program, plan_programs
+from nesting.program import ContourOp, DrillOp, Program, ProgramError, plan_programs
 from nesting.settings import Settings
+from test_nesting_pockets import slot_outline
 
 repo = Path(__file__).resolve().parent.parent
 MT = repo / 'post' / 'machine-tests'
@@ -239,6 +240,31 @@ class PocketEmitTests(unittest.TestCase):
         self.assertEqual(lines[2:4], ['G88G90G54P5T0166S18000F1X245Y145Z4',
                                       'G1G90F3X245Y145Z4'])
         check(self, [p], self.s)
+
+    def test_arc_written_as_u0_is_refused(self):
+        arc = Arc((10, 10.0002), (10, 9.9998), (10, 10), 0.0002, False)
+        op = ContourOp([Line((50, 10), (10, 10.0002)), arc, Line((10, 9.9998), (50, 10))], 4,
+                       'B01 p #1 G1 pocket 1 pass 1/1 ring 1/1')
+        p = Program('B01P', 66, 'pocket', 'Pockets', (690, 290, 36), [op], 18000, 1, 3)
+        with self.assertRaisesRegex(ProgramError, 'U0'):
+            emit(p, self.s)
+        ok = Arc((10, 10.001), (10, 9.999), (10, 10), 0.001, False)
+        op.segs = [Line((50, 10), (10, 10.001)), ok, Line((10, 9.999), (50, 10))]
+        self.assertIn('U0.001', emit(p, self.s))
+
+    def test_slot_just_over_whole_stepovers_has_no_u0(self):
+        # 20.8004 wide, 8 mm tool, 40 %: the innermost ring would end in arcs of radius 0.0002
+        s = Settings()
+        sh = Shape('p', [Line((0, 0), (600, 0)), Line((600, 0), (600, 200)),
+                         Line((600, 200), (0, 200)), Line((0, 200), (0, 0))], [],
+                   [Pocket(slot_outline(100, 50, 300, 20.8004))])
+        progs = [p for p in plan_programs(build_plan([ShapeEntry(sh)], s), s)
+                 if p.kind == 'pocket']
+        self.assertEqual(len(progs), 1)
+        text = emit(progs[0], s)
+        self.assertNotRegex(text, r'U0(\r|$)')
+        self.assertTrue(all(float(u) >= 0.001 for u in re.findall(r'U([\d.]+)', text)))
+        check(self, progs, s)
 
     def test_generated_pocket_programs_pass_the_checker(self):
         for tool, dia in ((66, 8), (67, 12)):
