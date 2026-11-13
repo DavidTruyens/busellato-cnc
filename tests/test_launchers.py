@@ -463,6 +463,18 @@ class WindowsFilesTests(unittest.TestCase):
         wait = vbs[vbs.index('Sub WaitForTool()'):vbs.index('End Sub')]
         self.assertNotIn('cmd /c', wait)       # never writes into the other start's log
 
+    def test_start_bat_update_cannot_hang(self):
+        bat = self.text(START_BAT)
+        self.assertIn('git -c credential.interactive=never -c http.lowSpeedLimit=1000 '
+                      '-c http.lowSpeedTime=30 pull --ff-only -q', bat)
+        self.assertIn('set "GIT_TERMINAL_PROMPT=0"', bat)
+        self.assertIn('set "GCM_INTERACTIVE=never"', bat)
+        self.assertIn('if not defined GIT_SSH if not defined GIT_SSH_COMMAND '
+                      'set "GIT_SSH_COMMAND=ssh -o BatchMode=yes"', bat)
+
+    def test_start_bat_quiet_mode_writes_utf8(self):
+        self.assertIn('if defined QUIET set "PYTHONUTF8=1"', self.text(START_BAT))
+
     def test_start_bat_failed_tool_pings_again(self):
         bat = self.text(START_BAT).replace('\r\n', '\n')
         failed = bat[bat.index(':toolfailed\n'):]

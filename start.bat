@@ -14,6 +14,9 @@ rem only then does "cmd /c start.bat" (the launcher) reliably return N.
 setlocal
 set "QUIET="
 if "%NESTING_QUIET%"=="1" set "QUIET=1"
+rem The log is a file: Python then writes UTF-8 to it, so a path with letters outside the
+rem Windows code page cannot crash a print (not tested on Windows).
+if defined QUIET set "PYTHONUTF8=1"
 title Nesting tool
 cd /d "%~dp0"
 if errorlevel 1 goto nofolder
@@ -29,12 +32,16 @@ rem the rest runs from a fresh start of the new file (call ... --updated), all o
 rem "exit /b" with no number keeps the ERRORLEVEL the new file ended with, so its exit code
 rem passes through to the launcher (no delayed expansion needed).
 if "%~1"=="--updated" goto updated
+rem Never wait for a password or a host key, and give up on a stalled download (less than
+rem 1000 bytes/s for 30 s), as start.sh does: the quiet start has no window to answer in.
+rem ssh only when no other ssh program is set up (not tested on Windows).
 set "GIT_TERMINAL_PROMPT=0"
 set "GCM_INTERACTIVE=never"
+if not defined GIT_SSH if not defined GIT_SSH_COMMAND set "GIT_SSH_COMMAND=ssh -o BatchMode=yes"
 where git >nul 2>nul
 if errorlevel 1 goto nogit
 echo Checking for updates...
-git pull --ff-only -q >nul 2>nul && (call "%~f0" --updated & exit /b)
+git -c credential.interactive=never -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 pull --ff-only -q >nul 2>nul && (call "%~f0" --updated & exit /b)
 echo Update skipped (offline, local changes or no access): starting the version on this PC.
 goto version
 :nogit
