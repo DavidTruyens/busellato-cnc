@@ -95,12 +95,45 @@ class StartShTests(unittest.TestCase):
         self.assertIn(url, self.read('opened'))
         log = self.log.read_text()
         self.assertIn('already running', log)
-        self.assertIn('Update skipped', log)
+        self.assertNotIn('Update skipped', log)   # only short lines on this path
+        self.assertNotIn('\a', log)
         self.assertEqual('', self.read('notified'))
         calls = self.read('git-calls')
         self.assertIn('-c credential.interactive=never', calls)
         self.assertIn('pull --ff-only -q', calls)
         self.assertIn('GIT_TERMINAL_PROMPT=0', calls)
+
+    def test_start_sh_second_launch_keeps_the_running_log(self):
+        # The running tool's log must not be truncated by a second click on the icon.
+        self.use_real_python()
+        self.project.mkdir()
+        self.log.write_text('MARKER first run\n')
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        port = self.serve(make_server(Path(tmp.name), port=0))
+        with open(self.log, 'a') as running:     # the first run's server, still writing
+            r = self.run_start(port)
+            running.write('server line after\n')
+        self.assertEqual(0, r.returncode)
+        data = self.log.read_bytes()
+        self.assertTrue(data.startswith(b'MARKER first run\n'), data[:200])
+        self.assertNotIn(b'\0', data)
+        self.assertIn(b'already running', data)
+        self.assertIn(b'server line after', data)
+        self.assertEqual(['start.log'], sorted(p.name for p in self.project.iterdir()
+                                               if p.name.startswith('start.log')))
+
+    def test_start_sh_notice_falls_back_to_zenity(self):
+        write_stub(self.bin / 'notify-send', 'exit 1')
+        write_stub(self.bin / 'zenity', 'echo "$*" >> "$HOME/zenity"')
+        write_stub(self.bin / 'python3', 'exit 127')
+        write_stub(self.bin / 'python', 'exit 127')
+        r = self.run_start(free_port())
+        self.assertEqual(2, r.returncode)
+        self.assertIn('Python 3 was not found', self.read('zenity'))
+        self.assertIn('Python 3 was not found', self.log.read_text())
+        self.assertIn(f'Log: {self.log}', self.log.read_text())
+        self.assertFalse(any(p.name.startswith('start.log.') for p in self.project.iterdir()))
 
     def test_start_sh_port_taken(self):
         self.use_real_python()
@@ -135,7 +168,8 @@ class StartShTests(unittest.TestCase):
         self.assertEqual(2, r.returncode, self.log.read_text())
         self.assertIn('Python 3 was not found', self.read('notified'))
 
-    def test_start_sh_starts_the_tool(self):
+    def start_tool(self):
+        """Popen start.sh in its own session; return (process, port) once the tool runs."""
         self.use_real_python()
         port = free_port()
         p = subprocess.Popen(['bash', str(START_SH)], env=self.env(port),
@@ -157,10 +191,27 @@ class StartShTests(unittest.TestCase):
                 break
             self.assertIsNone(p.poll(), self.log.read_text() if self.log.exists() else '')
             time.sleep(0.1)
+        return p, port
+
+    def test_start_sh_starts_the_tool(self):
+        p, port = self.start_tool()
+        url = f'http://127.0.0.1:{port}/'
         self.assertEqual(ping.RUNNING, ping.probe(port))
         self.assertIn(url, self.read('opened'))
         self.assertIn('Stops by itself when the page is closed.', self.log.read_text())
         self.assertTrue(any((self.project / 'shapes').iterdir()), 'plates seeded')
+        self.assertEqual(['start.log'], sorted(p.name for p in self.project.iterdir()
+                                               if p.name.startswith('start.log')))
+
+    def test_start_sh_tool_stopped_by_signal_is_not_a_failure(self):
+        p, port = self.start_tool()
+        children = subprocess.run(['pgrep', '-P', str(p.pid)], capture_output=True,
+                                  text=True).stdout.split()
+        self.assertEqual(1, len(children), children)
+        os.kill(int(children[0]), signal.SIGTERM)    # e.g. logout
+        self.assertEqual(0, p.wait(10))
+        self.assertIn('The tool was stopped (signal).', self.log.read_text())
+        self.assertEqual('', self.read('notified'))
 
     def test_start_sh_shellcheck(self):
         sc = shutil.which('shellcheck')
