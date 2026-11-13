@@ -1,0 +1,23 @@
+name: Tests
+
+# The full test suite on every pull request and on every push to main.
+# Standard library only: nothing to install.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # the oldest version the tool supports (see WINDOWS.md)
+      - name: Run the tests
+        run: python -m unittest discover -s tests
