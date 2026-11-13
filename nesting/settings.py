@@ -4,17 +4,8 @@ import math
 from dataclasses import dataclass, field, fields, is_dataclass, asdict
 
 
-# Smallest stepover, % of the tool diameter: a tiny one gives thousands of rings (a plan that
-# never ends); 10 % already gives 10 rings per tool diameter of pocket width.
-MIN_STEPOVER_PCT = 10
-STEPOVER_MESSAGE = "must be between 10 and 100 (percent of the tool diameter)"
-
-
-class SettingsError(ValueError):
-    def __init__(self, field: str, message: str):
-        super().__init__(f"{field}: {message}")
-        self.field = field
-        self.message = message
+# SettingsError and the stepover limits live in tools.py (which must not import this module).
+from .tools import SettingsError, MIN_STEPOVER_PCT, STEPOVER_MESSAGE  # noqa: F401
 
 
 @dataclass
