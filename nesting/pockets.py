@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field, fields
 
-from .dxf import Pocket, Shape
+from .dxf import Pocket, Shape, _inside
 from .geometry import (Arc, Line, OffsetError, Pt, Seg, bbox, distance_to_chain, offset_outline,
                        sample, split_large_arcs)
 from .settings import Pockets
@@ -178,9 +178,9 @@ WIDTH_TOL = 0.01   # mm: a pocket this close to the tool diameter is cut by one 
 _SNUG = 0.006      # mm: offset margin used to probe for a tool-width pocket (just over WIDTH_TOL / 2)
 _MIN_RING = 0.01   # mm: a ring smaller than this across is a point, not a ring
 _BISECT = 0.01     # mm: precision of the search for the deepest offset
-_SHRINK = 0.8      # stepover factor per retry when the rings leave material standing
+_MAX_STEP_PCT = 70  # stepover cap, % of the tool diameter (see pocket_rings)
+_SHRINK = 0.8      # backstop: stepover factor per retry when the check finds material left
 _RETRIES = 10
-_GRID_POINTS = 3000  # at most this many points in the coverage check
 
 
 class PocketError(ValueError):
@@ -192,15 +192,23 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     """Closed tool-centre rings that clear the pocket, innermost first, the wall ring last.
 
     The wall ring is the outline offset inward by the tool radius r; the other rings are
-    further inward offsets spaced stepover = tool_diameter * stepover_pct / 100 apart, for as
-    long as the offset exists. When the innermost ring cannot reach the middle (stepover more
-    than r), one more ring is added at the deepest offset that still exists. The union of
-    cutter discs must cover the pocket (apart from sharp convex corners no round cutter
-    reaches): this is checked on a grid, and when it fails (at sharp corners the gap between
-    two rings along the corner bisector is stepover * sqrt(2) / 2, so a stepover over about
-    70 % leaves cusps there) the stepover is reduced by _SHRINK and the rings rebuilt. The
-    stepover is therefore a maximum. A pocket that still cannot be cleared (for example one
-    whose inner offsets break into separate islands) raises PocketError.
+    further inward offsets spaced stepover apart, for as long as the offset exists.
+
+    stepover = tool_diameter * min(stepover_pct, 70) / 100: stepover_pct is a maximum and
+    values above 70 are treated as 70. Reason: at a sharp convex corner the rings have sharp
+    corners, and a point on the corner bisector between two rings is farther from both than
+    half the spacing; with a 70 % stepover a right-angled corner stays covered.
+
+    Coverage comes from the construction: when the pocket's middle (its deepest offset,
+    found by bisection to _BISECT) lies more than r beyond the innermost regular ring, a ring
+    at that deepest offset is added (a thin loop around the medial axis). As a backstop the
+    result is checked: points on the offset halfway between each pair of rings must be
+    within r of one of the two, and a grid (cell r/3) inside the innermost ring within r of
+    a ring. If that check fails (sharp acute corners) the stepover is reduced by _SHRINK and
+    the rings rebuilt, up to _RETRIES times; a pocket that still cannot be cleared (for
+    example one whose inner offsets break into separate islands) raises PocketError rather
+    than returning rings that would leave material. The band within r of the outline is
+    cleared by the wall ring, except sharp convex corners, which no round cutter reaches.
 
     Every ring keeps the winding of the outline (direction is applied later), lies in the
     same frame, and is at least r from the outline. Arcs stay arcs; arcs over 180 degrees are
@@ -210,8 +218,9 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     treated as collapsed: there is no ring at a single point except the case below.
 
     A pocket as wide as the tool (within WIDTH_TOL) gives one degenerate ring: its straight
-    centre line traversed out and back, [Line(p, q), Line(q, p)]. For a round pocket of the
-    tool diameter p == q is the centre: two zero-length lines, i.e. a plunge at the centre.
+    centre line traversed out and back, [Line(p, q), Line(q, p)]. A round pocket of the tool
+    diameter gives [Line(c, c), Line(c, c)] with c the centre: two zero-length lines, a plunge
+    at the centre with no horizontal move (callers must not ask such a line for a direction).
     A pocket narrower than the tool raises PocketError ("narrower than the tool"); one about
     as wide as the tool that is not a straight slot raises PocketError as well.
     """
@@ -220,7 +229,7 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
     if not (0 < stepover_pct <= 100):
         raise PocketError(f"invalid stepover {stepover_pct!r} %")
     r = tool_diameter / 2
-    step = tool_diameter * stepover_pct / 100
+    step = tool_diameter * min(stepover_pct, _MAX_STEP_PCT) / 100
     circle = _circle(outline)
     if circle is not None:
         return _circle_rings(outline, circle, r, step, tool_diameter)
@@ -233,25 +242,28 @@ def pocket_rings(outline: list[Seg], tool_diameter: float,
         if wall is None:
             if _offset_any(outline, r - _SNUG) is not None:
                 raise PocketError(f"pocket is about as wide as the {tool_diameter:g} mm tool "
-                                  f"but not a straight slot; it cannot be cut in one pass")
+                                  f"but is not a straight slot, so it cannot be cut in one pass")
             raise PocketError(f"pocket is narrower than the tool ({tool_diameter:g} mm)")
 
-    grid = _core_grid(outline, r)
     for _ in range(_RETRIES):
         levels, rings = [r], [wall]
         while (ring := _offset(outline, levels[-1] + step)) is not None:
             levels.append(levels[-1] + step)
             rings.append(ring)
-        if _covered(grid, rings, r):
+        if step > r:
+            # the middle may lie beyond the reach (r) of the innermost ring
+            reach = levels[-1] + r
+            probe = _offset(outline, reach)
+            if probe is not None:
+                level, ring = _deepest(outline, reach, probe, levels[-1] + step)
+                levels.append(level)
+                rings.append(ring)
+        if _covered(outline, levels, rings, r):
             return [split_large_arcs(g) for g in reversed(rings)]
-        deepest = _deepest(outline, levels[-1], levels[-1] + step)
-        if deepest is not None:
-            rings.append(deepest)
-            if _covered(grid, rings, r):
-                return [split_large_arcs(g) for g in reversed(rings)]
         step *= _SHRINK
     raise PocketError("pocket cannot be cleared with this tool: material would be left "
-                      "standing (do its inner offsets break into separate islands?)")
+                      "standing, for example where its inner offsets break into separate "
+                      "islands")
 
 
 def _offset_any(outline: list[Seg], d: float) -> list[Seg] | None:
@@ -271,10 +283,10 @@ def _offset(outline: list[Seg], d: float) -> list[Seg] | None:
     return ring if max(x1 - x0, y1 - y0) >= _MIN_RING else None
 
 
-def _deepest(outline: list[Seg], lo: float, hi: float) -> list[Seg] | None:
-    """The ring at the deepest offset between lo (exists) and hi (does not), to within
-    _BISECT; None when that is no deeper than lo."""
-    ring = None
+def _deepest(outline: list[Seg], lo: float, ring: list[Seg],
+             hi: float) -> tuple[float, list[Seg]]:
+    """(level, ring) of the deepest inward offset, to within _BISECT, given that the offset
+    at lo exists (ring) and the one at hi does not."""
     while hi - lo > _BISECT:
         mid = (lo + hi) / 2
         got = _offset(outline, mid)
@@ -282,7 +294,7 @@ def _deepest(outline: list[Seg], lo: float, hi: float) -> list[Seg] | None:
             hi = mid
         else:
             lo, ring = mid, got
-    return ring
+    return lo, ring
 
 
 def _circle(outline: list[Seg]) -> tuple[Pt, float, bool] | None:
@@ -352,35 +364,40 @@ def _centre_line(outline: list[Seg], r: float) -> list[Seg] | None:
     return line
 
 
-def _core_grid(outline: list[Seg], r: float) -> list[Pt]:
-    """Grid points inside the pocket at least r from its outline (the part only the inner
-    rings clear), at most about _GRID_POINTS of them."""
-    x0, y0, x1, y1 = bbox(outline)
-    cell = max(r / 2, math.sqrt((x1 - x0) * (y1 - y0) / _GRID_POINTS))
-    nx, ny = max(1, round((x1 - x0) / cell)), max(1, round((y1 - y0) / cell))
-    poly = sample(outline, min(1.0, r / 2))
-    pts = []
-    for i in range(nx):
-        for j in range(ny):
-            p = (x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny)
-            if _inside(p, poly) and distance_to_chain(p, outline) >= r:
-                pts.append(p)
-    return pts
-
-
-def _covered(grid: list[Pt], rings: list[list[Seg]], r: float) -> bool:
-    boxes = [bbox(g) for g in rings]
-    for p in grid:
-        if not any(b[0] - r <= p[0] <= b[2] + r and b[1] - r <= p[1] <= b[3] + r
-                   and distance_to_chain(p, g) <= r + 1e-6 for g, b in zip(rings, boxes)):
+def _covered(outline: list[Seg], levels: list[float], rings: list[list[Seg]],
+             r: float) -> bool:
+    """Backstop check that the cutter discs along the rings leave nothing standing deeper
+    than the wall ring: the offset halfway between each pair of rings must lie within r of
+    one of them (worst case between two rings), and a grid of cell r/3 inside the innermost
+    ring must lie within r of a ring (the pocket's middle)."""
+    step = max(r / 4, 0.05)
+    for (la, ga), (lb, gb) in zip(zip(levels, rings), zip(levels[1:], rings[1:])):
+        mid = _offset_any(outline, (la + lb) / 2)
+        if mid is None:
             return False
+        for p in sample(mid, step):
+            if distance_to_chain(p, ga) > r + 1e-6 and distance_to_chain(p, gb) > r + 1e-6:
+                return False
+    inner = rings[-1]
+    x0, y0, x1, y1 = bbox(inner)
+    cell = r / 3
+    poly = _polygon(inner, min(1.0, r / 4))
+    nx, ny = max(1, math.ceil((x1 - x0) / cell)), max(1, math.ceil((y1 - y0) / cell))
+    near = [(g, bbox(g)) for g in reversed(rings)]
+    for i in range(nx + 1):
+        for j in range(ny + 1):
+            x, y = x0 + i * (x1 - x0) / nx, y0 + j * (y1 - y0) / ny
+            if not _inside(poly, x, y):
+                continue
+            if not any(b[0] - r <= x <= b[2] + r and b[1] - r <= y <= b[3] + r
+                       and distance_to_chain((x, y), g) <= r + 1e-6 for g, b in near):
+                return False
     return True
 
 
-def _inside(p: Pt, poly: list[Pt]) -> bool:
-    x, y = p
-    inside = False
-    for (xa, ya), (xb, yb) in zip(poly, poly[1:]):
-        if (ya > y) != (yb > y) and x < xa + (y - ya) * (xb - xa) / (yb - ya):
-            inside = not inside
-    return inside
+def _polygon(segs: list[Seg], step: float) -> list[Pt]:
+    """Closed chain as polygon vertices: line ends, arcs sampled every step."""
+    pts: list[Pt] = []
+    for s in segs:
+        pts += [s.a] if isinstance(s, Line) else sample([s], step)[:-1]
+    return pts

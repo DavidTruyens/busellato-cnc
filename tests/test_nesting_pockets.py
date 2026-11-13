@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from nesting.dxf import Pocket, Shape, _round_pocket
+from nesting.dxf import Pocket, Shape, _inside, _round_pocket
 from nesting.geometry import Arc, Line, _signed_area, _sweep, bbox, distance_to_chain, sample
 from nesting.pockets import (PALETTE, PocketError, effective, find_groups, group_for, group_key,
                              pocket_rings)
@@ -152,29 +152,57 @@ def rect_outline(x0, y0, x1, y1):
     return rect_pocket(x0, y0, x1, y1).outline
 
 
-def _inside(p, poly):
-    x, y = p
-    inside = False
-    for (x0, y0), (x1, y1) in zip(poly, poly[1:]):
-        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
-            inside = not inside
-    return inside
+def _ring_level(ring, outline):
+    return distance_to_chain(ring[0].a, outline)
+
+
+def uncovered(points, outline, rings, radius):
+    """The points farther than radius (+0.01) from every ring; nearest-level rings tried first."""
+    levels = [_ring_level(g, outline) for g in rings]
+    out = []
+    for p in points:
+        lp = distance_to_chain(p, outline)
+        order = sorted(range(len(rings)), key=lambda k: abs(levels[k] - lp))
+        if all(distance_to_chain(p, rings[k]) > radius + 0.01 for k in order):
+            out.append(p)
+    return out
 
 
 def uncovered_points(outline, rings, radius, step=0.5, skip=None):
     """Grid points inside the pocket farther than radius from every ring."""
     poly = sample(outline, 0.2)
     x0, y0, x1, y1 = bbox(outline)
-    out = []
     nx, ny = int((x1 - x0) / step), int((y1 - y0) / step)
-    for i in range(1, nx):
-        for j in range(1, ny):
-            p = (x0 + i * step, y0 + j * step)
-            if not _inside(p, poly) or (skip and skip(p)):
-                continue
-            if all(distance_to_chain(p, ring) > radius + 0.01 for ring in rings):
-                out.append(p)
-    return out
+    pts = [(x0 + i * step, y0 + j * step) for i in range(1, nx) for j in range(1, ny)]
+    pts = [p for p in pts if _inside(poly, *p) and not (skip and skip(p))]
+    return uncovered(pts, outline, rings, radius)
+
+
+def large_pocket_points(outline, r, fine=1.0, coarse=4.0):
+    """Dense grid at both ends (corners and the ends of the medial axis), a coarse grid in
+    between, and the centre line every 0.25 mm; sharp r x r corner squares left out."""
+    x0, y0, x1, y1 = bbox(outline)
+    h = y1 - y0
+    zone = h / 2 + 10
+    poly = [q for s in outline for q in ([s.a] if isinstance(s, Line) else sample([s], 0.5)[:-1])]
+    pts = []
+    x = x0
+    while x <= x1:
+        in_zone = x - x0 <= zone or x1 - x <= zone
+        dy = fine if in_zone else coarse
+        y = y0
+        while y <= y1:
+            pts.append((x, y))
+            y += dy
+        x += fine if in_zone else coarse
+    xm = x0
+    while xm <= x1:
+        pts.append((xm, (y0 + y1) / 2))
+        xm += 0.25
+
+    def corner(p):
+        return min(p[0] - x0, x1 - p[0]) < r and min(p[1] - y0, y1 - p[1]) < r
+    return [p for p in pts if _inside(poly, *p) and not corner(p)]
 
 
 class PocketRingTests(unittest.TestCase):
@@ -300,6 +328,29 @@ class PocketRingTests(unittest.TestCase):
         for a, b in zip(radii, radii[1:]):
             self.assertLessEqual(b - a, 3.2 + 1e-6)
 
+
+    def test_slot_20_wide_tool_8_gives_rings_at_7_2_and_4(self):
+        outline = slot_outline(30, 15, 940)
+        rings = pocket_rings(outline, 8, 40)
+        self.assertEqual([round(_ring_level(g, outline), 3) for g in rings], [7.2, 4.0])
+
+    def test_large_pockets_at_high_stepover_are_covered(self):
+        cases = [(rect_outline(0, 0, 1000, 200), 60), (rect_outline(0, 0, 1000, 200), 75),
+                 (rect_outline(0, 0, 1000, 200), 100), (rect_outline(0, 0, 500, 150), 75),
+                 (rect_outline(0, 0, 300, 90), 75), (rect_outline(0, 0, 800, 40), 90),
+                 (slot_outline(0, 0, 2400, 26), 60)]
+        for outline, pct in cases:
+            x0, y0, x1, y1 = bbox(outline)
+            with self.subTest(size=(x1 - x0, y1 - y0), pct=pct):
+                rings = pocket_rings(outline, 8, pct)
+                pts = large_pocket_points(outline, 4)
+                self.assertEqual(uncovered(pts, outline, rings, 4), [])
+
+    def test_stepover_above_70_is_treated_as_70(self):
+        outline = rect_outline(0, 0, 1000, 200)
+        levels = sorted(_ring_level(g, outline) for g in pocket_rings(outline, 8, 100))
+        self.assertAlmostEqual(levels[1] - levels[0], 5.6, places=6)
+        self.assertEqual(pocket_rings(outline, 8, 100), pocket_rings(outline, 8, 70))
 
 if __name__ == "__main__":
     unittest.main()
