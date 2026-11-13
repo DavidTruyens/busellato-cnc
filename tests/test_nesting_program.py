@@ -3,9 +3,10 @@ import re
 import unittest
 from pathlib import Path
 
-from nesting.dxf import Hole, Shape, read_dxf
-from nesting.geometry import Arc, Line, OffsetError, bbox
+from nesting.dxf import Hole, Pocket, Shape, read_dxf
+from nesting.geometry import Arc, Line, OffsetError, bbox, set_direction, split_large_arcs, translate
 from nesting.layout import Blank, PanelPlan, PlacedShape, Plan, ShapeEntry, build_plan
+from nesting.pockets import PocketError, find_groups, pocket_rings
 from nesting.program import (ContourOp, DrillOp, Program, ProgramError, base_label, blank_programs,
                              check_depths, group_by_tool, pass_depths, plan_programs, stack_top)
 from nesting.settings import Settings
@@ -114,7 +115,7 @@ class CupDepthCheckTests(unittest.TestCase):
 
     def test_default_real_plan_passes(self):
         plan, s = real_plan()
-        self.assertEqual(len(plan_programs(plan, s)), 12)       # 6 blanks x D, C
+        self.assertEqual(len(plan_programs(plan, s)), 18)       # 6 blanks x D, P, C
 
 
 CUTTER_WARNING = re.compile(r'^(B\d+C): cutter reaches X(-?\d+\.\d)\.\.(-?\d+\.\d), '
@@ -205,13 +206,13 @@ class ProgramTests(unittest.TestCase):
     def test_no_fixing_or_screw_program_names(self):
         plan, s = real_plan()
         for p in plan_programs(plan, s):
-            self.assertRegex(p.name, r'^B\d{2}[DC]$')
+            self.assertRegex(p.name, r'^B\d{2}[DPC]$')
 
     def test_programs_are_per_blank_not_per_panel(self):
         plan, s = real_plan()
         progs = plan_programs(plan, s)
         self.assertEqual([p.name for p in progs],
-                         [f'B0{n}{k}' for n in range(1, 7) for k in 'DC'])
+                         [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'])
         for p in progs:
             b = next(b for b in plan.blanks if b.id == p.blank)
             self.assertEqual(p.stock, (b.width, b.height, 36))
@@ -264,7 +265,7 @@ class ProgramTests(unittest.TestCase):
         progs = plan_programs(plan, s)
         for p in progs:
             for op in p.ops:
-                if isinstance(op, ContourOp):
+                if isinstance(op, ContourOp) and p.kind == 'cut':
                     b = base_label(op.label)
                     self.assertRegex(b, r'^B\d\d \S+ #\d+$')
                     self.assertNotIn('outline', op.label)
@@ -334,6 +335,8 @@ class ProgramTests(unittest.TestCase):
                 self.assertTrue(progs)
                 want = (direction == 'ccw') == (y_toward == 'back')
                 for p in progs:
+                    if p.kind != 'cut':             # pockets: pockets.direction
+                        continue
                     for op in p.ops:
                         if isinstance(op, ContourOp):
                             for seg in op.segs:
@@ -359,10 +362,10 @@ class ProgramTests(unittest.TestCase):
         progs = plan_programs(plan, s)
         names = [p.name for p in progs]
         self.assertEqual(len(plan.blanks), 54)
-        self.assertEqual(len(names), 2 * 54)
+        self.assertEqual(len(names), 3 * 54)
         self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(names[:2], ['B01D', 'B01C'])
-        self.assertTrue(all(re.fullmatch(r'B\d{2}[DC]', n) for n in names))
+        self.assertEqual(names[:3], ['B01D', 'B01P', 'B01C'])
+        self.assertTrue(all(re.fullmatch(r'B\d{2}[DPC]', n) for n in names))
 
     def test_duplicate_blank_ids_refused(self):
         plan = Plan([PanelPlan('P1', [hand_blank('B01'), hand_blank('B01')])])
@@ -405,6 +408,260 @@ class ProgramTests(unittest.TestCase):
         cut = by_name(plan_programs(plan, s))['B01C']
         self.assertEqual(len(cut.ops), 2)
         self.assertEqual({o.depth for o in cut.ops}, {18.5})
+
+
+def rect_loop(x0, y0, w, h):
+    pts = [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]
+    return [Line(pts[i], pts[(i + 1) % 4]) for i in range(4)]
+
+
+def slot_loop(x0, y0, length, width):
+    """A counter-clockwise slot: two straight sides and two half-circle ends."""
+    r = width / 2
+    x1 = x0 + length - r
+    return [Line((x0 + r, y0), (x1, y0)),
+            Arc((x1, y0), (x1, y0 + width), (x1, y0 + r), r, True),
+            Line((x1, y0 + width), (x0 + r, y0 + width)),
+            Arc((x0 + r, y0 + width), (x0 + r, y0), (x0 + r, y0 + r), r, True)]
+
+
+def pocket_shape(name, loops, length=600, width=200, holes=()):
+    s = rect(name, length, width, holes=False)
+    s.holes = [Hole(x, y, 6.6) for x, y in holes]
+    s.pockets = [Pocket(lp) for lp in loops]
+    return s
+
+
+class PocketProgramTests(unittest.TestCase):
+    """B<nn>P: the pockets of a blank, run between the drill and the cut program."""
+
+    def test_pocket_program_name_and_order(self):
+        plan, s = real_plan()
+        progs = plan_programs(plan, s)
+        self.assertEqual([p.name for p in progs if p.blank == 'B01'], ['B01D', 'B01P', 'B01C'])
+        self.assertEqual([p.name for p in progs],
+                         [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'])
+        pk = by_name(progs)['B01P']
+        self.assertEqual((pk.kind, pk.description, pk.blank), ('pocket', 'Pockets', 'B01'))
+        self.assertEqual(pk.tool, s.pockets.tool)
+        self.assertEqual(pk.tools, [s.pockets.tool])
+        b = plan.blanks[0]
+        self.assertEqual(pk.stock, (b.width, b.height, 36))
+
+    def test_no_pocket_program_without_pockets(self):
+        plan, s = plan_for(rect('a', 1000, 230))
+        self.assertEqual([p.name for p in plan_programs(plan, s)], ['B01D', 'B01C'])
+
+    def test_pocket_passes_and_depths(self):
+        s = Settings()
+        s.pockets.depth, s.pockets.depth_per_pass = 8, 4
+        plan, _ = plan_for(pocket_shape('p', [rect_loop(100, 50, 40, 30)]), settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        n = len(pocket_rings(rect_loop(100, 50, 40, 30), s.pockets.diameter,
+                             s.pockets.stepover_pct))
+        self.assertGreater(n, 1)
+        self.assertEqual(len(pk.ops), 2 * n)
+        self.assertEqual([o.depth for o in pk.ops], [4.0] * n + [8.0] * n)
+        # from the top of the blank: the depth is the pass depth itself
+        self.assertEqual([o.segs for o in pk.ops[:n]], [o.segs for o in pk.ops[n:]])
+        self.assertEqual([o.label for o in pk.ops[:2]],
+                         [f'B01 p #1 G1 pocket 1 pass 1/2 ring 1/{n}',
+                          f'B01 p #1 G1 pocket 1 pass 1/2 ring 2/{n}'])
+        self.assertEqual(pk.ops[-1].label, f'B01 p #1 G1 pocket 1 pass 2/2 ring {n}/{n}')
+
+    def test_ops_carry_tool_spindle_feed(self):
+        s = Settings()
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30), slot_loop(300, 60, 120, 20)])
+        plan, _ = plan_for(sh, settings=s)
+        groups = find_groups([sh])
+        ov = {groups[1].key: {'tool': 7, 'spindle_rpm': 12000, 'plunge_feed': 2,
+                              'cut_feed': 5, 'diameter': 12}}
+        pk = by_name(plan_programs(plan, s, ov))['B01P']
+        g1 = [o for o in pk.ops if ' G1 ' in o.label]
+        g2 = [o for o in pk.ops if ' G2 ' in o.label]
+        self.assertTrue(g1 and g2)
+        self.assertEqual({(o.tool, o.spindle_rpm, o.plunge_feed, o.cut_feed) for o in g1},
+                         {(s.pockets.tool, int(s.pockets.spindle_rpm), s.pockets.plunge_feed,
+                           s.pockets.cut_feed)})
+        self.assertEqual({(o.tool, o.spindle_rpm, o.plunge_feed, o.cut_feed) for o in g2},
+                         {(7, 12000, 2, 5)})
+        self.assertEqual(pk.tools, [s.pockets.tool, 7])
+        self.assertEqual((pk.tool, pk.spindle_rpm, pk.plunge_feed, pk.cut_feed),
+                         (s.pockets.tool, int(s.pockets.spindle_rpm), s.pockets.plunge_feed,
+                          s.pockets.cut_feed))
+        # grouped by tool: every G1 op before every G2 op
+        self.assertEqual(pk.ops, g1 + g2)
+
+    def test_groups_ordered_by_tool(self):
+        s = Settings()
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30), slot_loop(300, 60, 120, 20),
+                                rect_loop(450, 50, 40, 40)])
+        plan, _ = plan_for(sh, settings=s)
+        g = find_groups([sh])
+        ov = {g[1].key: {'tool': 7}}
+        pk = by_name(plan_programs(plan, s, ov))['B01P']
+        order = []
+        for o in pk.ops:
+            gid = o.label.split()[3]
+            if not order or order[-1] != gid:
+                order.append(gid)
+        self.assertEqual(order, ['G1', 'G3', 'G2'])
+
+    def test_depth_below_floor_is_hard_error(self):
+        s = Settings()
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
+        plan, _ = plan_for(sh, settings=s)
+        key = find_groups([sh])[0].key
+        # 18 thick, 2 floor: 16 is the deepest allowed
+        by_name(plan_programs(plan, s, {key: {'depth': 16}}))
+        with self.assertRaises(ProgramError) as cm:
+            plan_programs(plan, s, {key: {'depth': 16.5}})
+        msg = str(cm.exception)
+        for want in ('B01', 'p', 'G1', '16.5'):
+            self.assertIn(want, msg)
+
+    def test_pocket_error_names_blank_shape_and_group(self):
+        s = Settings()
+        plan, _ = plan_for(pocket_shape('p', [rect_loop(100, 50, 6, 30)]), settings=s)
+        with self.assertRaises(PocketError) as cm:
+            plan_programs(plan, s)
+        self.assertTrue(str(cm.exception).startswith('B01 p G1 (6 x 30 pocket): '),
+                        str(cm.exception))
+
+    def test_pocket_position_in_program_frame_matches_mirror(self):
+        # asymmetric: a slot near the shape's top-left corner
+        slot = slot_loop(50, 150, 200, 20)
+        rings = pocket_rings(slot, 8, 40)
+        for y_toward in ('front', 'back'):
+            with self.subTest(y_toward=y_toward):
+                s = Settings()
+                s.machine.y_toward = y_toward
+                plan, _ = plan_for(pocket_shape('p', [slot]), settings=s)
+                b = plan.blanks[0]
+                ps = b.shapes[0]
+                self.assertEqual((ps.x, ps.y, b.height), (45, 45, 290))
+                pk = by_name(plan_programs(plan, s))['B01P']
+                self.assertEqual(len(pk.ops), 2 * len(rings))
+                for op, ring in zip(pk.ops, rings):
+                    # cw seen from above, in the layout frame
+                    lay = split_large_arcs(set_direction(translate(ring, 45, 45), False))
+                    self.assertEqual(len(op.segs), len(lay))
+                    for got, want in zip(op.segs, lay):
+                        self.assertIs(type(got), type(want))
+                        pts = [want.a, want.b] + ([want.center] if isinstance(want, Arc) else [])
+                        gpts = [got.a, got.b] + ([got.center] if isinstance(got, Arc) else [])
+                        for (gx, gy), (wx, wy) in zip(gpts, pts):
+                            self.assertAlmostEqual(gx, wx, places=9)
+                            self.assertAlmostEqual(gy, 290 - wy if y_toward == 'front' else wy,
+                                                   places=9)
+                        if isinstance(want, Arc):
+                            self.assertFalse(want.ccw)
+                            self.assertEqual(got.ccw, y_toward == 'front')
+                # the slot is near the back edge of the blank (layout y high): program Y small
+                # when Y grows toward the front
+                y0 = min(min(sg.a[1], sg.b[1]) for sg in pk.ops[0].segs)
+                if y_toward == 'front':
+                    self.assertLess(y0, 100)
+                else:
+                    self.assertGreater(y0, 190)
+
+    def test_direction_ccw(self):
+        s = Settings()
+        s.machine.y_toward = 'back'
+        sh = pocket_shape('p', [slot_loop(50, 150, 200, 20)])
+        plan, _ = plan_for(sh, settings=s)
+        key = find_groups([sh])[0].key
+        pk = by_name(plan_programs(plan, s, {key: {'direction': 'ccw'}}))['B01P']
+        arcs = [sg for o in pk.ops for sg in o.segs if isinstance(sg, Arc)]
+        self.assertTrue(arcs)
+        self.assertTrue(all(a.ccw for a in arcs))
+
+    def test_disabled_group_gives_no_ops(self):
+        s = Settings()
+        sh = pocket_shape('p', [rect_loop(100, 50, 40, 30), slot_loop(300, 60, 120, 20)])
+        plan, _ = plan_for(sh, settings=s)
+        g = find_groups([sh])
+        pk = by_name(plan_programs(plan, s, {g[0].key: {'enabled': False}}))['B01P']
+        self.assertTrue(pk.ops)
+        self.assertFalse([o for o in pk.ops if ' G1 ' in o.label])
+        off = {g[0].key: {'enabled': False}, g[1].key: {'enabled': False}}
+        self.assertEqual([p.name for p in plan_programs(plan, s, off)], ['B01D', 'B01C'])
+        # a disabled group's depth is not checked: it is not cut
+        off[g[0].key]['depth'] = 17
+        plan_programs(plan, s, off)
+
+    def test_screw_hole_close_to_pocket_warns(self):
+        s = Settings()
+        # screw hole at (150, 40); head 14 -> clearance 7 + 3 = 10 mm
+        near = pocket_shape('p', [rect_loop(155, 30, 40, 30)], holes=[(150, 40)])
+        plan, _ = plan_for(near, settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        ws = [w for w in pk.warnings if 'screw hole' in w]
+        self.assertEqual(len(ws), 1, pk.warnings)
+        self.assertIn('B01P', ws[0])
+        self.assertIn('B01 p #1 G1 pocket 1', ws[0])
+        far = pocket_shape('p', [rect_loop(161, 30, 40, 30)], holes=[(150, 40)])
+        plan, _ = plan_for(far, settings=s)
+        self.assertEqual(by_name(plan_programs(plan, s))['B01P'].warnings, [])
+        # a hole inside the pocket warns too, however far from its outline
+        inside = pocket_shape('p', [rect_loop(100, 10, 100, 70)], holes=[(150, 40)])
+        plan, _ = plan_for(inside, settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        self.assertEqual(len([w for w in pk.warnings if 'screw hole' in w]), 1, pk.warnings)
+
+    def test_fixing_hole_close_to_pocket_warns(self):
+        s = Settings()
+        # the shape sits at (45, 45); the fixing hole at (15, 15): a pocket at the corner
+        plan, _ = plan_for(pocket_shape('p', [rect_loop(0.5, 0.5, 40, 30)]), settings=s)
+        b = plan.blanks[0]
+        self.assertEqual((b.fix_holes[0].x, b.fix_holes[0].y), (15, 15))
+        s.blank.head_dia = 82         # clearance 44 mm reaches the pocket corner (~43.1 mm)
+        pk = by_name(blank_programs(b, s))['B01P']
+        self.assertEqual(len([w for w in pk.warnings if 'fixing hole' in w]), 1, pk.warnings)
+
+    def test_pockets_close_together_warn(self):
+        s = Settings()
+        close = pocket_shape('p', [rect_loop(100, 50, 40, 30), rect_loop(147, 50, 40, 30)])
+        plan, _ = plan_for(close, settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        ws = [w for w in pk.warnings if 'pocket' in w and 'apart' in w]
+        self.assertEqual(len(ws), 1, pk.warnings)
+        apart = pocket_shape('p', [rect_loop(100, 50, 40, 30), rect_loop(149, 50, 40, 30)])
+        plan, _ = plan_for(apart, settings=s)
+        self.assertEqual(by_name(plan_programs(plan, s))['B01P'].warnings, [])
+
+    def test_line_count_warning_for_pocket_program(self):
+        s = Settings()
+        s.pockets.depth_per_pass = 0.5
+        plan, _ = real_plan(s)
+        progs = by_name(plan_programs(plan, s))
+        self.assertTrue(any('over 250' in w for w in progs['B01P'].warnings),
+                        progs['B01P'].warnings)
+        plan, s = real_plan()
+        self.assertEqual(by_name(plan_programs(plan, s))['B01P'].warnings, [])
+
+    def test_round_pocket_of_the_tool_diameter_is_one_plunge(self):
+        s = Settings()
+        c = (200, 100)
+        circle = [Arc((204, 100), (196, 100), c, 4, True), Arc((196, 100), (204, 100), c, 4, True)]
+        plan, _ = plan_for(pocket_shape('p', [circle]), settings=s)
+        pk = by_name(plan_programs(plan, s))['B01P']
+        self.assertEqual(len(pk.ops), 2)            # one per pass
+        for o in pk.ops:
+            self.assertEqual(o.segs, [Line((245, 145), (245, 145))])
+
+    def test_groups_are_found_over_the_whole_plan(self):
+        # the same pocket in two shapes on two blanks: one group, one id everywhere
+        s = Settings()
+        a = pocket_shape('a', [rect_loop(100, 50, 40, 30)], length=1900)
+        b = pocket_shape('b', [rect_loop(100, 50, 40, 30)], length=1000)
+        c = pocket_shape('c', [slot_loop(300, 60, 120, 20)], length=1900)
+        s.blank.shapes_per = 1
+        plan, _ = plan_for(a, b, c, settings=s)
+        self.assertEqual(len(plan.blanks), 3)
+        labels = {o.label.split()[1]: o.label.split()[3]
+                  for p in plan_programs(plan, s) if p.kind == 'pocket' for o in p.ops}
+        self.assertEqual(labels, {'a': 'G1', 'b': 'G1', 'c': 'G2'})
 
 
 if __name__ == '__main__':

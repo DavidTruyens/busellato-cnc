@@ -134,7 +134,7 @@ class OutputTests(unittest.TestCase):
     def test_loader_and_project_have_the_d_and_c_programs(self):
         files = {p.name: p for p in self.write()}
         progs = sorted(p.name for p in self.progs)
-        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DC'))
+        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'))
         for n in progs:
             self.assertIn(n, files)
         self.assertFalse([n for n in files if re.fullmatch(r'B\d\d[FS]', n)])
@@ -153,7 +153,8 @@ class OutputTests(unittest.TestCase):
         section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
         order = [section.index(x) for x in ('origin corner', 'Clamp it', 'Run <b>B01D</b>',
                                             'Screw the blank', 'each shape',
-                                            'Take the clamps off', 'Run <b>B01C</b>', 'Unscrew')]
+                                            'Take the clamps off', 'Run <b>B01P</b>',
+                                            'Run <b>B01C</b>', 'Unscrew')]
         self.assertEqual(order, sorted(order))
         self.assertIn('the blank still clamped: every hole', section)
 

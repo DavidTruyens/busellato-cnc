@@ -13,6 +13,9 @@ setting is the turning sense seen from above in that picture; it is applied in t
 (y up, so it is the ordinary mathematical sense there) and the mirror then flips the arcs'
 G2/G3 sense in the program numbers. The stack on the cups is scrap + blank; depths are measured
 down from the top of the stack. No G-code text is written here.
+
+Per blank: B<nn>D (every hole), B<nn>P (the pockets, when the blank's shapes have any that are
+switched on) and B<nn>C (the shape outlines), run in that order.
 """
 from __future__ import annotations
 
@@ -20,13 +23,16 @@ import math
 import re
 from dataclasses import dataclass, field
 
-from .geometry import (OffsetError, Pt, Seg, bbox, mirror_y, offset_outline, set_direction,
-                       split_large_arcs, translate)
+from .dxf import Shape, _inside
+from .geometry import (Arc, Line, OffsetError, Pt, Seg, bbox, distance_to_chain, mirror_y,
+                       offset_outline, sample, set_direction, split_large_arcs, translate)
 from .layout import Blank, Plan
+from .pockets import (PocketError, PocketGroup, effective, find_groups, group_for,
+                      pocket_rings)
 from .settings import Settings
 
 LINE_WARNING = 250
-KINDS = ('D', 'C')              # drill (fixing + screw holes, any tools), cut
+KINDS = ('D', 'P', 'C')         # drill (fixing + screw holes, any tools), pockets, cut
 NAME = re.compile(r'[A-Z0-9_-]{1,8}')
 
 
@@ -44,13 +50,18 @@ class ContourOp:
     segs: list[Seg]
     depth: float
     label: str
+    # a pocket op's own tool, spindle speed and feeds; None = the program's
+    tool: int | None = None
+    spindle_rpm: int | None = None
+    plunge_feed: float | None = None
+    cut_feed: float | None = None
 
 
 @dataclass
 class Program:
     name: str
     tool: int
-    kind: str                       # 'drill' or 'cut'
+    kind: str                       # 'drill', 'pocket' or 'cut'
     description: str
     stock: tuple[float, float, float]
     ops: list = field(default_factory=list)
@@ -61,7 +72,8 @@ class Program:
     blank: str = ''                 # id of the blank this program is for
 
     def op_tool(self, op) -> int:
-        """The tool an op runs with: a drill op may carry its own, else the program's."""
+        """The tool an op runs with: a drill or pocket op may carry its own, else the
+        program's."""
         t = getattr(op, 'tool', None)
         return self.tool if t is None else t
 
@@ -134,7 +146,8 @@ def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
 
 
 def program_name(blank_id: str, kind: str) -> str:
-    """B<nn><D|C> (drill, cut): the first character B is the machine folder SRG\\B."""
+    """B<nn><D|P|C> (drill, pockets, cut): the first character B is the machine folder
+    SRG\\B."""
     return f'{blank_id}{kind}'
 
 
@@ -147,12 +160,12 @@ def group_by_tool(ops: list[DrillOp]) -> list[DrillOp]:
     return sorted(ops, key=lambda o: first[o.tool])
 
 
-def _outside_blank(p: Program, blank: Blank, settings: Settings) -> str | None:
-    """A warning when the cutter edge (tool centre path widened by the radius) leaves the blank."""
+def _outside_blank(p: Program, blank: Blank, r: float) -> str | None:
+    """A warning when the cutter edge (tool centre path widened by the radius r) leaves the
+    blank."""
     segs = [s for op in p.ops if isinstance(op, ContourOp) for s in op.segs]
     if not segs:
         return None
-    r = settings.router.diameter / 2
     x0, y0, x1, y1 = bbox(segs)
     x0, y0, x1, y1 = x0 - r, y0 - r, x1 + r, y1 + r
     eps = 1e-6
@@ -162,9 +175,12 @@ def _outside_blank(p: Program, blank: Blank, settings: Settings) -> str | None:
             f'outside the blank 0..{blank.width:g} x 0..{blank.height:g}')
 
 
-def _finish(p: Program, blank: Blank, settings: Settings) -> Program:
+def _finish(p: Program, blank: Blank, settings: Settings, radius: float | None = None) -> Program:
+    """Depth check (hard), cutter-outside-blank and line-count warnings. `radius` is the
+    largest cutter radius of the program's contours (default: the outline router's)."""
     check_depths(p)
-    outside = _outside_blank(p, blank, settings)
+    r = settings.router.diameter / 2 if radius is None else radius
+    outside = _outside_blank(p, blank, r)
     if outside:
         p.warnings.append(outside)
     from .backends import BACKENDS      # late: the backends import this module
@@ -187,8 +203,169 @@ def _pass_ops(segs: list[Seg], label: str, start: float, material: float,
             for k in range(1, n + 1)]
 
 
-def blank_programs(blank: Blank, settings: Settings) -> list[Program]:
-    """Drill and cut programs of one blank, in the program frame (see the module doc)."""
+# --- pockets --------------------------------------------------------------------
+
+def plan_shapes(plan: Plan) -> list[Shape]:
+    """Every shape placed in the plan, once (copies share one Shape)."""
+    seen: dict[int, Shape] = {}
+    for b in plan.blanks:
+        for ps in b.shapes:
+            seen.setdefault(id(ps.shape), ps.shape)
+    return list(seen.values())
+
+
+def _clean_ring(ring: list[Seg]) -> list[Seg]:
+    """The ring without zero-length lines; a ring made only of them (a round pocket exactly
+    the tool diameter) stays one zero-length line: a plunge with no horizontal move."""
+    out = [s for s in ring if isinstance(s, Arc) or s.a != s.b]
+    return out or [Line(ring[0].a, ring[0].a)]
+
+
+def _has_winding(ring: list[Seg]) -> bool:
+    """False for a ring of lines only that encloses no area (a slot's centre line traversed
+    out and back, or a point): it has no turning sense to set."""
+    if any(isinstance(s, Arc) for s in ring):
+        return True
+    area = 0.5 * sum(s.a[0] * s.b[1] - s.b[0] * s.a[1] for s in ring)
+    return abs(area) > 1e-6
+
+
+def _gap(a: list[Seg], b: list[Seg]) -> float:
+    """Shortest distance between two closed chains, to within the 0.5 mm sampling step."""
+    return min(min(distance_to_chain(p, b) for p in sample(a, 0.5)),
+               min(distance_to_chain(p, a) for p in sample(b, 0.5)))
+
+
+def _boxes_near(a: list[Seg], b: list[Seg], d: float) -> bool:
+    ax0, ay0, ax1, ay1 = bbox(a)
+    bx0, by0, bx1, by1 = bbox(b)
+    return ax0 - d <= bx1 and bx0 - d <= ax1 and ay0 - d <= by1 and by0 - d <= ay1
+
+
+def _hole_warnings(name: str, blank: Blank, settings: Settings, label: str,
+                   outline: list[Seg]) -> list[str]:
+    """A warning per screw or fixing hole whose centre is inside the pocket (layout-frame
+    outline) or closer than the screw-head clearance (head_dia / 2 + 3) to its edge."""
+    clear = settings.blank.head_dia / 2 + 3.0
+    poly = sample(outline, 0.5)
+    out = []
+    for what, holes in (('fixing hole', blank.fix_holes), ('screw hole', blank.screw_holes)):
+        for h in holes:
+            d = distance_to_chain((h.x, h.y), outline)
+            inside = _inside(poly, h.x, h.y)
+            if inside or d < clear:
+                x, y = to_program(blank, settings, h.x, h.y)
+                where = 'inside the pocket' if inside else f'{d:.1f} mm from the pocket edge'
+                out.append(f'{name}: {label}: {what} at X{x:.1f} Y{y:.1f} is {where}, closer '
+                           f'than the screw-head clearance {clear:g} mm')
+    return out
+
+
+def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
+                    groups: list[PocketGroup],
+                    rings_of: dict) -> tuple[Program, float] | None:
+    """B<nn>P and its largest cutter radius, or None when the blank has no pocket to cut.
+
+    Order: groups by tool (first appearance, stable), within a group for each depth pass every
+    pocket of the blank (shape order, then pocket order), for each pocket its rings innermost
+    first, the wall ring last. Depths are from the top face of the blank, the top of the stack.
+    """
+    name = program_name(blank.id, 'P')
+    thick, floor = settings.panel.thickness, settings.pockets.min_floor
+    ccw_of = {'cw': False, 'ccw': True}
+    # (group, settings, [(placed shape, pocket number, pocket)]) in group order
+    found: dict[str, tuple] = {}
+    for ps in blank.shapes:
+        for i, pk in enumerate(ps.shape.pockets, 1):
+            g = group_for(pk, groups)
+            if g is None:
+                raise ProgramError(f'{blank.id} {ps.name}: pocket {i} has no pocket group '
+                                   f'(internal error: groups not computed over this shape)')
+            if g.id not in found:
+                try:
+                    gs = effective(g.key, overrides, settings.pockets)
+                except ValueError as e:
+                    raise ValueError(f'pocket group {g.id}: {e}') from e
+                found[g.id] = (g, gs, [])
+            found[g.id][2].append((ps, i, pk))
+    order = {g.id: n for n, g in enumerate(groups)}
+    todo = sorted((v for v in found.values() if v[1].enabled), key=lambda v: order[v[0].id])
+    first_tool: dict[int, int] = {}
+    for g, gs, _ in todo:
+        first_tool.setdefault(gs.tool, len(first_tool))
+    todo.sort(key=lambda v: first_tool[v[1].tool])      # stable: group order within a tool
+
+    ops: list[ContourOp] = []
+    warnings: list[str] = []
+    placed: list[tuple[str, list[Seg], float]] = []     # (label, layout outline, tool diameter)
+    radius = 0.0
+    for g, gs, pockets in todo:
+        ps0 = pockets[0][0]
+        if gs.depth > thick - floor:
+            raise ProgramError(f'{blank.id} {ps0.name} {g.id}: pocket depth {gs.depth:g} mm '
+                               f'leaves less than the minimum floor {floor:g} mm of the '
+                               f'{thick:g} mm blank (deepest allowed {thick - floor:g} mm)')
+        # pocket_rings is slow on long pockets: computed once per group, tool diameter and
+        # stepover (rings_of is shared by the blanks of a plan). The group's pockets match its
+        # representative within 0.05 mm in their own shape's frame, so the representative's
+        # rings, moved to each placed shape, serve every pocket of the group.
+        key = (g.key, g.id, gs.diameter, gs.stepover_pct)
+        if key not in rings_of:
+            try:
+                rings_of[key] = pocket_rings(g.representative.outline, gs.diameter,
+                                             gs.stepover_pct)
+            except PocketError as e:
+                raise PocketError(f'{blank.id} {ps0.name} {g.id} ({g.width:g} x {g.height:g} '
+                                  f'pocket): {e}') from e
+        rings = [_clean_ring(r) for r in rings_of[key]]
+        radius = max(radius, gs.diameter / 2)
+        ccw = ccw_of[gs.direction]
+        moved = []
+        for ps, i, pk in pockets:
+            label = f'{blank.id} {ps.name} #{ps.copy} {g.id} pocket {i}'
+            outline = translate(pk.outline, ps.x, ps.y)
+            warnings += _hole_warnings(name, blank, settings, label, outline)
+            placed.append((label, outline, gs.diameter))
+            segs = []
+            for r in rings:
+                lay = translate(r, ps.x, ps.y)
+                if _has_winding(lay):
+                    lay = split_large_arcs(set_direction(lay, ccw))
+                segs.append(segs_to_program(blank, settings, lay))
+            moved.append((label, segs))
+        depths = pass_depths(gs.depth, gs.depth_per_pass)
+        n, m = len(depths), len(rings)
+        for k, depth in enumerate(depths, 1):
+            for label, segs in moved:
+                for j, s in enumerate(segs, 1):
+                    ops.append(ContourOp(s, depth, f'{label} pass {k}/{n} ring {j}/{m}',
+                                         gs.tool, int(gs.spindle_rpm), gs.plunge_feed,
+                                         gs.cut_feed))
+    for i, (la, a, da) in enumerate(placed):
+        for lb, b, db in placed[i + 1:]:
+            d = max(da, db)
+            if _boxes_near(a, b, d) and (gap := _gap(a, b)) < d:
+                warnings.append(f'{name}: {la} and {lb} are only {gap:.1f} mm apart, less than '
+                                f'the tool diameter {d:g} mm')
+    if not ops:
+        return None
+    o = ops[0]
+    top = stack_top(settings)
+    p = Program(name, o.tool, 'pocket', 'Pockets', (blank.width, blank.height, top), ops,
+                o.spindle_rpm, o.plunge_feed, o.cut_feed, warnings, blank.id)
+    return p, radius
+
+
+def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | None = None,
+                   groups: list[PocketGroup] | None = None,
+                   _rings: dict | None = None) -> list[Program]:
+    """Drill, pocket and cut programs of one blank, in the program frame (see the module doc).
+
+    pocket_overrides: per pocket group key, the settings that differ from settings.pockets.
+    groups: the plan's pocket groups (plan_programs passes them, so a group has one id and
+    key over the whole plan); None computes them from this blank's shapes alone.
+    _rings: a cache of pocket rings that plan_programs shares between the blanks.
+    """
     h, r = settings.heights, settings.router
     fix, screw = settings.drill_fix, settings.drill_screw
     thick = settings.panel.thickness
@@ -213,7 +390,13 @@ def blank_programs(blank: Blank, settings: Settings) -> list[Program]:
         # through the blank from its top, just into the scrap
         cuts += _pass_ops(segs, label, 0.0, thick + h.into_scrap, settings)
 
+    if groups is None:
+        groups = find_groups(list({id(ps.shape): ps.shape for ps in blank.shapes}.values()))
+    pocket = _pocket_program(blank, settings, pocket_overrides or {}, groups,
+                             {} if _rings is None else _rings)
+
     progs: list[Program] = []
+    radius: dict[str, float] = {}
     drills = group_by_tool(fix_ops + screw_ops)
     if drills:
         desc = ' and '.join(w for w, ops in (('Fixing', fix_ops), ('screw', screw_ops)) if ops)
@@ -223,15 +406,23 @@ def blank_programs(blank: Blank, settings: Settings) -> list[Program]:
         # control uses each tool's own feed); plunge/cut feed only fill the record.
         progs.append(Program(program_name(blank.id, 'D'), drills[0].tool, 'drill', desc, stock,
                              drills, None, fix.feed, fix.feed, blank=blank.id))
+    if pocket:
+        progs.append(pocket[0])
+        radius[pocket[0].name] = pocket[1]
     if cuts:
         progs.append(Program(program_name(blank.id, 'C'), r.tool, 'cut', 'Shape outlines',
                              stock, cuts, int(r.spindle_rpm), r.plunge_feed, r.cut_feed,
                              blank=blank.id))
-    return [_finish(p, blank, settings) for p in progs]
+    return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
-def plan_programs(plan: Plan, settings: Settings) -> list[Program]:
-    progs = [p for b in plan.blanks for p in blank_programs(b, settings)]
+def plan_programs(plan: Plan, settings: Settings,
+                  pocket_overrides: dict | None = None) -> list[Program]:
+    """Every blank's programs. Pocket groups are found once over every shape of the plan."""
+    groups = find_groups(plan_shapes(plan))
+    rings: dict = {}
+    progs = [p for b in plan.blanks
+             for p in blank_programs(b, settings, pocket_overrides, groups, rings)]
     names = [p.name for p in progs]
     if len(names) != len(set(names)):       # cannot happen with unique blank ids
         raise ProgramError('two programs would get the same name')

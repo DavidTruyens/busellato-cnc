@@ -16,21 +16,28 @@ def _xy(p) -> str:
     return f'X{fmt(p[0])}Y{fmt(p[1])}'
 
 
+def _own(op: ContourOp, program: Program, name: str):
+    """The op's own spindle speed or feed when it carries one (pocket ops), else the program's."""
+    v = getattr(op, name)
+    return getattr(program, name) if v is None else v
+
+
 def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[str]:
     z = f'Z{fmt(op.depth)}'
     start = op.segs[0].a
-    out = [f'G88G90{origin}P5{tool}S{int(program.spindle_rpm)}'
-           f'F{fmt(program.plunge_feed)}{_xy(start)}{z}']
-    feed = program.plunge_feed
+    plunge, cut = _own(op, program, 'plunge_feed'), _own(op, program, 'cut_feed')
+    out = [f'G88G90{origin}P5{tool}S{int(_own(op, program, "spindle_rpm"))}'
+           f'F{fmt(plunge)}{_xy(start)}{z}']
+    feed = plunge
     first = True
     for seg in op.segs:
         f = ''
-        if first and program.cut_feed != feed:
+        if first and cut != feed:
             if isinstance(seg, Arc):
-                out.append(f'G1G90F{fmt(program.cut_feed)}{_xy(start)}{z}')
+                out.append(f'G1G90F{fmt(cut)}{_xy(start)}{z}')
             else:
-                f = f'F{fmt(program.cut_feed)}'
-            feed = program.cut_feed
+                f = f'F{fmt(cut)}'
+            feed = cut
         first = False
         if isinstance(seg, Arc):
             code = 'G3' if seg.ccw else 'G2'

@@ -237,7 +237,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(plan['panels']), 3)
         self.assertEqual(len(plan['blanks']), 6)
         names = [p['name'] for b in plan['blanks'] for p in b['programs']]
-        self.assertEqual(names, [f'B0{n}{k}' for n in range(1, 7) for k in 'DC'])
+        self.assertEqual(names, [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'])
         progs = {p['name']: p for b in plan['blanks'] for p in b['programs']}
         self.assertEqual((progs['B01D']['tools'], progs['B01C']['tools']), ([1, 2], [66]))
         self.assertEqual([t['holes'] for t in plan['blanks'][0]['drill_tools']], ['fixing', 'screw'])
@@ -625,7 +625,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, res)
         folder = Path(res['folder'])
         self.assertEqual(folder.parent, self.dir / 'out')
-        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'DC']
+        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC']
         self.assertEqual(res['programs'], names)
         for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])

@@ -112,7 +112,7 @@ def _cut_table(panel: dict) -> str:
 
 
 def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
-    d, c = f'{bid}D', f'{bid}C'
+    d, pk, c = f'{bid}D', f'{bid}P', f'{bid}C'
     corner = 'back-left' if y_toward == 'front' else 'front-left'
     steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot, '
              f'the {corner} corner) against the X and Y pins, long side along machine X. '
@@ -124,6 +124,9 @@ def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
         steps.append('Screw the blank to the scrap plate through the fixing holes, and each shape '
                      'down through its screw holes.')
     steps.append('Take the clamps off.')
+    if pk in names:
+        steps.append(f'Run <b>{escape(pk)}</b> (cuts the pockets into the shapes, from the top '
+                     'face of the blank).')
     if c in names:
         steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
                      'blank\'s frame is not cut).')
