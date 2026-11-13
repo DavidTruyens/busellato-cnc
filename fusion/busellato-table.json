@@ -1,0 +1,21 @@
+{
+  "beams": 6,
+  "pods_per_beam": 4,
+  "beam_width": 100,
+  "beam_height": 90,
+  "beam_length": 1300,
+  "beam_y_start": 0,
+  "beam_x_min": 0,
+  "beam_x_max": 2500,
+  "pod_x_size": 120,
+  "pod_y_size": 120,
+  "pod_height": 100,
+  "pod_y_min": 0,
+  "pod_y_max": 1180,
+  "scale_to_g54_x": 0,
+  "scale_to_g54_y": 0,
+  "reference": "Beam X scale value = beam left edge (min X). Pod Y scale value = pod front edge (min Y). Pods centred on their beam in X. scale_to_g54 = scale reading at the G54 panel corner.",
+  "provisional": ["beams", "pods_per_beam", "beam_width", "beam_height", "beam_length", "beam_y_start",
+                  "beam_x_min", "beam_x_max", "pod_x_size", "pod_y_size", "pod_height", "pod_y_min",
+                  "pod_y_max", "scale_to_g54_x", "scale_to_g54_y"]
+}
