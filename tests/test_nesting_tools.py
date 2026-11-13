@@ -2,7 +2,7 @@ import copy
 import unittest
 
 from nesting.tools import (HEADS, ROUTER_HEADS, DRILL_HEADS, Bit, ToolTable, HeadError,
-                           SettingsError, STEPOVER_MESSAGE)
+                           SettingsError, STEPOVER_MESSAGE, migrate, OBSOLETE_GROUP_FIELDS)
 
 
 def table(**over):
@@ -176,6 +176,105 @@ class Table(unittest.TestCase):
         self.assertIsNone(t.bit_in(65))
         t.bits.pop(0)
         self.assertEqual(t.new_id(), 'b1')
+
+
+class Migrate(unittest.TestCase):
+    def test_old_defaults_give_the_default_table(self):
+        t, notes, ignored = migrate({}, {})
+        self.assertEqual(t, ToolTable.default())
+        self.assertEqual(ignored, [])
+        self.assertEqual(len(notes), 1)
+        self.assertIn('T66', notes[0])
+        self.assertIn('depth per pass', notes[0])
+        self.assertIn('9', notes[0])
+        self.assertIn('4', notes[0])
+        t.validate()
+
+    def test_real_project_shape(self):
+        settings = {
+            'router': {'tool': 66, 'diameter': 8, 'spindle_rpm': 18000, 'plunge_feed': 1,
+                       'cut_feed': 2, 'depth_per_pass': 9},
+            'pockets': {'tool': 66, 'diameter': 8, 'cut_feed': 3, 'depth_per_pass': 4,
+                        'stepover_pct': 40},
+            'drill_fix': {'tool': 10, 'diameter': 5, 'feed': 1},
+            'drill_screw': {'tool': 10, 'diameter': 5, 'feed': 1},
+        }
+        t, notes, ignored = migrate(settings, {})
+        r = t.bit_in(66)
+        self.assertEqual((r.name, r.type, r.diameter, r.cut_feed, r.depth_per_pass,
+                          r.stepover_pct), ('Router 8', 'router', 8, 2, 9, 40))
+        d = t.bit_in(10)
+        self.assertEqual((d.name, d.type, d.diameter, d.plunge_feed), ('Drill 5', 'drill', 5, 1))
+        self.assertIsNone(t.bit_in(1))
+        self.assertIsNone(t.bit_in(2))
+        self.assertEqual([b.id for b in t.bits], ['b1', 'b2'])
+        self.assertEqual(len(notes), 1)
+        n = notes[0]
+        self.assertIn('T66', n)
+        self.assertIn('cut feed 2', n)
+        self.assertIn('cut feed 3', n)
+        self.assertIn('depth per pass 9', n)
+        self.assertIn('depth per pass 4', n)
+        t.validate()
+
+    def test_pocket_default_on_its_own_head(self):
+        t, notes, _ = migrate({'pockets': {'tool': 65, 'diameter': 18, 'depth_per_pass': 5,
+                                           'cut_feed': 2, 'stepover_pct': 30}}, {})
+        b = t.bit_in(65)
+        self.assertEqual((b.name, b.type, b.diameter, b.depth_per_pass, b.cut_feed,
+                          b.stepover_pct), ('Router 18', 'router', 18, 5, 2, 30))
+        self.assertEqual(t.bit_in(66).name, 'Router 8')
+        self.assertEqual(t.bit_in(66).depth_per_pass, 9)
+        self.assertEqual(notes, [])
+        t.validate()
+
+    def test_two_drills_one_head_disagree(self):
+        t, notes, _ = migrate({'drill_fix': {'tool': 3, 'diameter': 6},
+                               'drill_screw': {'tool': 3, 'diameter': 4}}, {})
+        b = t.bit_in(3)
+        self.assertEqual((b.name, b.diameter), ('Drill 6', 6))
+        self.assertEqual(len([x for x in t.bits if x.type == 'drill']), 1)
+        t3 = [n for n in notes if n.startswith('T3 ')]   # the other note is the T66 default
+        self.assertEqual(len(t3), 1)
+        self.assertIn('diameter 6', t3[0])
+        self.assertIn('diameter 4', t3[0])
+        t.validate()
+
+    def test_unusable_head_is_not_placed(self):
+        t, notes, _ = migrate({'pockets': {'tool': 7}}, {})
+        self.assertIsNone(t.bit_in(7))
+        self.assertEqual(sorted(t.heads), [1, 2, 66])
+        self.assertEqual(len(t.bits), 4)
+        self.assertEqual(t.bits[1].type, 'router')
+        self.assertTrue(any("pocket default's head T7 cannot hold a router bit" in n
+                            for n in notes))
+        t.validate()
+        t, notes, _ = migrate({'drill_fix': {'tool': 40}}, {})
+        self.assertIsNone(t.bit_in(40))
+        self.assertEqual(len(t.bits), 3)
+        self.assertTrue(any('T40' in n and 'drill' in n for n in notes))
+        t.validate()
+
+    def test_ignored_overrides(self):
+        _, _, ignored = migrate({}, {'k1': {'diameter': 12, 'depth': 6, 'tool': 65},
+                                     'k2': 'junk', 'k3': None})
+        self.assertEqual(ignored, [('k1', 'diameter', 12)])
+        self.assertEqual(OBSOLETE_GROUP_FIELDS, ('diameter', 'depth_per_pass', 'plunge_feed',
+                                                 'cut_feed', 'spindle_rpm', 'stepover_pct'))
+        _, _, ign = migrate({}, 'not a dict')
+        self.assertEqual(ign, [])
+
+    def test_non_numeric_value_takes_default_and_says_so(self):
+        t, notes, _ = migrate({'router': {'cut_feed': 'fast'}}, {})
+        self.assertEqual(t.bit_in(66).cut_feed, 3)
+        self.assertTrue(any('cut feed' in n and 'not a number' in n for n in notes))
+
+    def test_migration_is_deterministic(self):
+        s = {'router': {'cut_feed': 2}, 'pockets': {'tool': 7}, 'drill_fix': {'tool': 3}}
+        p = {'k': {'diameter': 1}}
+        a, b = migrate(copy.deepcopy(s), copy.deepcopy(p)), migrate(copy.deepcopy(s),
+                                                                    copy.deepcopy(p))
+        self.assertEqual(a, b)
 
 
 if __name__ == '__main__':

@@ -247,3 +247,138 @@ class ToolTable:
             fail(f"head T{head} holds {b.type} bit {b.name}; "
                  f"the {'router' if kind == 'router' else 'drill'} needs a {kind} bit")
         return b
+
+
+# ---- Migration from the settings before the tool table ----
+
+# Old per-group pocket override fields; they are not applied any more (the server words a line
+# for each one found).
+OBSOLETE_GROUP_FIELDS = ('diameter', 'depth_per_pass', 'plunge_feed', 'cut_feed', 'spindle_rpm',
+                         'stepover_pct')
+
+# The defaults of the settings before the tool table (old settings.py), used for any key a
+# saved project does not have: (section, key) -> number. Do not import settings.py here.
+_OLD_DEFAULTS = {
+    'router': {'tool': 66, 'diameter': 8, 'spindle_rpm': 18000, 'plunge_feed': 1,
+               'cut_feed': 3, 'depth_per_pass': 9},
+    'pockets': {'tool': 66, 'diameter': 8, 'depth_per_pass': 4, 'plunge_feed': 1,
+                'cut_feed': 3, 'spindle_rpm': 18000, 'stepover_pct': 40},
+    'drill_fix': {'tool': 1, 'diameter': 6, 'feed': 1},
+    'drill_screw': {'tool': 2, 'diameter': 3, 'feed': 1},
+}
+
+_FIELD_WORDS = {
+    'diameter': ('diameter', 'mm'), 'depth_per_pass': ('depth per pass', 'mm'),
+    'plunge_feed': ('plunge feed', 'm/min'), 'cut_feed': ('cut feed', 'm/min'),
+    'spindle_rpm': ('spindle speed', 'rpm'), 'stepover_pct': ('stepover', '%'),
+}
+
+
+def _words(field_name: str, value) -> str:
+    word, unit = _FIELD_WORDS[field_name]
+    return f"{word} {value:g} {unit}"
+
+
+def migrate(settings: dict, pockets):
+    """Build a tool table from the raw settings dict and the raw pocket group overrides of a
+    project saved before the tool table. Pure: no I/O.
+
+    Returns (table, notes, ignored). Candidates are taken in the order router, pocket default,
+    fixing drill, screw drill; one bit per head; the first candidate wins every number that
+    differs and one note per head says what was taken and what was dropped. A candidate whose
+    head cannot hold its kind of bit gets its bit created but not placed, and a note. `ignored`
+    lists the old per-group override values as (group key, field, value)."""
+    settings = settings if isinstance(settings, dict) else {}
+    notes = []
+
+    def value(section, key, what):
+        raw = settings.get(section)
+        raw = raw.get(key, _OLD_DEFAULTS[section][key]) if isinstance(raw, dict) \
+            else _OLD_DEFAULTS[section][key]
+        if key == 'tool':
+            return raw
+        if not _is_number(raw):
+            default = _OLD_DEFAULTS[section][key]
+            fname = 'plunge_feed' if key == 'feed' else key
+            notes.append(f"The old {what} {_FIELD_WORDS[fname][0]} {raw!r} is not a number; "
+                         f"the old default {default:g} {_FIELD_WORDS[fname][1]} was used.")
+            return default
+        return raw
+
+    pocket_head = value('pockets', 'tool', "pocket default")
+    router_head = value('router', 'tool', "router")
+    candidates = []   # (who, kind, head, {bit field: value})
+    r = {k: value('router', k, "router") for k in
+         ('diameter', 'spindle_rpm', 'plunge_feed', 'cut_feed', 'depth_per_pass')}
+    p = {k: value('pockets', k, "pocket default") for k in
+         ('diameter', 'depth_per_pass', 'plunge_feed', 'cut_feed', 'spindle_rpm',
+          'stepover_pct')}
+    # The old router had no stepover: it takes the pocket default's only when they share a head.
+    r['stepover_pct'] = p['stepover_pct'] if pocket_head == router_head \
+        else _OLD_DEFAULTS['pockets']['stepover_pct']
+    candidates.append(("router", 'router', router_head, r))
+    candidates.append(("pocket default", 'router', pocket_head, p))
+    for section, who in (('drill_fix', "fixing drill"), ('drill_screw', "screw drill")):
+        candidates.append((who, 'drill', value(section, 'tool', who),
+                           {'diameter': value(section, 'diameter', who),
+                            'plunge_feed': value(section, 'feed', who)}))
+
+    table = ToolTable()
+    on_head = {}   # head -> (bit, taken fields of that bit's first candidate, who, dropped)
+    for who, kind, head, nums in candidates:
+        usable = isinstance(head, int) and not isinstance(head, bool) and head in HEADS \
+            and kind in HEADS[head].allows
+        if not usable:
+            bit = _new_bit(table, kind, nums)
+            table.bits.append(bit)
+            if isinstance(head, int) and not isinstance(head, bool) and head in HEADS:
+                reason = f"T{head} takes {' or '.join(HEADS[head].allows)} bits"
+                shown = f"T{head}"
+            else:
+                shown = f"T{head}" if isinstance(head, int) else repr(head)
+                reason = f"{shown} is not a machine head"
+            notes.append(f"The {who}'s head {shown} cannot hold a {kind} bit ({reason}), so "
+                         f"its bit {bit.name} was created but not placed in any head; pick a "
+                         f"head for it.")
+            continue
+        if head not in on_head:
+            bit = _new_bit(table, kind, nums)
+            table.bits.append(bit)
+            table.heads[head] = bit.id
+            on_head[head] = [bit, who, nums, {}]
+            continue
+        bit, first_who, first, dropped = on_head[head]
+        for k, v in nums.items():
+            if k in first and first[k] != v and k in _FIELD_WORDS:
+                dropped.setdefault(who, []).append((k, _words(k, v)))
+    for head, (bit, first_who, first, dropped) in on_head.items():
+        if not dropped:
+            continue
+        differing = []
+        for _, items in dropped.items():
+            for k, _text in items:
+                if k not in differing:
+                    differing.append(k)
+        taken = ", ".join(_words(k, first[k]) for k in differing)
+        lost = "; ".join(f"the {w}'s " + ", ".join(t for _k, t in items)
+                         for w, items in dropped.items())
+        notes.append(f"T{head} was used by more than one setting with different numbers, so "
+                     f"it holds one bit, {bit.name}. Taken from the {first_who}: {taken}. "
+                     f"Dropped: {lost}.")
+
+    ignored = []
+    if isinstance(pockets, dict):
+        for key, over in pockets.items():
+            if isinstance(over, dict):
+                ignored.extend((key, f, over[f]) for f in OBSOLETE_GROUP_FIELDS if f in over)
+    return table, notes, ignored
+
+
+def _new_bit(table: ToolTable, kind: str, nums: dict) -> Bit:
+    d = nums['diameter']
+    if kind == 'router':
+        return Bit(table.new_id(), f"Router {d:g}", 'router', d,
+                   spindle_rpm=nums['spindle_rpm'], plunge_feed=nums['plunge_feed'],
+                   cut_feed=nums['cut_feed'], depth_per_pass=nums['depth_per_pass'],
+                   stepover_pct=nums['stepover_pct'])
+    return Bit(table.new_id(), f"Drill {d:g}", 'drill', d, plunge_feed=nums['plunge_feed'])
