@@ -30,19 +30,39 @@ class Head:
     number: int
     label: str
     allows: tuple
+    x: float = 0.0      # where the tool sits on the head, mm from T1 (see HEAD_XY)
+    y: float = 0.0
+
+
+# Where each tool sits, mm from T1, as the control's spindle correction table has it
+# (PARTEC1.PAR on the H03 backup, last changed 2003; read with tools/spindle_offsets.py, and
+# tests/test_nesting_tools.py keeps these equal to that file). T1 to T9 are the column of 9 on a
+# 32 mm pitch, T10 to T14 the row of 5 branching off at T4. Only for the drawing on the Tools
+# page: the programs do not use it (the control applies its own table). Not checked on the
+# machine, nor which way +X and +Y point there.
+HEAD_XY = {
+    1: (0, 0), 2: (0, -32), 3: (0, -64), 4: (0, -96), 5: (0, -128), 6: (0, -160),
+    7: (0, -192), 8: (0, -224), 9: (0, -256),
+    10: (-32, -96), 11: (-64, -96), 12: (-96, -96), 13: (-128, -96), 14: (-160, -96),
+    53: (0, -288.15), 56: (-192.2, -96),
+    60: (-356.8, -133.5), 61: (-431.5, -61),
+    65: (-112, -243.6), 66: (-224.8, -250.9),
+}
 
 
 def _build_heads() -> dict:
     heads = {}
     for n in (65, 66):
-        heads[n] = Head(n, "big spindle", ('router',))
-    for n in range(1, 15):     # 14 vertical drills: T1 to T14 (see VERTICAL_DRILLS below)
-        heads[n] = Head(n, "drill cross, vertical", ('drill',))
+        heads[n] = ("big spindle", ('router',))
+    for n in range(1, 15):     # 14 vertical drills: T1 to T14 (see DRILL_HEADS below)
+        heads[n] = ("drill cross, vertical", ('drill',))
     for n in (53, 56):
-        heads[n] = Head(n, "drill cross, horizontal", ('drill',))
-    heads[60] = Head(60, "blade/drill in X", ('drill', 'blade'))
-    heads[61] = Head(61, "blade/drill in Y", ('drill', 'blade'))
-    return dict(sorted(heads.items()))
+        heads[n] = ("drill cross, horizontal", ('drill',))
+    heads[60] = ("blade/drill in X", ('drill', 'blade'))
+    # in the control's table, but no Y blade was seen on the machine (2026-11-13) and one of the
+    # 2,978 backup programs uses T61 (452 use T60)
+    heads[61] = ("blade/drill in Y (not seen on the machine)", ('drill', 'blade'))
+    return {n: Head(n, label, allows, *HEAD_XY[n]) for n, (label, allows) in sorted(heads.items())}
 
 
 HEADS = _build_heads()

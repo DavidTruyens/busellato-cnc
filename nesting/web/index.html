@@ -128,6 +128,14 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 .tbox td.used{white-space:normal;color:var(--mute)}
 .tbox tr.erow td{border-bottom:0;padding:0 6px}
 .tbox tr.erow:has(.ferr:empty){display:none}
+#headMap svg{display:block;width:100%;max-width:760px;height:auto;margin:4px 0 10px}
+#headMap .hd{cursor:pointer}
+#headMap .hd:hover circle,#headMap .hd:hover rect{stroke-width:2.5}
+#headMap text{font:11px system-ui,-apple-system,"Segoe UI",sans-serif;fill:var(--ink)}
+#headMap text.t{font-weight:700}
+#headMap text.b{fill:var(--mute);font-size:10px}
+#headMap text.g{fill:var(--mute);font-size:11px;font-style:italic}
+tr.flash td{background:#fff4e0}
 .banner.bad{background:#fff5f4;color:var(--err);border-color:#f3b8b2}
 @media (max-width:1100px){main{grid-template-columns:230px 1fr 270px}}
 </style>
@@ -234,6 +242,8 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
   <div class="tbox">
     <h2>Toolheads</h2>
     <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings.</p>
+    <div id="headMap"></div>
+    <p class="note">Where each head sits, from the control's own spindle table (PARTEC1.PAR on the backup, millimetres from T1), seen from above as you stand in front of the machine: left to right the drill cross, T65, T66 and the X blade, as on the machine. +X to the right and +Y toward the front, as in the programs; that the table's Y runs toward the front like this is not checked. Blades are drawn at their diameter along the cut they make (X blade along X, Y blade along Y). Each head shows its number and the Ø of the bit in it; dashed: no bit. Click a head to pick its bit below. Not checked on the machine: run ZZT4D (post/machine-tests) to confirm which spindle is which.</p>
     <table id="headsTable"></table>
     <div class="ferr" data-err="tools.heads"></div>
   </div>
@@ -622,8 +632,10 @@ function showPage(name){
   $('pages').querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.p === name));
   document.querySelector('main').hidden = name !== 'plan';
   $('toolsPage').hidden = name !== 'tools';
+  if (location.hash !== (name === 'tools' ? '#tools' : '')) history.replaceState(null, '', name === 'tools' ? '#tools' : location.pathname);
 }
 $('pages').querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showPage(t.dataset.p)));
+if (location.hash === '#tools') showPage('tools');      // a bookmark of the Tools page
 
 // ---- the tool table: bits and the heads they sit in (project.tools, saved with the project) --
 // per bit type: the fields it needs, then the ones that may stay empty (as nesting/tools.py)
@@ -798,10 +810,149 @@ function renderHeads(ok){
   updateTools();
 }
 
+// the operations that name head n (router, pocket default and groups, drills)
+function usersOf(n){
+  const s = project.settings, who = [];
+  if (s.router && s.router.tool === n) who.push('router');
+  if (s.pockets && s.pockets.tool === n) who.push('pocket default');
+  groups.forEach(g => { const o = project.pockets[g.key]; if (isPlainObject(o) && o.tool === n) who.push('pocket group ' + g.id); });
+  if (s.drill_fix && s.drill_fix.tool === n) who.push('fixing drill');
+  if (s.drill_screw && s.drill_screw.tool === n) who.push('screw drill');
+  return who;
+}
+
+// ---- drawing of the heads: positions from the control's spindle table (heads[].x, .y) ----
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, text){
+  const e = document.createElementNS(SVGNS, tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, String(v)));
+  if (text != null) e.textContent = text;        // bit names are user text: never markup
+  return e;
+}
+// scroll to a head's row in the table and focus its bit picker
+function goHead(key){
+  const row = headRows.find(r => r.h.key === key);
+  if (!row) return;
+  const tr = row.sel.closest('tr');
+  tr.scrollIntoView({block: 'center', behavior: 'smooth'});
+  tr.classList.add('flash'); setTimeout(() => tr.classList.remove('flash'), 1200);
+  row.sel.focus();
+}
+const HEAD_FILL = {router: '#a9c7ea', drill: '#f1e6cf', blade: '#d6ead9'};
+function renderHeadMap(){
+  const host = $('headMap');
+  if (!host) return;
+  const heads = tableHeads() || {}, bits = new Map(tableBits().map(b => [b.id, b]));
+  const placed = headList.filter(h => typeof h.x === 'number' && typeof h.y === 'number');
+  if (!placed.length){ host.replaceChildren(); return; }
+  const k = 1.5, pad = 48;                          // px per mm; room for the labels
+  const xs = placed.map(h => h.x), ys = placed.map(h => h.y);
+  // Seen from above with the operator in front (at the bottom), as standing at the machine:
+  // left to right the drill cross, T65, T66 and the X blade (checked on a front photo). The
+  // table's X runs the other way, so it is flipped; its -Y is drawn toward the front.
+  const u0 = Math.min(...xs.map(x => -x)) - 100 / k, u1 = Math.max(...xs.map(x => -x)) + 110;
+  const y0 = Math.min(...ys) - 70, y1 = Math.max(...ys) + pad / k;
+  const W = (u1 - u0) * k, H = (y1 - y0) * k;
+  const px = x => (-x - u0) * k, py = y => (y1 - y) * k;
+  const svg = svgEl('svg', {viewBox: `0 0 ${W.toFixed(0)} ${H.toFixed(0)}`, role: 'img',
+                            'aria-label': 'Toolheads seen from above, operator in front'});
+  // the drill cross: column T1..T9 and row T10..T14 on one plate
+  const at = n => placed.find(h => h.number === n);
+  const t1 = at(1), t9 = at(9), t14 = at(14), t4 = at(4);
+  if (t1 && t9 && t14 && t4){
+    const r = 17;
+    svg.append(svgEl('rect', {x: px(t1.x) - r, y: py(t1.y) - r, width: 2 * r, height: py(t9.y) - py(t1.y) + 2 * r, rx: 6,
+                              fill: '#eef0f4', stroke: '#c5cbd6'}));
+    const ra = Math.min(px(t4.x), px(t14.x)), rb = Math.max(px(t4.x), px(t14.x));
+    svg.append(svgEl('rect', {x: ra - r, y: py(t4.y) - r, width: rb - ra + 2 * r, height: 2 * r, rx: 6,
+                              fill: '#eef0f4', stroke: '#c5cbd6'}));
+    svg.append(svgEl('text', {x: ra + r + 6, y: py(t4.y) + r + 30, class: 'g'}, 'drill cross, 32 mm pitch'));
+  }
+  placed.forEach(h => {
+    const key = 'T' + h.number, bit = bits.get(heads[key]);
+    const kind = h.allows.includes('router') ? 'router' : h.allows.includes('blade') ? 'blade'
+               : h.label.includes('horizontal') ? 'hdrill' : 'drill';
+    const fill = bit ? (HEAD_FILL[bit.type] || '#fff') : '#fff';
+    const users = usesHead(h.number) ? usersOf(h.number) : [];
+    const stroke = users.length ? 'var(--accent)' : bit ? '#556070' : '#9aa3b2', dash = bit ? '' : '4 3';
+    const sw = users.length ? 3 : 1.5;
+    const cx = px(h.x), cy = py(h.y);
+    const g = svgEl('g', {class: 'hd', tabindex: 0, opacity: h.label.includes('not seen') ? 0.45 : 1});
+    const tip = `${key} · ${h.label}` + (bit ? ` · ${bit.name} (${bit.type}, Ø${fmt(bit.diameter)})` : ' · no bit')
+              + (usesHead(h.number) ? (users.length ? ` · used by ${users.join(', ')}` : '') : ' · listed only: no program uses this head');
+    g.append(svgEl('title', {}, tip));
+    let below;
+    if (kind === 'router'){
+      g.append(svgEl('circle', {cx, cy, r: 24, fill, stroke, 'stroke-width': sw, 'stroke-dasharray': dash}));
+      below = cy + 38;
+    } else if (kind === 'blade'){
+      // a blade seen from below is a thin bar as long as its diameter, along the cut it makes:
+      // the X blade along X, the Y blade along Y (Ø of its bit, else 120 mm)
+      const len = (bit && bit.type === 'blade' && Number(bit.diameter) > 0 ? Number(bit.diameter) : 120) * k;
+      const alongY = h.label.includes(' Y');
+      g.append(alongY
+        ? svgEl('rect', {x: cx - 5, y: cy - len / 2, width: 10, height: len, rx: 3, fill, stroke, 'stroke-width': sw, 'stroke-dasharray': dash})
+        : svgEl('rect', {x: cx - len / 2, y: cy - 5, width: len, height: 10, rx: 3, fill, stroke, 'stroke-width': sw, 'stroke-dasharray': dash}));
+      g.append(svgEl('circle', {cx, cy, r: 3, fill: stroke}));
+      if (alongY){
+        g.append(svgEl('text', {x: cx + 10, y: cy + 4, class: 't'}, key));
+        g.append(svgEl('text', {x: cx + 10, y: cy + 18, class: 'b'}, bit ? bit.name : 'no bit'));
+        if (h.label.includes('not seen')) g.append(svgEl('text', {x: cx + 10, y: cy + 32, class: 'b'}, 'not seen on the machine'));
+        svg.append(g);
+        g.addEventListener('click', () => goHead(key));
+        g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); goHead(key); } });
+        return;
+      }
+      below = cy + 20;
+    } else if (kind === 'hdrill'){
+      g.append(svgEl('rect', {x: cx - 13, y: cy - 13, width: 26, height: 26, rx: 3, fill, stroke, 'stroke-width': sw, 'stroke-dasharray': dash}));
+      below = cy + 26;
+    } else {
+      g.append(svgEl('circle', {cx, cy, r: 13, fill, stroke, 'stroke-width': sw, 'stroke-dasharray': dash}));
+      below = null;
+    }
+    g.append(svgEl('text', {x: cx, y: kind === 'blade' ? cy - 10 : cy + 4, 'text-anchor': 'middle', class: 't'}, key));
+    const short = bit ? `Ø${fmt(bit.diameter)}` : '—';
+    if (below != null){
+      g.append(svgEl('text', {x: cx, y: below, 'text-anchor': 'middle', class: 'b'}, bit ? bit.name : 'no bit'));
+    } else if (h.x === t1?.x){                       // column: bit to the left (the row is right)
+      const name = bit ? String(bit.name) : 'no bit —';
+      g.append(svgEl('text', {x: cx - 22, y: cy + 4, 'text-anchor': 'end', class: 'b'}, name.length > 16 ? name.slice(0, 15) + '…' : name));
+    } else {                                         // row: Ø under the head (names do not fit)
+      g.append(svgEl('text', {x: cx, y: cy + 27, 'text-anchor': 'middle', class: 'b'}, short));
+    }
+    g.addEventListener('click', () => goHead(key));
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); goHead(key); } });
+    svg.append(g);
+  });
+  const lg = svgEl('g', {});
+  [['router bit', HEAD_FILL.router, '#556070', ''], ['drill bit', HEAD_FILL.drill, '#556070', ''], ['blade', HEAD_FILL.blade, '#556070', ''],
+   ['no bit', '#fff', '#9aa3b2', '4 3'], ['used by a program', '#fff', 'var(--accent)', '']].forEach(([txt, f, s, d], i) => {
+    const y = 14 + i * 18;
+    lg.append(svgEl('circle', {cx: W * 0.42, cy: y, r: 6, fill: f, stroke: s, 'stroke-width': s === 'var(--accent)' ? 3 : 1.5, 'stroke-dasharray': d}));
+    lg.append(svgEl('text', {x: W * 0.42 + 12, y: y + 4, class: 'b'}, txt));
+  });
+  svg.append(lg);
+  // machine directions, as the programs use them: +X to the right, +Y toward the front
+  const ax = W - 120, ay = H - 92, L = 60;
+  const arrow = (x2, y2, txt, tx, ty) => {
+    svg.append(svgEl('line', {x1: ax, y1: ay, x2, y2, stroke: 'var(--ink)', 'stroke-width': 1.5, 'marker-end': 'url(#axArrow)'}));
+    svg.append(svgEl('text', {x: tx, y: ty, class: 't'}, txt));
+  };
+  const defs = svgEl('defs', {}), mk = svgEl('marker', {id: 'axArrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse'});
+  mk.append(svgEl('path', {d: 'M0 0 L10 5 L0 10 z', fill: 'var(--ink)'}));
+  defs.append(mk); svg.append(defs);
+  arrow(ax + L, ay, '+X', ax + L + 6, ay + 4);
+  arrow(ax, ay + L, '+Y (front)', ax + 6, ay + L + 4);
+  svg.append(svgEl('circle', {cx: ax, cy: ay, r: 2.5, fill: 'var(--ink)'}));
+  host.replaceChildren(svg);
+}
+
 function updateTools(){
   // what changes without rebuilding the rows (and losing the focus): bit names in the head
   // pickers, which heads a bit sits in, which operation uses a head
   if (!project || !tableHeads()) return;
+  renderHeadMap();
   bitRows.forEach(({bit, inHeads}) => { const w = headsOf(bit.id); inHeads.textContent = w.length ? w.join(', ') : 'none'; });
   const s = project.settings, bits = tableBits();
   headRows.forEach(({h, sel, used}) => {
@@ -813,13 +964,7 @@ function updateTools(){
     if (!same) sel.replaceChildren(...opts.map(([v, t]) => el('option', {value: v}, t)));
     sel.value = cur == null ? '' : String(cur);
     if (h.n === null || !usesHead(h.n)){ used.textContent = 'listed only: no program uses this head'; return; }
-    const who = [];
-    if (s.router && s.router.tool === h.n) who.push('router');
-    if (s.pockets && s.pockets.tool === h.n) who.push('pocket default');
-    groups.forEach(g => { const o = project.pockets[g.key]; if (isPlainObject(o) && o.tool === h.n) who.push('pocket group ' + g.id); });
-    if (s.drill_fix && s.drill_fix.tool === h.n) who.push('fixing drill');
-    if (s.drill_screw && s.drill_screw.tool === h.n) who.push('screw drill');
-    used.textContent = who.join(', ');
+    used.textContent = usersOf(h.n).join(', ');
   });
 }
 

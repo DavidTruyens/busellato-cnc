@@ -158,7 +158,7 @@ def strip_obsolete(pockets):
 
 
 def heads_data() -> list[dict]:
-    return [{'number': h.number, 'label': h.label, 'allows': list(h.allows)}
+    return [{'number': h.number, 'label': h.label, 'allows': list(h.allows), 'x': h.x, 'y': h.y}
             for h in HEADS.values()]
 
 

@@ -1033,6 +1033,21 @@ class ServerTests(unittest.TestCase):
         self.assertNotIn('<select id="preset"', html)
         self.assertNotIn('ROUTER_TOOLS', html)
 
+    def test_page_draws_the_heads_from_their_positions(self):
+        # the Tools page draws every head at heads[].x, .y (the control's spindle table);
+        # bit names reach the drawing as text, never markup; #tools opens the page
+        status, html = self.call('GET', '/')
+        self.assertEqual(status, 200)
+        self.assertIn('id="headMap"', html)
+        self.assertIn('function renderHeadMap()', html)
+        self.assertIn("e.textContent = text", html)
+        self.assertNotRegex(html, r'innerHTML[^;]*headMap|headMap[^;]*innerHTML')
+        self.assertIn("if (location.hash === '#tools') showPage('tools')", html)
+        status, proj = self.call('GET', '/api/project')
+        xy = {h['number']: (h['x'], h['y']) for h in proj['heads']}
+        self.assertEqual(xy[4], (0, -96))
+        self.assertEqual(xy[10], (-32, -96))
+
     def test_page_has_a_tools_page_with_bits_and_heads(self):
         status, html = self.call('GET', '/')
         self.assertEqual(status, 200)
@@ -1259,9 +1274,9 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(note.startswith('T66 '), note)
         self.assertIn('cut feed 3', note)
         self.assertEqual(proj['heads'][0], {'number': 1, 'label': 'drill cross, vertical',
-                                            'allows': ['drill']})
-        self.assertIn({'number': 66, 'label': 'big spindle', 'allows': ['router']},
-                      proj['heads'])
+                                            'allows': ['drill'], 'x': 0, 'y': 0})
+        self.assertIn({'number': 66, 'label': 'big spindle', 'allows': ['router'],
+                       'x': -224.8, 'y': -250.9}, proj['heads'])
         self.assertEqual([h['number'] for h in proj['heads']],
                          sorted(h['number'] for h in proj['heads']))
         status, plan = self.call('GET', '/api/plan')
