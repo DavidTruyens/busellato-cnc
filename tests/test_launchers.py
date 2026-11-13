@@ -180,6 +180,27 @@ class StartShTests(unittest.TestCase):
         self.assertIn('already running', self.log.read_text())
         self.assertEqual('', self.read('notified'))
 
+    def test_start_sh_other_click_got_the_port(self):
+        # Two clicks at once: both find the port free, the other click's tool binds it first,
+        # this start's tool fails. That is "already running", not a failure.
+        python3 = self.bin / 'python3'
+        python3.unlink()
+        write_stub(python3,
+                   'if [ "$1 $2" = "-m nesting.ping" ] && [ ! -e "$HOME/pinged" ]; then\n'
+                   '    : > "$HOME/pinged"; echo "port $3 is free"; exit 1\nfi\n'
+                   f'exec "{sys.executable}" "$@"')
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        port = self.serve(make_server(Path(tmp.name), port=0))
+        r = self.run_start(port)
+        log = self.log.read_text()
+        self.assertEqual(0, r.returncode, log)
+        self.assertIn('Cannot use port', log)          # this start's tool did fail
+        self.assertIn('already running (started by another click)', log)
+        self.assertIn(f'http://127.0.0.1:{port}/', self.read('opened'))
+        self.assertEqual('', self.read('notified'))
+        self.assertNotIn('did not start', log)
+
     def test_start_sh_no_python(self):
         write_stub(self.bin / 'python3', 'exit 127')
         write_stub(self.bin / 'python', 'exit 127')
@@ -426,6 +447,29 @@ class WindowsFilesTests(unittest.TestCase):
         vbs = self.text(START_VBS)
         self.assertIn('shell.Run("cmd /c """"" & bat & """ > """ & logFile & """ 2>&1""", 0, True)',
                       vbs)
+
+    def test_vbs_waits_when_another_start_holds_the_log(self):
+        vbs = self.text(START_VBS)
+        self.assertIn('Set f = fso.OpenTextFile(path, 8, True)', vbs)
+        self.assertIn('If Not fso.FileExists(path) Then Exit Function', vbs)
+        self.assertIn('Const WAIT_SECONDS = 20', vbs)
+        self.assertIn('WScript.Sleep 1000', vbs)
+        self.assertIn('"The tool is still starting or did not start. Try again in a minute."', vbs)
+        busy = vbs.index('If LogBusy(logFile) Then WaitForTool')
+        run_bat = vbs.index('shell.Run("cmd /c')
+        self.assertLess(busy, run_bat)
+        # and once more when start.bat could not open the log (the other click was faster)
+        self.assertGreater(vbs.index('If LogBusy(logFile) Then WaitForTool', run_bat), run_bat)
+        wait = vbs[vbs.index('Sub WaitForTool()'):vbs.index('End Sub')]
+        self.assertNotIn('cmd /c', wait)       # never writes into the other start's log
+
+    def test_start_bat_failed_tool_pings_again(self):
+        bat = self.text(START_BAT).replace('\r\n', '\n')
+        failed = bat[bat.index(':toolfailed\n'):]
+        failed = failed[:failed.index('goto fail')]
+        self.assertIn('%PY% -m nesting.ping %PORT%\nif "%ERRORLEVEL%"=="0" goto otherclick', failed)
+        other = bat[bat.index(':otherclick\n'):]
+        self.assertIn('goto running', other[:other.index('\n\n')])
 
     def test_make_shortcut_targets_launcher(self):
         vbs = self.text(SHORTCUT_VBS)

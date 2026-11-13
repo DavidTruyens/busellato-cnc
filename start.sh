@@ -3,8 +3,8 @@
 # 1. update from GitHub if possible (never waits for a password, never stops on failure)
 # 2. find Python 3.11+, 3. open the page if the tool already runs, else start it on port 8800;
 #    the tool stops by itself when the page is closed.
-# Everything is logged to ~/nesting-project/start.log (a second start while the tool runs only
-# appends to it); a failure also shows a desktop notice.
+# Everything is logged to ~/nesting-project/start.log (a second click while the tool runs does
+# not erase it); a failure also shows a desktop notice.
 # Exit codes: 0 ok or already running, 1 cannot open the folder of this script, 2 no Python,
 # 3 Python older than 3.11, 4 port taken by another program, 5 the tool did not start.
 # For tests: NESTING_PORT (default 8800) and NESTING_PROJECT (default ~/nesting-project).
@@ -164,6 +164,13 @@ main() {
                 return 0
                 ;;
             *)
+                # Two clicks at once: both found the port free, the other one's tool got it.
+                # That is no failure (only this start's lines replaced start.log).
+                if "$PY" -m nesting.ping "$PORT"; then
+                    echo "The tool is already running (started by another click): opening the page."
+                    "$PY" -m webbrowser "$URL" >/dev/null
+                    return 0
+                fi
                 fail 5 "The tool did not start or stopped with an error."
                 return
                 ;;

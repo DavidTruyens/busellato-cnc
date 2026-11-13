@@ -117,10 +117,18 @@ set "CODE=3"
 goto fail
 
 :toolfailed
+rem Two clicks at once: both found the port free and the other click's tool got it. That is
+rem no failure: open the page (not tested on Windows).
+%PY% -m nesting.ping %PORT%
+if "%ERRORLEVEL%"=="0" goto otherclick
 echo.
 echo The tool did not start or stopped with an error.
 set "CODE=5"
 goto fail
+
+:otherclick
+echo The tool is already running (started by another click).
+goto running
 
 :nofolder
 echo Cannot open the folder of start.bat: %~dp0

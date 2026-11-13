@@ -9,6 +9,7 @@ Option Explicit
 Const TITLE = "Nesting tool"
 Const URL = "http://127.0.0.1:8800/"
 Const TAIL_LINES = 12
+Const WAIT_SECONDS = 20
 
 Dim shell, fso, repo, bat, project, logFile, code, msg
 Set shell = CreateObject("WScript.Shell")
@@ -35,12 +36,20 @@ If Not MakeFolder(project) Then
     WScript.Quit 1
 End If
 
+' A start is in progress (two clicks at once, or a click while the tool starts): the other
+' start.bat holds the log. Do not run start.bat (its "> start.log" would fail): wait for the
+' tool to answer instead (not tested on Windows).
+If LogBusy(logFile) Then WaitForTool
+
 ' Quiet mode for start.bat; an environment variable survives its re-call after an update.
 shell.Environment("Process")("NESTING_QUIET") = "1"
 ' cmd /c strips the first and the last quote of: ""<repo>\start.bat" > "<log>" 2>&1"
 ' Window style 0 = hidden; True = wait until start.bat ends (that is: until the tool stops).
 code = shell.Run("cmd /c """"" & bat & """ > """ & logFile & """ 2>&1""", 0, True)
 If code = 0 Then WScript.Quit 0
+' Another click's start.bat took the log between the check above and this one: cmd could not
+' open it. Wait for that start too (not tested on Windows).
+If LogBusy(logFile) Then WaitForTool
 
 Select Case code
     Case 2
@@ -86,6 +95,39 @@ Function ToolRuns(pingUrl)
     If Err.Number <> 0 Then Exit Function
     ToolRuns = (found > 0)
 End Function
+
+' True when another start holds the log open: cmd keeps "> start.log" open for writing while
+' start.bat runs, so it cannot be opened for appending here. A missing log is not busy.
+Function LogBusy(path)
+    Dim f
+    LogBusy = False
+    If Not fso.FileExists(path) Then Exit Function
+    On Error Resume Next
+    Set f = fso.OpenTextFile(path, 8, True)
+    If Err.Number <> 0 Then
+        Err.Clear
+        LogBusy = True
+        Exit Function
+    End If
+    f.Close
+    Err.Clear
+End Function
+
+' A start is in progress: ask the tool about every second for up to WAIT_SECONDS; open the page
+' when it answers. If it never does, say so (the log belongs to the other start: leave it).
+Sub WaitForTool()
+    Dim n
+    For n = 1 To WAIT_SECONDS
+        WScript.Sleep 1000
+        If ToolRuns(URL & "api/ping") Then
+            shell.Run URL
+            WScript.Quit 0
+        End If
+    Next
+    MsgBox "The tool is still starting or did not start. Try again in a minute." & vbCrLf & _
+        vbCrLf & "Log: " & logFile, vbExclamation, TITLE
+    WScript.Quit 5
+End Sub
 
 ' Create the folder (one level: %USERPROFILE% exists). False when it cannot be made.
 Function MakeFolder(path)
