@@ -1,0 +1,26 @@
+name: Tests
+
+# The full test suite on every pull request and on every push to main.
+# The Python code uses the standard library only; the floppy image tests call mtools and ddrescue.
+# The post-processor tests need Autodesk's post engine (Fusion on a Mac): they are skipped here.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # the oldest version the tool supports (see WINDOWS.md)
+      - name: Install mtools and ddrescue (floppy image tests)
+        run: sudo apt-get update -q && sudo apt-get install -y -q mtools gddrescue
+      - name: Run the tests
+        run: python -m unittest discover -s tests

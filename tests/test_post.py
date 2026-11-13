@@ -58,6 +58,8 @@ def lines_of(text):
     return text.decode('ascii').split('\r\n')[:-1]
 
 
+@unittest.skipIf(MODE == 'A' and not POST_BIN,
+                 "needs Autodesk's post engine (Fusion installed on a Mac); not available on CI")
 class PostCaseTest(unittest.TestCase):
     def check_assertion(self, key, a, text, name):
         lines = lines_of(text)
