@@ -1,2 +1,4 @@
 # Windows batch files in the repo root: CRLF in a Windows checkout (cmd.exe needs it).
 /*.bat text eol=crlf
+# Shell scripts in the repo root: LF everywhere (bash on Linux and macOS needs it).
+/*.sh text eol=lf
