@@ -415,5 +415,18 @@ class WindowsFilesTests(unittest.TestCase):
             self.assertIn(s, vbs)
 
 
+class DocsTests(unittest.TestCase):
+    def read(self, rel):
+        return (REPO / rel).read_text(encoding='utf-8')
+
+    def test_docs_mark_untested(self):
+        win = self.read('WINDOWS.md')
+        for s in ('make-shortcut.vbs', 'start.log', 'not tested on Windows'):
+            self.assertIn(s, win)
+        readme = self.read('nesting/README.md')
+        for s in ('--exit-when-closed', 'install-launcher.sh', 'not tested on Linux'):
+            self.assertIn(s, readme)
+
+
 if __name__ == '__main__':
     unittest.main()
