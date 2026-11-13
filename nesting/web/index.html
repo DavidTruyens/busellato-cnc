@@ -118,9 +118,10 @@ pre{margin:0;padding:10px 12px;background:#101521;color:#d7e0f0;border-radius:0 
 .ghint{color:var(--mute);font-size:12px;margin-top:3px}
 .ghint:empty{display:none}
 [hidden]{display:none !important}
-#toolsPage{flex:1;min-height:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+#toolsPage,#machinePage{flex:1;min-height:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
 .tbox{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;flex-shrink:0}
 .tbox h2{margin:0 0 6px}
+#machinePage .tbox{max-width:520px}
 .tbox input[type=number]{width:86px;text-align:right}
 .tbox input[type=text]{width:160px}
 .tbox select{width:auto;min-width:110px}
@@ -143,7 +144,7 @@ tr.flash td{background:#fff4e0}
 <body>
 <header>
   <h1>Panel nesting &amp; programs</h1>
-  <div class="bar" id="pages"><span class="tab on" data-p="plan">Plan</span><span class="tab" data-p="tools">Tools</span></div>
+  <div class="bar" id="pages"><span class="tab on" data-p="plan">Plan</span><span class="tab" data-p="tools">Tools</span><span class="tab" data-p="machine">Machine</span></div>
   <span class="badge">Not yet run on the machine: check every program in the simulator first</span>
   <span class="spacer"></span>
   <span id="status"></span>
@@ -220,11 +221,16 @@ tr.flash td{background:#fff4e0}
   <h2>Drills</h2>
   <div id="drillFields"></div>
 
-  <h2>Machine</h2>
-  <div id="machineFields"></div>
-  <p class="note">Values shown are placeholders until measured at the machine. The panel Layout view is the saw plan (panel corner bottom left), not machine coordinates. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
 </aside>
 </main>
+
+<section id="machinePage" hidden>
+  <div class="tbox">
+    <h2>Machine</h2>
+    <div id="machineFields"></div>
+    <p class="note">Values shown are placeholders until measured at the machine. The panel Layout view is the saw plan (panel corner bottom left), not machine coordinates. The work frame (the area a blank must fit in, long side along machine X) was read from a control config file: verify it on the machine's axis parameter screens.</p>
+  </div>
+</section>
 
 <section id="toolsPage" hidden>
   <div class="banner bad" id="toolsErr"></div>
@@ -414,7 +420,7 @@ function clearErrors(){
 }
 function showFieldError(err){
   // shows the message under the field and marks its control (never switches pages);
-  // returns the page the field is on ('plan' or 'tools'), or false when it has no place
+  // returns the page the field is on ('plan', 'tools' or 'machine'), or false when it has no place
   let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
   // tools.bits.<id>.<field> and tools.heads.T<n>: the message goes under the bit's or head's
   // row; any other tools field under the tables
@@ -437,7 +443,7 @@ function showFieldError(err){
   box.textContent = msg;
   const ctl = document.querySelector(`[data-k="${CSS.escape(err.field)}"]`);
   if (ctl && ctl.tagName !== 'DIV') ctl.classList.add('bad');
-  return $('toolsPage').contains(box) ? 'tools' : 'plan';
+  return $('toolsPage').contains(box) ? 'tools' : $('machinePage').contains(box) ? 'machine' : 'plan';
 }
 
 function renderSaveBanner(where){
@@ -453,7 +459,7 @@ function renderSaveBanner(where){
   let hint = '';
   if (isHead) hint = `pick another head in ${place}` +
     (holds ? ` or put ${holds[2] ? 'a' : 'a suitable'} bit in T${holds[1]}` : '');
-  else if (field) hint = 'fix it on the Plan page';
+  else if (field) hint = /^(machine\.|origin$)/.test(field) ? 'fix it on the Machine page' : 'fix it on the Plan page';
   box.replaceChildren(el('b', {}, 'Not saved: '),
     `${isHead || !field ? '' : field + ': '}${err.message}${hint ? ' — ' + hint : ''}`);
 }
@@ -627,15 +633,17 @@ function updateGroups(){
   });
 }
 
-// ---- pages: Plan | Tools -----------------------------------------------------------------------
+// ---- pages: Plan | Tools | Machine -----------------------------------------------------------------------
 function showPage(name){
   $('pages').querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.p === name));
   document.querySelector('main').hidden = name !== 'plan';
   $('toolsPage').hidden = name !== 'tools';
-  if (location.hash !== (name === 'tools' ? '#tools' : '')) history.replaceState(null, '', name === 'tools' ? '#tools' : location.pathname);
+  $('machinePage').hidden = name !== 'machine';
+  const want = name === 'plan' ? '' : '#' + name;
+  if (location.hash !== want) history.replaceState(null, '', want || location.pathname);
 }
 $('pages').querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => showPage(t.dataset.p)));
-if (location.hash === '#tools') showPage('tools');      // a bookmark of the Tools page
+if (location.hash === '#tools' || location.hash === '#machine') showPage(location.hash.slice(1));      // a bookmark of the Tools or Machine page
 
 // ---- the tool table: bits and the heads they sit in (project.tools, saved with the project) --
 // per bit type: the fields it needs, then the ones that may stay empty (as nesting/tools.py)

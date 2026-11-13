@@ -1035,14 +1035,15 @@ class ServerTests(unittest.TestCase):
 
     def test_page_draws_the_heads_from_their_positions(self):
         # the Tools page draws every head at heads[].x, .y (the control's spindle table);
-        # bit names reach the drawing as text, never markup; #tools opens the page
+        # bit names reach the drawing as text, never markup; #tools and #machine open their pages
         status, html = self.call('GET', '/')
         self.assertEqual(status, 200)
         self.assertIn('id="headMap"', html)
         self.assertIn('function renderHeadMap()', html)
         self.assertIn("e.textContent = text", html)
         self.assertNotRegex(html, r'innerHTML[^;]*headMap|headMap[^;]*innerHTML')
-        self.assertIn("if (location.hash === '#tools') showPage('tools')", html)
+        self.assertIn("location.hash === '#tools' || location.hash === '#machine'", html)
+        self.assertIn('id="machinePage"', html)
         status, proj = self.call('GET', '/api/project')
         xy = {h['number']: (h['x'], h['y']) for h in proj['heads']}
         self.assertEqual(xy[4], (0, -96))
