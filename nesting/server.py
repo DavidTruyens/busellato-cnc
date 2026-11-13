@@ -362,7 +362,22 @@ class Project:
         programs = plan_programs(plan, settings, pockets, groups)
         problems = errors + list(plan.problems)
         problems += self._circle_warnings(plan, settings, pockets, groups)
+        problems += self._stale_warning(pockets, groups)
         return settings, plan, programs, problems, groups
+
+    @staticmethod
+    def _stale_warning(pockets: dict, groups: list[PocketGroup]) -> list[str]:
+        """One line when stored pocket settings match no current group (a DXF edit or a
+        rename changed the group key): they stay in project.json but are not used."""
+        keys = {g.key for g in groups}
+        n = sum(1 for k in pockets if k not in keys)
+        if not n:
+            return []
+        if n == 1:
+            return ['1 stored pocket setting matches no current group (kept in project.json, '
+                    'not used)']
+        return [f'{n} stored pocket settings match no current group (kept in project.json, '
+                f'not used)']
 
     @staticmethod
     def _circle_warnings(plan, settings: Settings, pockets: dict,

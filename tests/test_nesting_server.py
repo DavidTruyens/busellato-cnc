@@ -808,6 +808,31 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, plan)
         self.assertTrue(plan['settings_error'])
 
+    def test_stale_override_count_is_one_warning_line(self):
+        self.seed(PLATES[:2])
+        _, proj = self.call('GET', '/api/project')
+        key = proj['pocket_groups'][0]['key']
+        cases = [({}, None), ({key: {'depth': 5}}, None),
+                 ({key: {'depth': 5}, 'gone': {'depth': 4}},
+                  '1 stored pocket setting matches no current group (kept in project.json, '
+                  'not used)'),
+                 ({'gone': {'depth': 4}, 'gone2': {}},
+                  '2 stored pocket settings match no current group (kept in project.json, '
+                  'not used)')]
+        for pockets, line in cases:
+            with self.subTest(pockets=pockets):
+                proj['pockets'] = pockets
+                self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
+                status, plan = self.call('GET', '/api/plan')
+                self.assertEqual(status, 200)
+                self.assertTrue(plan['blanks'])                  # a warning, never blocks
+                stale = [p for p in plan['problems'] if 'match' in p and 'no current group' in p]
+                self.assertEqual(stale, [line] if line else [])
+        status, body = self.call('POST', '/api/generate', {})
+        self.assertEqual(status, 200, body)
+        self.assertIn('2 stored pocket settings match no current group (kept in project.json, '
+                      'not used)', body['problems'])
+
     def test_stale_unknown_key_is_kept_and_never_blocks(self):
         self.seed(PLATES[:2])
         _, proj = self.call('GET', '/api/project')
@@ -825,6 +850,8 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(plan['blanks'], plan['problems'])
         self.assertFalse(any('pockets.' in p for p in plan['problems']), plan['problems'])
+        self.assertIn('3 stored pocket settings match no current group (kept in project.json, '
+                      'not used)', plan['problems'])
         status, text = self.call('GET', '/api/program?name=B01P')
         self.assertEqual(status, 200, text)
         self.assertTrue(text)

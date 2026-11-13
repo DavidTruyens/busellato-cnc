@@ -124,9 +124,11 @@ sorted by name, so they do not depend on the order of the list. The palette has 
 distinct from the page's blank, shape, hole and saw colours; the 12 plates have 10 groups; beyond 15
 groups the colours repeat. Each group has its settings in
 the page; they are stored in `project.json` under `pockets`, **keyed by the group key** (a text
-made from the pocket's position and vertices, not by `G<n>`), and only the fields that differ from
-the defaults in `settings.pockets` are kept. A group can be switched off (not cut, shown dimmed
-and dashed).
+made from the pocket's position and vertices, not by `G<n>`). A field is kept when a value is
+typed in the group's row, even one equal to the default; an empty field uses the default in
+`settings.pockets`. A group can be switched off (not cut, shown dimmed and dashed). Stored
+settings whose key matches no current group (a DXF edit or a rename changed the key) stay in
+`project.json` but are not used; the plan lists how many with one warning line.
 
 | Setting (default) | Meaning |
 |---|---|
@@ -138,9 +140,10 @@ and dashed).
 | `stepover_pct` 40 | Maximum stepover between rings, % of the tool diameter, from 10 to 100; **capped at 70** when used. |
 | `direction` cw | Turning sense of the rings seen from above (`cw` or `ccw`). Climb or conventional is not verified: depends on the spindle direction, check at the machine. |
 
-Each group can override `enabled`, `tool`, `diameter`, `depth`, `depth_per_pass`, `plunge_feed`,
-`cut_feed`, `spindle_rpm`, `stepover_pct` and `direction`; the page checks the values and names
-the group and field that is wrong.
+The page's group rows offer `enabled`, `tool`, `diameter`, `depth`, `depth_per_pass`,
+`plunge_feed`, `cut_feed` and `stepover_pct`; the spindle speed and the direction come from the
+defaults. `project.json` (and the API) also accepts `spindle_rpm` and `direction` per group. The
+server checks the values and names the group and field that is wrong.
 
 **How a pocket is cut** (`nesting/pockets.py`, `pocket_rings`). The tool path is the tool
 centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
