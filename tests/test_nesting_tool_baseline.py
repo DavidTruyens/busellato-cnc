@@ -39,5 +39,14 @@ class BaselineTests(unittest.TestCase):
             self.assertEqual(actual[name], expected[name], msg=name)
 
 
+    def test_consistent_project_has_no_notes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / 'shapes').mkdir()
+            for dxf in (repo / 'plates').glob('*.dxf'):
+                shutil.copy(dxf, tmp / 'shapes' / dxf.name)
+            shutil.copy(DATA / 'project.json', tmp / 'project.json')
+            self.assertEqual(Project(tmp).project()['tools_notes'], [])
+
 if __name__ == '__main__':
     unittest.main()

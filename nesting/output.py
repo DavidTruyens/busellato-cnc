@@ -269,7 +269,8 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
         write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
         data = preview_data(plan, programs, settings, pocket_overrides, groups)
         (stage / 'PROJECT.json').write_text(
-            json.dumps({'settings': settings.to_dict(), 'project': project,
+            json.dumps({'settings': settings.to_dict(), 'tools': settings.tools.to_dict(),
+                        'project': project,
                         'pockets': pocket_overrides or {},
                         'pocket_groups': data['pocket_groups']}, indent=2), encoding='utf-8')
         (stage / 'RUNSHEET.html').write_text(_runsheet(data, project), encoding='utf-8')

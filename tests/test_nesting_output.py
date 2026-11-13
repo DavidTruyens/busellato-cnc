@@ -269,6 +269,11 @@ class OutputTests(unittest.TestCase):
         self.write()
         self.assertEqual(json.loads((self.out / 'PROJECT.json').read_text())['pockets'], {})
 
+    def test_project_json_has_tools(self):
+        self.write()
+        data = json.loads((self.out / 'PROJECT.json').read_text(encoding='utf-8'))
+        self.assertEqual(data['tools'], self.s.tools.to_dict())
+
     def test_loader_and_diskette_include_pocket_programs(self):
         self.write()
         names = [p.name for p in self.progs]

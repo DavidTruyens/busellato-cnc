@@ -35,6 +35,7 @@ from .pockets import GROUP_FIELDS, PocketGroup, effective, find_groups, group_fo
 from .preview import pocket_groups_data, preview_data
 from .program import check_pocket_heads, plan_programs, plan_shapes
 from .settings import Pockets, Settings, SettingsError
+from .tools import HEADS, OBSOLETE_GROUP_FIELDS, ToolTable, migrate
 
 HOST = '127.0.0.1'
 MAX_BODY = 20 * 1024 * 1024
@@ -123,6 +124,44 @@ def _min_circle(settings: dict) -> float:
     return float(v)
 
 
+def _value_text(v) -> str:
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return f'{v:g}'
+    return json.dumps(v)
+
+
+def ignored_lines(ignored, groups: list[PocketGroup]) -> list[str]:
+    """One line per old per-group override value that is not applied any more."""
+    ids = {g.key: g.id for g in groups}
+    out = []
+    for key, name, value in ignored:
+        who = f'pocket group {ids[key]}' if key in ids else 'a stored pocket setting'
+        out.append(f'{who}: old setting {name} {_value_text(value)} is ignored (speeds and '
+                   f'feeds come from the bit in its head)')
+    return out
+
+
+def strip_obsolete(pockets):
+    """The pocket overrides without the old per-group fields (OBSOLETE_GROUP_FIELDS); an
+    override left empty by that is dropped. Anything that is not an object is kept as it is
+    (check_pockets judges it)."""
+    if not isinstance(pockets, dict):
+        return pockets
+    out = {}
+    for key, over in pockets.items():
+        if isinstance(over, dict) and any(f in over for f in OBSOLETE_GROUP_FIELDS):
+            over = {k: v for k, v in over.items() if k not in OBSOLETE_GROUP_FIELDS}
+            if not over:
+                continue
+        out[key] = over
+    return out
+
+
+def heads_data() -> list[dict]:
+    return [{'number': h.number, 'label': h.label, 'allows': list(h.allows)}
+            for h in HEADS.values()]
+
+
 def safe_filename(name) -> str:
     """Last path component of `name` if it is a plain `*.dxf` name; else ApiError 400."""
     base = re.split(r'[\\/]', name if isinstance(name, str) else '')[-1].strip()
@@ -148,15 +187,30 @@ class Project:
 
     # --- stored state -------------------------------------------------------------------
     def _stored(self) -> dict:
-        """shapes, settings and pockets (the group overrides, as stored: checked later)."""
+        """shapes, settings, pockets (the group overrides, as stored: checked later), tools
+        (the tool table as stored, checked later by ToolTable.from_dict), tools_notes and
+        tools_ignored. A project.json without `tools` (saved before the tool table) gets the
+        table migrated from its raw settings: tools_notes says what was merged and
+        tools_ignored lists the old per-group override values (group key, field, value),
+        worded by _merged once the groups are known. Nothing is written here."""
         if not self.file.exists():
-            return {'shapes': [], 'settings': Settings().to_dict(), 'pockets': {}}
+            return {'shapes': [], 'settings': Settings().to_dict(), 'pockets': {},
+                    'tools': ToolTable.default().to_dict(), 'tools_notes': [],
+                    'tools_ignored': []}
         data = json.loads(self.file.read_text(encoding='utf-8'))
         if not isinstance(data, dict):
             raise ValueError('expected an object')
+        raw = data.get('settings') or {}
+        pockets = data.get('pockets', {})
+        if 'tools' in data:
+            tools, notes, ignored = data['tools'], [], []
+        else:
+            table, notes, ignored = migrate(raw, pockets)
+            tools = table.to_dict()
         return {'shapes': list(data.get('shapes') or []),
-                'settings': Settings.from_dict(data.get('settings') or {}).to_dict(),
-                'pockets': data.get('pockets', {})}
+                'settings': Settings.from_dict(raw).to_dict(),
+                'pockets': pockets, 'tools': tools, 'tools_notes': notes,
+                'tools_ignored': ignored}
 
     def _files(self) -> list[Path]:
         if not self.shapes_dir.is_dir():
@@ -185,7 +239,8 @@ class Project:
         return shapes, errors
 
     def _merged(self, stored: dict | None = None):
-        """(shapes in list order with qty/enabled, settings dict, dxf errors, pockets)."""
+        """(shapes in list order with qty/enabled, settings dict, dxf errors, pockets, tools
+        as stored, tools notes: the migration notes, then one line per ignored old override)."""
         stored = self._stored() if stored is None else stored
         shapes, errors = self._shapes(_min_circle(stored['settings']))
         by_name = {s.name: s for s in shapes}
@@ -196,7 +251,10 @@ class Project:
                 seen.add(name)
                 rows.append((by_name[name], int(e.get('qty', 1)), bool(e.get('enabled', True))))
         rows += [(s, 1, True) for s in shapes if s.name not in seen]
-        return rows, stored['settings'], errors, stored['pockets']
+        notes = list(stored['tools_notes'])
+        if stored['tools_ignored']:
+            notes += ignored_lines(stored['tools_ignored'], self._groups(rows))
+        return rows, stored['settings'], errors, stored['pockets'], stored['tools'], notes
 
     @staticmethod
     def _listing(rows) -> list[dict]:
@@ -208,18 +266,32 @@ class Project:
             return self._project()
 
     def _project(self) -> dict:
-        rows, settings, _, pockets = self._merged()
+        """The project for the page. tools is the table as stored (a bad one too, never
+        replaced by a default); tools_error ({field, message} or None) says why it is bad."""
+        rows, settings, _, pockets, tools, notes = self._merged()
+        try:
+            table, tools_error = ToolTable.from_dict(tools), None
+        except SettingsError as e:
+            table, tools_error = None, {'field': e.field, 'message': e.message}
         return {'shapes': self._listing(rows), 'settings': settings, 'pockets': pockets,
-                'pocket_groups': self._pocket_groups(rows, settings, pockets)}
+                'tools': tools, 'tools_notes': notes, 'tools_error': tools_error,
+                'heads': heads_data(),
+                'pocket_groups': self._pocket_groups(rows, settings, pockets, table,
+                                                     tools_error)}
 
     @staticmethod
-    def _pocket_groups(rows, settings_dict: dict, pockets) -> list[dict]:
+    def _pocket_groups(rows, settings_dict: dict, pockets, table: ToolTable | None,
+                       tools_error: dict | None = None) -> list[dict]:
         """pocket_groups_data over every shape of the project (switched off too, so their
         overrides stay editable) with the stored overrides; count is the number of pockets
         on switched-on shapes (0 for a group of switched-off shapes only). A group whose
-        override is bad gets enabled False and `error`."""
-        settings = Settings.from_dict(settings_dict)
+        override is bad gets enabled False and `error`; with a bad tool table (table None)
+        every group does, naming the table's error."""
+        settings = Settings.from_dict(settings_dict, table if table is not None
+                                      else ToolTable())
         try:
+            if table is None:
+                raise SettingsError(tools_error['field'], tools_error['message'])
             validate(settings)
             settings_ok = True
         except SettingsError:           # /api/plan names it; no arithmetic on bad values here
@@ -240,7 +312,9 @@ class Project:
         for g in out:
             g['count'] = counts[g['id']]
         for g in out:
-            if not ok:
+            if table is None:
+                error = f'{tools_error["field"]}: {tools_error["message"]}'
+            elif not ok:
                 error = 'pockets: must be an object: pocket group key -> settings'
             elif 'error' in g:
                 continue
@@ -255,11 +329,28 @@ class Project:
         return out
 
     def save(self, body) -> dict:
+        """Write shapes, settings, pockets and tools. A body without `tools` (a page from
+        before the tool table) keeps the stored table (an old project's migrated one); the old
+        per-group override fields are dropped, so the saved file is in the new form."""
         if not isinstance(body, dict):
             raise ApiError(400, {'error': 'expected an object with shapes and settings'})
-        pockets = body.get('pockets', {})
-        settings = Settings.from_dict(body.get('settings') or {})
+        with self.lock:            # one lock: the stored table kept is the one replaced
+            return self._save(body)
+
+    def _save(self, body: dict) -> dict:
+        pockets = strip_obsolete(body.get('pockets', {}))
+        if 'tools' in body:
+            tools = body['tools']
+        else:
+            try:
+                tools = self._stored()['tools']
+            except ValueError as e:          # cannot keep a table that cannot be read
+                raise ApiError(400, {'field': 'tools', 'message': (
+                    f'project.json cannot be read ({e}), so its tool table is unknown; '
+                    f'save with a tool table')})
         try:
+            table = ToolTable.from_dict(tools)
+            settings = Settings.from_dict(body.get('settings') or {}, table)
             validate(settings)
         except SettingsError as e:
             raise ApiError(400, {'field': e.field, 'message': e.message})
@@ -276,25 +367,26 @@ class Project:
                 raise ApiError(400, {'field': f'shapes.{name}.enabled',
                                      'message': 'must be true or false'})
             shapes.append({'name': name, 'qty': qty, 'enabled': on})
-        stored = {'shapes': shapes, 'settings': settings.to_dict(), 'pockets': pockets}
-        with self.lock:
-            rows = self._merged(stored)[0]          # group ids as the new project gives them
-            groups = self._groups(rows)
-            try:
-                check_pockets(pockets, settings, groups)
-            except SettingsError as e:
-                raise ApiError(400, {'field': e.field, 'message': e.message})
-            # every switched-on group with a pocket on a placed shape needs a router bit
-            placed = [s for s, q, on in rows if on and q > 0]
-            bad = check_pocket_heads(settings, pockets, groups, placed)
-            if bad:
-                raise ApiError(400, {'field': bad[1], 'message': bad[0]})
-            self.dir.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                json.dump(stored, f, indent=2)
-            os.replace(tmp, self.file)
-            return self._project()
+        stored = {'shapes': shapes, 'settings': settings.to_dict(), 'pockets': pockets,
+                  'tools': table.to_dict()}
+        # group ids as the new project gives them
+        rows = self._merged(dict(stored, tools_notes=[], tools_ignored=[]))[0]
+        groups = self._groups(rows)
+        try:
+            check_pockets(pockets, settings, groups)
+        except SettingsError as e:
+            raise ApiError(400, {'field': e.field, 'message': e.message})
+        # every switched-on group with a pocket on a placed shape needs a router bit
+        placed = [s for s, q, on in rows if on and q > 0]
+        bad = check_pocket_heads(settings, pockets, groups, placed)
+        if bad:
+            raise ApiError(400, {'field': bad[1], 'message': bad[0]})
+        self.dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(stored, f, indent=2)
+        os.replace(tmp, self.file)
+        return self._project()
 
     @staticmethod
     def _groups(rows) -> list[PocketGroup]:
@@ -335,8 +427,8 @@ class Project:
 
     # --- plan -----------------------------------------------------------------------------
     def snapshot(self):
-        """(rows, settings dict, dxf errors, pockets) read under the lock; ValueError if
-        project.json is bad."""
+        """(rows, settings dict, dxf errors, pockets, tools, tools notes) read under the lock;
+        ValueError if project.json is bad."""
         with self.lock:
             return self._merged()
 
@@ -344,10 +436,11 @@ class Project:
         """(settings, plan, programs, problems, groups) from a snapshot, without the lock.
         groups: the project's pocket groups over every shape (switched off too), so a group's
         id and colour are the same in the settings list, the plan and the programs.
-        Raises SettingsError, OffsetError, ValueError (a bad pocket override in project.json
-        is a ValueError naming the field: the page cannot have sent it)."""
-        rows, settings_dict, errors, pockets = snap
-        settings = Settings.from_dict(settings_dict)
+        Raises SettingsError (a bad stored tool table too, naming its field), OffsetError,
+        ValueError (a bad pocket override in project.json is a ValueError naming the field:
+        the page cannot have sent it). problems start with the tool table notes."""
+        rows, settings_dict, errors, pockets, tools, notes = snap
+        settings = Settings.from_dict(settings_dict, ToolTable.from_dict(tools))
         validate(settings)
         groups = self._groups(rows)
         try:
@@ -357,7 +450,7 @@ class Project:
         entries = [ShapeEntry(s, q, on) for s, q, on in rows]
         plan = build_plan(entries, settings)
         programs = plan_programs(plan, settings, pockets, groups)
-        problems = errors + list(plan.problems)
+        problems = notes + errors + list(plan.problems)
         problems += self._circle_warnings(plan, settings, pockets, groups)
         problems += self._stale_warning(pockets, groups)
         return settings, plan, programs, problems, groups

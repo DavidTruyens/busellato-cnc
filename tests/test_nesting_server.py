@@ -18,7 +18,6 @@ from nesting.pockets import find_groups
 from nesting.program import plan_shapes
 from nesting.server import make_server, seed_plates
 from nesting.settings import Settings
-from nesting.tools import ToolTable
 from helpers import put_bit
 from test_nesting_dxf import circle, dxf, line, rect
 
@@ -62,17 +61,6 @@ class ServerTests(unittest.TestCase):
 
     def assertNoTrace(self, body):
         self.assertNotIn('Traceback', json.dumps(body))
-
-    def default_table(self, head, **numbers):
-        """Until a project can carry its tool table (Task 6), the server plans with the default
-        table: make that default hold a changed bit in `head` for this test."""
-        s = Settings()
-        put_bit(s, head, **numbers)
-        table = s.tools
-        patcher = mock.patch.object(ToolTable, 'default', return_value=table)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        return table
 
     def test_project_roundtrip(self):
         self.seed(PLATES[:2])
@@ -326,8 +314,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(proj['settings']['blank']['margin_end'], 50)
         self.assertNotIn('template', proj['settings'])
+        # no `tools`: migrated from the old default settings, whose router and pocket depth
+        # per pass disagreed on T66 (R4): one note, shown first in the plan's problems (R6)
+        self.assertEqual(len(proj['tools_notes']), 1)
+        self.assertTrue(proj['tools_notes'][0].startswith('T66 '))
         status, plan = self.call('GET', '/api/plan')
-        self.assertEqual(plan['problems'], [])
+        self.assertEqual(plan['problems'], proj['tools_notes'])
         self.assertEqual(plan['blanks'][0]['width'], round(read_dxf(PLATES[0]).length) + 100)
 
     def test_plan_with_invalid_setting_returns_field_error(self):
@@ -344,14 +336,16 @@ class ServerTests(unittest.TestCase):
 
     def test_plan_with_offset_error_is_a_problem(self):
         self.seed(PLATES[:1])
-        self.default_table(65, diameter=200)   # cannot follow the outline
-        s = Settings().to_dict()
+        st = Settings()
+        put_bit(st, 65, diameter=200)          # cannot follow the outline
+        s = st.to_dict()
         s['router']['tool'] = 65               # (not the pocket tool T66, which is 8 mm)
         s['blank']['fix_inset'] = 300          # (keeps the fixing holes clear of the shape)
         s['blank']['margin_end'] = s['blank']['margin_side'] = 460
         s['machine']['frame_y'] = 1200
         s['panel']['length'], s['panel']['width'] = 3000, 3000
-        (self.dir / 'project.json').write_text(json.dumps({'shapes': [], 'settings': s}))
+        (self.dir / 'project.json').write_text(json.dumps(
+            {'shapes': [], 'settings': s, 'tools': st.tools.to_dict()}))
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200)
         self.assertEqual(plan['panels'], [])
@@ -609,8 +603,10 @@ class ServerTests(unittest.TestCase):
                            'not-a-group': {'depth': 3}}
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, put)
+        # saving drops the old per-group cut feed (not applied: the bit in the group's head
+        # gives it); the rest of the override and the unknown key stay
+        proj['pockets'] = {key: {'depth': 5}, 'not-a-group': {'depth': 3}}
         self.assertEqual(put['pockets'], proj['pockets'])
-        # the old per-group cut feed is not applied: the bit in the group's head gives it
         self.assertEqual((put['pocket_groups'][0]['depth'], put['pocket_groups'][0]['cut_feed']),
                          (5, 3))
         self.assertEqual(put['pocket_groups'][1]['depth'], Settings().pockets.depth)
@@ -1018,15 +1014,16 @@ class ServerTests(unittest.TestCase):
         self.seed(PLATES[:1])
         _, proj = self.call('GET', '/api/project')
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 4)      # blank coordinates
-        table = self.default_table(66, diameter=7.8)        # the bit in T66 (Task 6: PUT it)
+        bid = proj['tools']['heads']['T66']                  # the bit in T66
+        bit = next(b for b in proj['tools']['bits'] if b['id'] == bid)
+        bit['diameter'] = 7.8
         status, body = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, body)
         self.assertEqual(body['settings']['router']['tool'], 66)
         self.assertAlmostEqual(self.first_contour_min_x(), 45 - 3.9)
-        bit = table.bit_in(66)
-        bit.diameter = 0
+        bit['diameter'] = 0
         status, body = self.call('PUT', '/api/project', proj)
-        self.assertEqual((status, body['field']), (400, f'tools.bits.{bit.id}.diameter'))
+        self.assertEqual((status, body['field']), (400, f'tools.bits.{bid}.diameter'))
 
     def test_page_router_tool_and_diameter_are_typed_with_a_preset(self):
         status, html = self.call('GET', '/')
@@ -1188,6 +1185,186 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(code, 1)
         timer.assert_not_called()
 
+
+    # --- the tool table in project.json -----------------------------------------------------
+    # the settings of a real project from before the tool table (Task 3's real-project shape)
+    OLD_SETTINGS = {
+        'router': {'tool': 66, 'diameter': 8, 'spindle_rpm': 18000, 'plunge_feed': 1,
+                   'cut_feed': 2, 'depth_per_pass': 9},
+        'pockets': {'tool': 66, 'diameter': 8, 'cut_feed': 3, 'depth_per_pass': 4,
+                    'stepover_pct': 40},
+        'drill_fix': {'tool': 10, 'diameter': 5, 'feed': 1},
+        'drill_screw': {'tool': 10, 'diameter': 5, 'feed': 1},
+    }
+
+    def write_old_project(self, pockets=None) -> str:
+        """project.json in the form before the tool table (no `tools`); returns its text."""
+        s = Settings().to_dict()
+        for section, values in self.OLD_SETTINGS.items():
+            s[section].update(values)
+        text = json.dumps({'shapes': [], 'settings': s, 'pockets': pockets or {}}, indent=2)
+        (self.dir / 'project.json').write_text(text)
+        return text
+
+    def group_keys(self) -> dict:
+        _, proj = self.call('GET', '/api/project')
+        return {g['id']: g['key'] for g in proj['pocket_groups']}
+
+    def all_programs(self) -> dict:
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200, plan)
+        self.assertIsNone(plan['settings_error'])
+        names = [p['name'] for b in plan['blanks'] for p in b['programs']]
+        self.assertTrue(names)
+        return {n: self.call('GET', f'/api/program?name={n}')[1] for n in names}
+
+    def test_old_project_migrates_on_load(self):
+        self.seed(PLATES[:1])
+        text = self.write_old_project()
+        status, proj = self.call('GET', '/api/project')
+        self.assertEqual(status, 200, proj)
+        self.assertEqual(proj['tools']['heads'], {'T10': 'b2', 'T66': 'b1'})
+        self.assertIsNone(proj['tools_error'])
+        self.assertEqual(len(proj['tools_notes']), 1)
+        note = proj['tools_notes'][0]
+        self.assertTrue(note.startswith('T66 '), note)
+        self.assertIn('cut feed 3', note)
+        self.assertEqual(proj['heads'][0], {'number': 1, 'label': 'drill cross, vertical',
+                                            'allows': ['drill']})
+        self.assertIn({'number': 66, 'label': 'big spindle', 'allows': ['router']},
+                      proj['heads'])
+        self.assertEqual([h['number'] for h in proj['heads']],
+                         sorted(h['number'] for h in proj['heads']))
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertIsNone(plan['settings_error'])
+        self.assertEqual(plan['problems'][0], note)
+        self.assertEqual((self.dir / 'project.json').read_text(), text)   # no write on load
+
+    def test_ignored_override_lines(self):
+        self.seed(PLATES[:2])
+        keys = self.group_keys()
+        self.write_old_project({keys['G1']: {'diameter': 12}, 'gone': {'cut_feed': 2.5}})
+        status, plan = self.call('GET', '/api/plan')
+        self.assertEqual(status, 200)
+        self.assertIsNone(plan['settings_error'])
+        g1 = [p for p in plan['problems'] if 'pocket group G1' in p]
+        self.assertEqual(len(g1), 1, plan['problems'])
+        self.assertIn('diameter 12', g1[0])
+        self.assertIn('ignored', g1[0])
+        self.assertIn('pocket group G1: old setting diameter 12 is ignored (speeds and feeds '
+                      'come from the bit in its head)', plan['problems'])
+        self.assertIn('a stored pocket setting: old setting cut_feed 2.5 is ignored (speeds '
+                      'and feeds come from the bit in its head)', plan['problems'])
+        _, proj = self.call('GET', '/api/project')
+        self.assertEqual(plan['problems'][:len(proj['tools_notes'])], proj['tools_notes'])
+
+    def test_migration_then_save_is_stable(self):
+        self.seed(PLATES[:2])
+        keys = self.group_keys()
+        self.write_old_project({keys['G1']: {'diameter': 12, 'depth': 6},
+                                keys['G2']: {'cut_feed': 2}})
+        before = self.all_programs()
+        status, proj = self.call('GET', '/api/project')
+        self.assertTrue(proj['tools_notes'])
+        status, body = self.call('PUT', '/api/project', proj)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body['tools_notes'], [])
+        data = json.loads((self.dir / 'project.json').read_text())
+        self.assertEqual(set(data), {'shapes', 'settings', 'pockets', 'tools'})
+        self.assertEqual(data['tools'], proj['tools'])
+        self.assertEqual(data['pockets'], {keys['G1']: {'depth': 6}})   # G2's was all obsolete
+        status, again = self.call('GET', '/api/project')
+        self.assertEqual(again['tools_notes'], [])
+        self.assertEqual([b['id'] for b in again['tools']['bits']],
+                         [b['id'] for b in proj['tools']['bits']])
+        self.assertEqual(again['tools'], proj['tools'])
+        self.assertEqual(self.all_programs(), before)
+
+    def test_save_without_tools_keeps_the_stored_table(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        bit = next(b for b in proj['tools']['bits'] if b['id'] == 'b1')
+        bit['diameter'] = 12
+        self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
+        old_page = {k: proj[k] for k in ('shapes', 'settings', 'pockets')}
+        status, body = self.call('PUT', '/api/project', old_page)
+        self.assertEqual(status, 200, body)
+        _, again = self.call('GET', '/api/project')
+        self.assertEqual(next(b for b in again['tools']['bits'] if b['id'] == 'b1')['diameter'],
+                         12)
+        self.assertEqual(again['tools'], proj['tools'])
+
+    def test_save_without_tools_on_an_old_project_writes_the_migrated_table(self):
+        self.seed(PLATES[:1])
+        self.write_old_project()
+        _, proj = self.call('GET', '/api/project')
+        old_page = {k: proj[k] for k in ('shapes', 'settings', 'pockets')}
+        self.assertEqual(self.call('PUT', '/api/project', old_page)[0], 200)
+        data = json.loads((self.dir / 'project.json').read_text())
+        self.assertEqual(data['tools'], proj['tools'])
+        self.assertEqual(data['tools']['heads'], {'T10': 'b2', 'T66': 'b1'})
+
+    def test_save_refuses_bad_table(self):
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        bad = json.loads(json.dumps(proj))
+        bad['tools']['heads']['T66'] = 'b9'
+        status, body = self.call('PUT', '/api/project', bad)
+        self.assertEqual((status, body['field']), (400, 'tools.heads.T66'))
+        bad = json.loads(json.dumps(proj))
+        bad['tools']['heads']['T1'] = 'b1'                  # the router bit in a drill head
+        status, body = self.call('PUT', '/api/project', bad)
+        self.assertEqual((status, body['field']), (400, 'tools.heads.T1'))
+        bad['tools'] = None
+        status, body = self.call('PUT', '/api/project', bad)
+        self.assertEqual((status, body['field']), (400, 'tools'))
+        self.assertFalse((self.dir / 'project.json').exists())
+
+    def test_save_over_an_unreadable_project_json(self):
+        # without `tools` the table to keep is unknown: refused, not a silent default
+        self.seed(PLATES[:1])
+        _, proj = self.call('GET', '/api/project')
+        (self.dir / 'project.json').write_text('{not json')
+        old_page = {k: proj[k] for k in ('shapes', 'settings', 'pockets')}
+        status, body = self.call('PUT', '/api/project', old_page)
+        self.assertEqual((status, body['field']), (400, 'tools'))
+        self.assertEqual((self.dir / 'project.json').read_text(), '{not json')
+        status, body = self.call('PUT', '/api/project', proj)     # with the table: written
+        self.assertEqual(status, 200, body)
+        self.assertEqual(json.loads((self.dir / 'project.json').read_text())['tools'],
+                         proj['tools'])
+
+    def test_bad_tools_in_project_json_is_reported(self):
+        self.seed(PLATES[:1])
+        good = Settings().to_dict()
+        for tools, field in (({'bits': [], 'heads': {'T66': 'b1'}}, 'tools.heads.T66'),
+                             ({'bits': 'x', 'heads': {}}, 'tools.bits'),
+                             ('x', 'tools'),
+                             (None, 'tools')):
+            with self.subTest(field=field, tools=tools):
+                text = json.dumps({'shapes': [], 'settings': good, 'tools': tools})
+                (self.dir / 'project.json').write_text(text)
+                status, proj = self.call('GET', '/api/project')
+                self.assertEqual(status, 200, proj)
+                self.assertEqual(proj['tools_error']['field'], field)
+                self.assertEqual(proj['tools'], tools)              # as stored, not a default
+                for g in proj['pocket_groups']:
+                    self.assertFalse(g['enabled'])
+                    self.assertIn(field, g['error'])
+                status, plan = self.call('GET', '/api/plan')
+                self.assertEqual(status, 200)
+                self.assertEqual(plan['settings_error']['field'], field)
+                self.assertNoTrace(plan)
+                status, body = self.call('POST', '/api/generate', {})
+                self.assertEqual((status, body.get('field')), (400, field))
+                status, body = self.call('PUT', '/api/project',
+                                         {k: proj[k] for k in ('shapes', 'settings', 'pockets')})
+                self.assertEqual((status, body.get('field')), (400, field))
+                self.assertEqual((self.dir / 'project.json').read_text(), text)
+                status, body = self.call('POST', '/api/shapes',
+                                         {'filename': 'r.dxf', 'text': dxf(rect(0, 0, 300, 200))})
+                self.assertEqual(status, 200, body)
 
 if __name__ == '__main__':
     unittest.main()
