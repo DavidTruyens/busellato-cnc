@@ -346,9 +346,14 @@ class PocketPreviewTests(unittest.TestCase):
                           g1['cut_feed'], g1['stepover_pct']),
                          (bit.diameter, bit.depth_per_pass, bit.plunge_feed, bit.cut_feed,
                           bit.stepover_pct))
-        self.assertEqual([p['name'] for p in data['blanks'][0]['programs']],
-                         ['B01D', 'B01P', 'B01C'])
+        # no pocket program: the pockets are the first ops of the cut program
+        self.assertEqual([p['name'] for p in data['blanks'][0]['programs']], ['B01D', 'B01C'])
+        self.assertEqual(s.pockets.tool, s.router.tool)
         self.assertEqual(data['blanks'][0]['programs'][1]['tools'], [s.pockets.tool])
+        c = by_name(progs)['B01C']
+        npk = len([o for o in c.ops if ' pocket ' in o.label])
+        self.assertGreater(npk, 0)
+        self.assertTrue(all(' pocket ' in o.label for o in c.ops[:npk]))
 
     def test_pocket_outline_matches_shape_mapping(self):
         plan, s = self.pocket_plan('back')
@@ -410,8 +415,11 @@ class PocketPreviewTests(unittest.TestCase):
         progs = plan_programs(plan, s)
         b = preview_data(plan, progs, s)['blanks'][0]
         H = b['height']
-        pk = by_name(progs)['B01P']
-        first = [o for o in pk.ops if ' pass 1/' in o.label]
+        self.assertFalse([p for p in progs if p.kind == 'pocket'])
+        c = by_name(progs)['B01C']
+        pk = [o for o in c.ops if ' pocket ' in o.label]
+        self.assertEqual(c.ops[:len(pk)], pk)           # the pockets first, then the outlines
+        first = [o for o in pk if ' pass 1/' in o.label]
         self.assertGreater(len(first), 2)
         self.assertEqual(len(b['pocket_rings']), len(first))
         for r, o in zip(b['pocket_rings'], first):

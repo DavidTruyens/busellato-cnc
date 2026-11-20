@@ -116,25 +116,25 @@ def _cut_table(panel: dict) -> str:
     return ''.join(rows)
 
 
-def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
-    d, pk, c = f'{bid}D', f'{bid}P', f'{bid}C'
+def _steps(bid: str, names: dict[str, str], y_toward: str, pockets: bool) -> list[str]:
+    """names: program name per kind ('drill', 'cut') of the blank."""
+    d, c = names.get('drill'), names.get('cut')
     corner = 'back-left' if y_toward == 'front' else 'front-left'
     steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot, '
              f'the {corner} corner) against the X and Y pins, long side along machine X. '
              'Clamp it.']
-    if d in names:
+    if d:
         steps.append(f'Run <b>{escape(d)}</b>, the blank still clamped: every hole of the blank '
                      '(fixing holes through the blank into the scrap, screw holes at the '
                      'shapes\' holes), each with its own tool.')
         steps.append('Screw the blank to the scrap plate through the fixing holes, and each shape '
                      'down through its screw holes.')
     steps.append('Take the clamps off.')
-    if pk in names:
-        steps.append(f'Run <b>{escape(pk)}</b> (cuts the pockets into the shapes, from the top '
-                     'face of the blank).')
-    if c in names:
-        steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
-                     'blank\'s frame is not cut).')
+    if c:
+        what = ('first the pockets, into the shapes from the top face of the blank; then the '
+                'shape outlines, out of the blank' if pockets
+                else 'the shape outlines out of the blank')
+        steps.append(f'Run <b>{escape(c)}</b>: it cuts {what}. The blank\'s frame is not cut.')
     steps.append('Unscrew the shapes and the frame; the frame is left over. Next blank.')
     return steps
 
@@ -185,6 +185,8 @@ def _drill_table(b: dict) -> str:
 
 def _runsheet(data: dict, project: dict) -> str:
     title = str(project.get('name') or 'Run sheet')
+    if project.get('job'):
+        title += f', Job {project["job"]:03d}'
     fr = data['frame']
     parts = ['<!DOCTYPE html>', '<html lang="en"><head><meta charset="utf-8">',
              f'<title>{escape(title)}</title>', f'<style>{CSS}</style></head><body>',
@@ -217,13 +219,15 @@ def _runsheet(data: dict, project: dict) -> str:
     yt = data['y_toward']
     groups = {g['id']: g for g in data.get('pocket_groups', [])}
     for b in data['blanks']:
-        names = {p['name'] for p in b['programs']}
+        names = {p['kind']: p['name'] for p in b['programs']}
+        pockets = any(groups.get(pk['group'], {}).get('enabled')
+                      for s in b['shapes'] for pk in s.get('pockets', []))
         parts.append(f'<section><h2>Blank {escape(b["id"])} (from panel {escape(b["panel"])}), '
                      f'{_g(b["width"])} x {_g(b["height"])} mm</h2>')
         parts.append(f'<p>Program coordinates: {escape(ORIGIN[yt])}. Drawing seen from above, '
                      'operator at the bottom. Not yet verified on the machine.</p>')
         parts.append(_blank_svg(b, yt, {g for g, v in groups.items() if v['enabled']}))
-        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt))
+        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt, pockets))
                      + '</ol>')
         parts.append('<table><tr><th>Program</th><th>Tools</th><th>Description</th></tr>')
         for p in b['programs']:

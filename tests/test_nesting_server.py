@@ -154,7 +154,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(plan['panels'], [])
             self.assertIsNone(plan['settings_error'])
-            self.assertTrue(any('B01C' in p and 'cups' in p for p in plan['problems']), plan['problems'])
+            self.assertTrue(any('B00101C' in p and 'cups' in p for p in plan['problems']), plan['problems'])
             self.assertNoTrace(plan)
             status, body = self.call('POST', '/api/generate')
             self.assertEqual(status, 400)
@@ -250,9 +250,10 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(len(plan['panels']), 3)
         self.assertEqual(len(plan['blanks']), 6)
         names = [p['name'] for b in plan['blanks'] for p in b['programs']]
-        self.assertEqual(names, [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'])
+        self.assertEqual(names, [f'B0010{n}{k}' for n in range(1, 7) for k in 'DC'])
         progs = {p['name']: p for b in plan['blanks'] for p in b['programs']}
-        self.assertEqual((progs['B01D']['tools'], progs['B01C']['tools']), ([1, 2], [66]))
+        # B00101C: its pockets (T66, the default pocket head) and outlines (T66, the router)
+        self.assertEqual((progs['B00101D']['tools'], progs['B00101C']['tools']), ([1, 2], [66]))
         self.assertEqual([t['holes'] for t in plan['blanks'][0]['drill_tools']], ['fixing', 'screw'])
         self.assertEqual(plan['problems'], [])
         self.assertIsNone(plan['settings_error'])
@@ -378,11 +379,11 @@ class ServerTests(unittest.TestCase):
 
     def test_program_text_is_the_emitted_program(self):
         self.seed(PLATES[:2])
-        status, text = self.call('GET', '/api/program?name=B01C')
+        status, text = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 200)
         status, _ = self.call('POST', '/api/generate')
         out = next((self.dir / 'out').iterdir())
-        self.assertEqual(text.encode('ascii'), (out / 'B01C').read_bytes())
+        self.assertEqual(text.encode('ascii'), (out / 'B00101C').read_bytes())
         status, body = self.call('GET', '/api/program?name=B99Z')
         self.assertEqual(status, 404)
 
@@ -393,12 +394,14 @@ class ServerTests(unittest.TestCase):
         status, b = self.call('POST', '/api/generate')
         self.assertEqual(status, 200, b)
         self.assertNotEqual(a['folder'], b['folder'])
+        self.assertEqual((a['job'], b['job']), (1, 2))      # each generate is a new job
         for res in (a, b):
             folder = Path(res['folder'])
             self.assertEqual(folder.parent, self.dir / 'out')
             self.assertRegex(folder.name, r'^\d{8}-\d{6}(-\d+)?$')
             self.assertEqual(sorted(res['files']), sorted(p.name for p in folder.iterdir()))
-            for n in ('B01D', 'B06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
+            job = f"B{res['job']:03d}"
+            for n in (job + '01D', job + '06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
                 self.assertIn(n, res['files'])
         self.assertEqual(len(list((self.dir / 'out').iterdir())), 2)
 
@@ -485,10 +488,10 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(z['stack_top'], 36.2)      # scrap 18 + blank 18.2
         self.assertEqual(z['shape_cut'], 18.25)     # through the blank + 0.05
         self.assertEqual(z['screw'], 26.4)          # 18.2 + 8.2
-        _, cut = self.call('GET', '/api/program?name=B01C')
+        _, cut = self.call('GET', '/api/program?name=B00101C')
         self.assertIn('Z18.25', cut)
         self.assertRegex(cut.splitlines()[0], r'^G71X\d+Y\d+Z36.2T00')
-        _, drill = self.call('GET', '/api/program?name=B01D')
+        _, drill = self.call('GET', '/api/program?name=B00101D')
         self.assertRegex(drill, r'G81G90G54P5T0102X[\d.]+Y[\d.]+Z26.4\r')    # screw holes, own tool
         self.assertRegex(drill, r'G81G90G54P5T0101X[\d.]+Y[\d.]+Z19.2\r')    # fixing: 18.2 + 1
         for old in ('B01F', 'B01S'):
@@ -625,7 +628,8 @@ class ServerTests(unittest.TestCase):
 
     def plan_group_ids(self):
         """(plan pocket_groups {key: (id, colour)}, drawn pockets [(id, colour)],
-        rings [(id, colour)], B..P op labels' group ids) of /api/plan and the programs."""
+        rings [(id, colour)], the pocket op labels' group ids in B..C) of /api/plan and the
+        programs."""
         status, plan = self.call('GET', '/api/plan')
         self.assertEqual(status, 200, plan)
         listed = {g['key']: (g['id'], g['color']) for g in plan['pocket_groups']}
@@ -634,13 +638,15 @@ class ServerTests(unittest.TestCase):
         rings = [(r['group'], r['color']) for b in plan['blanks'] for r in b['pocket_rings']]
         project = self.server.RequestHandlerClass.project
         programs = project.compute(project.snapshot())[2]
+        self.assertFalse([p for p in programs if p.kind == 'pocket'])
         labels = {re.search(r' (G\d+) pocket ', o.label).group(1)
-                  for p in programs if p.kind == 'pocket' for o in p.ops}
+                  for p in programs if p.kind == 'cut'
+                  for o in p.ops if ' pocket ' in o.label}
         return listed, drawn, rings, labels
 
     def test_pocket_group_ids_and_colours_do_not_change_when_a_shape_is_off(self):
         # the settings list numbers the groups of every shape; the plan, the drawing and the
-        # B..P programs use the same ids and colours, whichever shapes are switched on
+        # pocket ops of the B..C programs use the same ids and colours, whichever shapes are switched on
         self.assertEqual(seed_plates(self.dir), 12)
         _, proj = self.call('GET', '/api/project')
         everyone = {g['key']: (g['id'], g['color']) for g in proj.pop('pocket_groups')}
@@ -649,7 +655,7 @@ class ServerTests(unittest.TestCase):
         first, _, _, _ = self.plan_group_ids()
         self.assertEqual(first, everyone)
         # switch off the first shape: with groups of the placed shapes only it shifted the ids
-        off = next(s for s in proj['shapes'] if s['name'] == '3-1')
+        off = next(s for s in proj['shapes'] if s['name'] == 'klas_3-1')
         off['enabled'] = False
         status, put = self.call('PUT', '/api/project', proj)
         self.assertEqual(status, 200, put)
@@ -766,7 +772,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, plan)
         self.assertEqual(plan['blanks'], [])
         self.assertIn('pocket group G1: head T65 holds no bit', plan['problems'])
-        status, body = self.call('GET', '/api/program?name=B01P')
+        status, body = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 400, body)
         self.assertIn('T65', body['error'])
         status, body = self.call('POST', '/api/generate', {})
@@ -794,7 +800,7 @@ class ServerTests(unittest.TestCase):
                 bad = [g for g in proj['pocket_groups'] if 'error' in g]
                 self.assertTrue(bad)
                 self.assertTrue(all(not g['enabled'] for g in bad))
-                status, body = self.call('GET', '/api/program?name=B01C')
+                status, body = self.call('GET', '/api/program?name=B00101C')
                 self.assertEqual(status, 400)
                 self.assertIn(field, body['error'])
                 status, body = self.call('POST', '/api/generate')
@@ -860,12 +866,13 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(any('pockets.' in p for p in plan['problems']), plan['problems'])
         self.assertIn('3 stored pocket settings match no current group (kept in project.json, '
                       'not used)', plan['problems'])
-        status, text = self.call('GET', '/api/program?name=B01P')
+        status, text = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 200, text)
         self.assertTrue(text)
         status, res = self.call('POST', '/api/generate')
         self.assertEqual(status, 200, res)
-        self.assertIn('B01P', res['programs'])
+        self.assertIn('B00101C', res['programs'])
+        self.assertNotIn('B00101P', res['programs'])
 
     def test_switched_off_shape_group_is_listed_editable_and_checked(self):
         self.seed(PLATES[:2])
@@ -925,7 +932,9 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, plan)
         self.assertTrue(any('circle of 10 mm is treated as a pocket' in p
                             for p in plan['problems']), plan['problems'])
-        self.assertIn('B01P', [p['name'] for b in plan['blanks'] for p in b['programs']])
+        progs = {p['name']: p for b in plan['blanks'] for p in b['programs']}
+        self.assertEqual(sorted(progs), ['B00101C', 'B00101D'])
+        self.assertEqual(progs['B00101C']['description'], 'Pockets and shape outlines')
         _, proj = self.call('GET', '/api/project')
         self.assertEqual(len(proj['pocket_groups']), 1)
         self.assertEqual(proj['pocket_groups'][0]['kind'], 'round')
@@ -935,31 +944,45 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(proj['pocket_groups'], [])
         status, plan = self.call('GET', '/api/plan')
         self.assertFalse(any('treated as a pocket' in p for p in plan['problems']))
-        self.assertNotIn('B01P', [p['name'] for b in plan['blanks'] for p in b['programs']])
+        progs = {p['name']: p for b in plan['blanks'] for p in b['programs']}
+        self.assertEqual(sorted(progs), ['B00101C', 'B00101D'])
+        self.assertEqual(progs['B00101C']['description'], 'Shape outlines')
         proj['settings']['pockets']['min_circle_diameter'] = 8      # and back: read again
         status, proj = self.call('PUT', '/api/project', proj)
         self.assertEqual(len(proj['pocket_groups']), 1)
 
-    def test_generate_writes_pocket_programs_with_the_overrides(self):
+    def test_generate_writes_the_pockets_with_the_overrides(self):
         self.seed(PLATES[:2])
         _, proj = self.call('GET', '/api/project')
-        status, default_text = self.call('GET', '/api/program?name=B01P')
+        status, default_text = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 200)
         proj['pockets'] = {g['key']: {'depth': 5} for g in proj['pocket_groups']}
         self.assertEqual(self.call('PUT', '/api/project', proj)[0], 200)
-        status, text = self.call('GET', '/api/program?name=B01P')
+        status, text = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 200)
         self.assertNotEqual(text, default_text)
+        # only the pockets, first in B00101C, changed: depth 8 -> 5 (one pass either way); the
+        # outlines after them are the same lines
+        default_lines, lines = default_text.splitlines(), text.splitlines()
+        self.assertEqual(len(lines), len(default_lines))
+        changed = [i for i, (a, b) in enumerate(zip(default_lines, lines)) if a != b]
+        self.assertTrue(changed)
+        for i in changed:
+            self.assertEqual((default_lines[i][-2:], lines[i][-2:]), ('Z8', 'Z5'), lines[i])
+        first_outline = next(i for i, x in enumerate(lines) if x.endswith('Z6.167'))
+        self.assertLess(max(changed), first_outline)
         status, plan = self.call('GET', '/api/plan')
         self.assertTrue(all(g['depth'] == 5 for g in plan['pocket_groups']))
         status, res = self.call('POST', '/api/generate')
         self.assertEqual(status, 200, res)
         folder = Path(res['folder'])
-        self.assertIn('B01P', res['programs'])
-        self.assertEqual((folder / 'B01P').read_bytes(), text.encode('ascii'))
+        self.assertIn('B00101C', res['programs'])
+        self.assertNotIn('B00101P', res['programs'])
+        self.assertEqual((folder / 'B00101C').read_bytes(), text.encode('ascii'))
         self.assertTrue((folder / 'DISKETTE').is_dir())
-        disk = [p.name for p in (folder / 'DISKETTE').rglob('*')]
-        self.assertIn('B01P', disk)
+        disk = [str(p.relative_to(folder / 'DISKETTE')) for p in (folder / 'DISKETTE').rglob('*')]
+        self.assertIn('SORG/SRG/B/00101C', disk)
+        self.assertFalse([d for d in disk if d.endswith('P')])
         meta = json.loads((folder / 'PROJECT.json').read_text())
         self.assertEqual(meta['pockets'], proj['pockets'])
         self.assertTrue(all(g['depth'] == 5 for g in meta['pocket_groups']))
@@ -997,13 +1020,14 @@ class ServerTests(unittest.TestCase):
             self.assertIn(dia, line)
 
     def first_contour_min_x(self):
-        status, text = self.call('GET', '/api/program?name=B01C')
+        """Min X of the shape contour: the last G88 block of B00101C (one shape, its last pass;
+        the pocket rings come first)."""
+        status, text = self.call('GET', '/api/program?name=B00101C')
         self.assertEqual(status, 200, text)
         lines = text.splitlines()[2:]               # after G71 and G150()
+        last = max(i for i, line in enumerate(lines) if line.startswith('G88'))
         xs = []
-        for i, line in enumerate(lines):
-            if line.startswith('G88') and i:
-                break
+        for line in lines[last:]:
             m = re.search(r'X(-?[\d.]+)', line)
             if m:
                 xs.append(float(m.group(1)))
@@ -1096,11 +1120,14 @@ class ServerTests(unittest.TestCase):
         self.assertIn('project.pockets[key]', html)
         self.assertIn('`pockets.${g.id}.${name}`', html)
         self.assertIn(r"/^pockets\.(G\d+)(?:\.(.+))?$/", html)
-        # the drawing: pockets in their group colour, the rings in the cut view, B..P listed
+        # the drawing: pockets in their group colour, the rings in the cut view (the pockets
+        # are in the B..C program: no pocket program kind)
         self.assertIn('q.pockets', html)
         self.assertIn('b.pocket_rings', html)
         self.assertIn('pocket (group colour)', html)
-        self.assertIn("pocket: 'cut'", html)
+        self.assertIn("const VIEW_OF = {drill: 'drill', cut: 'cut'};", html)
+        self.assertIn('Pockets are cut first in the blank\'s cut program <code>B..C</code>', html)
+        self.assertNotIn('B..P', html)
 
     def test_page_sets_no_html_from_data(self):
         # only the SVG drawings are built as markup, every value in them through esc();
@@ -1125,7 +1152,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 200, res)
         folder = Path(res['folder'])
         self.assertEqual(folder.parent, self.dir / 'out')
-        names = [f'B0{n}{k}' for n in range(1, 7) for k in 'DPC']
+        names = [f'B0010{n}{k}' for n in range(1, 7) for k in 'DC']
         self.assertEqual(res['programs'], names)
         for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])
@@ -1138,11 +1165,12 @@ class ServerTests(unittest.TestCase):
         self.assertIsNone(res['diskette_warning'])
         self.assertIn('DISKETTE', res['files'])
         # depth per pass must not be ignored: each cut contour is cut in several passes
-        text = next(f for f in programs if f.name == 'B01C').read_text(encoding='ascii')
+        text = next(f for f in programs if f.name == 'B00101C').read_text(encoding='ascii')
         starts = re.findall(r'^G88\S*?(X-?[\d.]+Y-?[\d.]+)Z(-?[\d.]+)$', text, re.M)
         self.assertTrue(starts, text)
-        first_zs = [z for xy, z in starts if xy == starts[0][0]]
-        self.assertGreater(len(set(first_zs)), 1, first_zs)
+        # the last contour (the pockets come first in B00101C): its passes start at one point
+        last_zs = [z for xy, z in starts if xy == starts[-1][0]]
+        self.assertGreater(len(set(last_zs)), 1, last_zs)
 
     def test_seed_plates_only_into_empty_project(self):
         self.assertEqual(seed_plates(self.dir), 12)

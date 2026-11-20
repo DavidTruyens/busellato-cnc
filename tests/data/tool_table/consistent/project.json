@@ -1,17 +1,17 @@
 {
   "shapes": [
     {
-      "name": "3-1",
+      "name": "klas_3-1",
       "qty": 1,
       "enabled": true
     },
     {
-      "name": "3-2",
+      "name": "klas_3-2",
       "qty": 1,
       "enabled": true
     },
     {
-      "name": "3-3",
+      "name": "klas_3-3",
       "qty": 1,
       "enabled": true
     },

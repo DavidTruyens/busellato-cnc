@@ -46,6 +46,7 @@ MAX_BODY = 20 * 1024 * 1024
 PAGE = Path(__file__).resolve().parent / 'web' / 'index.html'
 SAFE_NAME = re.compile(r'[A-Za-z0-9._ -]+')
 APP = 'nesting'
+JOBS = 999          # job numbers in the program names: 3 digits, 1..999, then 1 again
 
 
 @functools.cache
@@ -231,6 +232,39 @@ class Project:
                 'pockets': pockets, 'tools': tools, 'tools_notes': notes,
                 'tools_ignored': ignored}
 
+    def _last_job(self) -> int:
+        """The number of the last generated job (project.json `job`), 0 when none."""
+        try:
+            data = json.loads(self.file.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return 0
+        job = data.get('job') if isinstance(data, dict) else None
+        return job if isinstance(job, int) and not isinstance(job, bool) and job > 0 else 0
+
+    def next_job(self) -> int:
+        """The job number the next Generate uses: 1 to 999, then 1 again. The preview names
+        the programs with it too."""
+        with self.lock:
+            return self._last_job() % JOBS + 1
+
+    def _store_job(self, job: int) -> None:
+        """Record `job` as the last generated one in project.json, keeping everything else."""
+        with self.lock:
+            if self.file.exists():
+                data = json.loads(self.file.read_text(encoding='utf-8'))
+            else:
+                data = {k: v for k, v in self._stored().items()
+                        if k not in ('tools_notes', 'tools_ignored')}
+            data['job'] = job
+            self._write_json(data)
+
+    def _write_json(self, data: dict) -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, self.file)
+
     def _files(self) -> list[Path]:
         if not self.shapes_dir.is_dir():
             return []
@@ -393,6 +427,7 @@ class Project:
             shapes.append({'name': name, 'qty': qty, 'enabled': on})
         stored = {'shapes': shapes, 'settings': settings.to_dict(), 'pockets': pockets,
                   'tools': table.to_dict()}
+        last = self._last_job()
         # group ids as the new project gives them
         rows = self._merged(dict(stored, tools_notes=[], tools_ignored=[]))[0]
         groups = self._groups(rows)
@@ -405,11 +440,9 @@ class Project:
         bad = check_pocket_heads(settings, pockets, groups, placed)
         if bad:
             raise ApiError(400, {'field': bad[1], 'message': bad[0]})
-        self.dir.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=self.dir, prefix='.project-', suffix='.json')
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            json.dump(stored, f, indent=2)
-        os.replace(tmp, self.file)
+        if last:
+            stored['job'] = last                 # the job counter is not the page's to change
+        self._write_json(stored)
         return self._project()
 
     @staticmethod
@@ -456,8 +489,9 @@ class Project:
         with self.lock:
             return self._merged()
 
-    def compute(self, snap):
+    def compute(self, snap, job: int | None = None):
         """(settings, plan, programs, problems, groups) from a snapshot, without the lock.
+        job: the job number in the program names (None: B<nn><D|C>).
         groups: the project's pocket groups over every shape (switched off too), so a group's
         id and colour are the same in the settings list, the plan and the programs.
         Raises SettingsError (a bad stored tool table too, naming its field), OffsetError,
@@ -473,7 +507,7 @@ class Project:
             raise ValueError(f'project.json: {e.field}: {e.message}') from None
         entries = [ShapeEntry(s, q, on) for s, q, on in rows]
         plan = build_plan(entries, settings)
-        programs = plan_programs(plan, settings, pockets, groups)
+        programs = plan_programs(plan, settings, pockets, groups, job)
         problems = notes + errors + list(plan.problems)
         problems += self._circle_warnings(plan, settings, pockets, groups)
         problems += self._stale_warning(pockets, groups)
@@ -529,7 +563,7 @@ class Project:
             return self._failed(Settings(), [f'project.json: {e}'], None)
         settings = Settings.from_dict(snap[1])
         try:
-            settings, plan, programs, problems, groups = self.compute(snap)
+            settings, plan, programs, problems, groups = self.compute(snap, self.next_job())
             data = preview_data(plan, programs, settings, snap[3], groups)
         except SettingsError as e:
             return self._failed(settings, [], {'field': e.field, 'message': e.message})
@@ -552,7 +586,7 @@ class Project:
 
     def program_text(self, name: str) -> str:
         try:
-            settings, _, programs, _, _ = self.compute(self.snapshot())
+            settings, _, programs, _, _ = self.compute(self.snapshot(), self.next_job())
         except (OffsetError, ValueError) as e:      # SettingsError is a ValueError
             raise ApiError(400, {'error': str(e)})
         for p in programs:
@@ -561,22 +595,27 @@ class Project:
         raise ApiError(404, {'error': f'no program {name!r} in the current plan'})
 
     def generate(self) -> dict:
-        snap = self.snapshot()
-        try:
-            settings, plan, programs, problems, groups = self.compute(snap)
-        except SettingsError as e:
-            raise ApiError(400, {'error': str(e), 'field': e.field})
-        except (OffsetError, ValueError) as e:
-            raise ApiError(400, {'error': str(e)})
-        if not programs:
-            raise ApiError(400, {'error': 'nothing to generate: no shape is placed on a blank',
-                                 'problems': problems})
-        out = self.dir / 'out'
-        stamp = time.strftime('%Y%m%d-%H%M%S')
-        project = {'name': self.dir.name, 'shapes': self._listing(snap[0])}
+        """Write the next job; its number goes in the program names and, once the job is
+        written, into project.json. One generate at a time, so two never share a number."""
         with self.out_lock:
-            return self._write(out, stamp, plan, programs, settings, project, problems, snap[3],
-                               groups)
+            snap = self.snapshot()
+            job = self.next_job()
+            try:
+                settings, plan, programs, problems, groups = self.compute(snap, job)
+            except SettingsError as e:
+                raise ApiError(400, {'error': str(e), 'field': e.field})
+            except (OffsetError, ValueError) as e:
+                raise ApiError(400, {'error': str(e)})
+            if not programs:
+                raise ApiError(400, {'error': 'nothing to generate: no shape is placed on a '
+                                     'blank', 'problems': problems})
+            out = self.dir / 'out'
+            stamp = time.strftime('%Y%m%d-%H%M%S')
+            project = {'name': self.dir.name, 'job': job, 'shapes': self._listing(snap[0])}
+            result = self._write(out, stamp, plan, programs, settings, project, problems,
+                                 snap[3], groups)
+            self._store_job(job)
+            return dict(result, job=job)
 
     def _write(self, out, stamp, plan, programs, settings, project, problems,
                pockets, groups) -> dict:

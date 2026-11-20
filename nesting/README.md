@@ -2,8 +2,8 @@
 
 A local tool (Python 3.11, standard library only) that takes part outlines (DXF), groups them
 into rectangular **blanks**, plans how a **panel saw** cuts those blanks from 1220 x 2440 panels,
-and writes, per blank, one CNC90 drill program, one cut program and, when the shapes have pockets,
-one pocket program for the Busellato S.EASY. Design:
+and writes, per blank, one CNC90 drill program and one cut program (which cuts the pockets
+first, when the shapes have pockets) for the Busellato S.EASY. Design:
 `docs/superpowers/specs/2026-11-08-nesting-tool-design.md` (see its "Revision 2026-11-09").
 
 The machine's work frame is smaller than a panel, so a whole panel is never machined at once.
@@ -304,10 +304,14 @@ centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
   the bit's depth per pass. Deeper than thickness minus `min_floor`, or reaching the vacuum cups, is an
   error.
 
-**Program `B<nn>P`.** One per blank that has an enabled pocket. Pockets are ordered by head (first appearance), within a head by group, and every operation
-names its own tool, spindle speed and feeds (the file header takes the first). Run sequence per
-blank: drill `B<nn>D` -> screw the blank and shapes down -> pockets `B<nn>P` -> cut `B<nn>C`.
-The programs are in the job's folder and `DISKETTE`; the preview shows `B<nn>P` in its Cut view,
+**Pockets in the cut program `B<nn>C`.** The pockets of a blank are the first operations of its
+cut program, before the outlines, so they are cut while the shapes are still screwed down and
+held by the blank. Pockets are ordered by head (first appearance), within a head by group, and
+every pocket operation names its own tool, spindle speed and feeds; the outlines then use the
+router. One program can change bits: 40 of the 2,860 programs on the machine backups switch
+between T65 and T66. Run sequence per blank: drill `B<nn>D` -> screw the blank and shapes down ->
+cut `B<nn>C`. Until 2026-11-20 the pockets were a separate program `B<nn>P`.
+The programs are in the job's folder and `DISKETTE`; the preview shows the pockets in its Cut view,
 which also draws the pocket cutter path, and the run sheet (a pocket table per blank: group,
 colour, size, count, tool, tool diameter, depth, passes). The server remembers pocket rings between plans (a
 long pocket takes about half a second to compute).
@@ -389,22 +393,30 @@ The scrap plate lies on the vacuum cups, aligned by the machine's X and Y pins. 
 time goes on top of it, its origin corner (see "Program coordinates") against the pins, long side
 along machine X. That the origin sits at the pins is an assumption to check at the machine.
 
-Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole),
-`BnnP` (the pockets; only when the blank's shapes have an enabled pocket) and
-`BnnC` (cut the shape outlines). `BnnD` holds both hole kinds even when they use different tools:
+Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole) and
+`BnnC` (cut: first the pockets, when the blank's shapes have an enabled pocket, then the shape
+outlines). `BnnD` holds both hole kinds even when they use different tools:
 every `G81` line names its own tool (`T01nn`), as in many of the machine's own programs (on the H05
 backup 203 of the 717 programs name more than one tool, 63 of them in `G81` drill lines). The holes are grouped by tool, in
 the order fixing tool, screw tool, so the tool changes only once; with one tool it is a single
 group, fixing holes first. Whether the machine changes between these particular drill tools
 inside one program has not been tried. The first character `B` is the machine folder
-(`SRG\B\nnD`). The number has 2 digits, or more when there are more than 99 blanks (all names
-then get the same width, for example `B100C`). Every blank gets its own programs, even when two
+(`SRG\B\...`). The blank number has 2 digits, or more when there are more than 99 blanks (all
+names then get the same width).
+
+**Job numbers.** Every Generate is a new job with its own number, 1 to 999 and then 1 again,
+written after the folder letter: job 7, blank 01 gives `B00701D` and `B00701C` (at most 8
+characters, `B999100C`). So a new job never has to replace programs on the machine: CNC90 keeps a
+replaced program's old blank size in its index (seen 2026-11-20). `project.json` keeps the last
+job number (`job`); the preview shows the names the next Generate will use, and the run sheet's
+title names the job. Old jobs stay on the machine until they are deleted in CNC90 file
+management. Every blank gets its own programs, even when two
 blanks have the same shapes in the same layout (sharing them is possible but not done).
 
 1. Write the job's `DISKETTE` folder to the diskette (`copy-to-diskette.bat`, or
    `python -m nesting.diskette JOB TARGET`). In CNC90 file management, Programma Kopie from the
    diskette. If the programs do not appear in the compiler list: in DOS run `A:LOAD` (copies
-   each program to its folder without overwriting), then register each program in file
+   each program to its folder, replacing a program with the same name), then register each program in file
    management, open it in the editor and save it once.
 2. Compile.
 3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
@@ -413,10 +425,9 @@ blanks have the same shapes in the same layout (sharing them is possible but not
    holes, the blank still clamped.
 5. Screw the blank to the scrap through the fixing holes, and each shape down through its screw
    holes; take the clamps off.
-6. If the blank has a `BnnP`, run it now: it cuts the pockets into the shapes from the top face,
-   while they are still screwed down.
-7. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
-8. Unscrew the shapes and the frame; next blank.
+6. Run the cut (`BnnC`): first the pockets into the shapes from the top face, while they are
+   still screwed down, then the shapes out of the blank; the blank's frame is not cut.
+7. Unscrew the shapes and the frame; next blank.
 
 ## Safety
 

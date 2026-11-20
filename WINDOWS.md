@@ -93,11 +93,11 @@ change them or switch a pocket kind off. These numbers are guesses until they ar
    diskette holds the programs in the machine's own import format (`SORG\INDICE.PRG` plus
    `SORG\SRG\...`), so they should appear in the program list.
 2. Only if they do **not** appear in the compiler list: leave CNC90, at the DOS prompt type
-   `A:LOAD` (copies each program to its folder, never overwrites), then in file management
+   `A:LOAD` (copies each program to its folder, replacing a program with the same name), then in file management
    register each program, open it in the editor and save it once.
 3. Compile. Check every program in the simulator.
 4. For each blank, the order is: drill program (`B..D`), screw the blank and the shapes down,
-   pocket program (`B..P`, only when the shapes have pockets), then the cut program (`B..C`).
+   then the cut program (`B..C`: first the pockets, then the outlines).
 5. First run **in the air** (no blank on the table, you watching, hand on the emergency
    stop), then on **scrap**, then on real parts. Follow the printed run sheet. The pocket
    programs have not been run on the machine yet, so be especially careful with the first one.

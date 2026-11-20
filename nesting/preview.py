@@ -102,14 +102,13 @@ _RING = re.compile(r' (G\d+) pocket \d+ pass (\d+)/\d+ ring \d+/\d+$')
 
 
 def _pocket_rings(mine: list[Program], colors: dict, flip: float | None) -> list[dict]:
-    """One SVG path per ring of the first depth pass of the blank's pocket program: the
-    segments the emitter writes (program frame), later passes repeat the same rings."""
+    """One SVG path per ring of the first depth pass of the blank's pockets (the pocket ops of
+    its cut program): the segments the emitter writes (program frame), later passes repeat the
+    same rings."""
     out = []
     for p in mine:
-        if p.kind != 'pocket':
-            continue
         for o in p.ops:
-            m = _RING.search(o.label)
+            m = _RING.search(getattr(o, 'label', ''))      # drill ops have no label
             if m and m.group(2) == '1':
                 out.append({'group': m.group(1), 'color': colors.get(m.group(1), ''),
                             'path': _path(o.segs, flip)})
