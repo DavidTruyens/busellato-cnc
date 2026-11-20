@@ -1,4 +1,5 @@
 import builtins
+import os
 import shutil
 import tempfile
 import unittest
@@ -18,12 +19,21 @@ FLOPPY = 1_457_664
 
 class Fake(diskette.System):
     def __init__(self, answers=(), windows=False, drive_type=diskette.DRIVE_REMOVABLE,
-                 total=FLOPPY, mount=True, drives=('A:',)):
+                 total=FLOPPY, mount=True, drives=('A:',), mac=False, on_remount=None):
         self.answers = list(answers)
         self.asked, self.said = [], []
+        self.remounts = []              # per remount: (repair?, the files on the diskette then)
+        self.on_remount = on_remount    # what the "remount" does to the diskette (macOS faults)
         super().__init__(windows=windows, drive_type=lambda root: drive_type,
                          removable_drives=lambda: list(drives), total=lambda p: total,
-                         is_mount=lambda p: mount, ask=self._ask, say=self.said.append)
+                         is_mount=lambda p: mount, ask=self._ask, say=self.said.append,
+                         mac=mac, remount=self._remount)
+
+    def _remount(self, target, repair=False):
+        files = sorted(str(p.relative_to(target)) for p in target.rglob('*') if p.is_file())
+        self.remounts.append(('repair' if repair else 'verify', files))
+        if self.on_remount:
+            self.on_remount(target, len(self.remounts), repair)
 
     def _ask(self, prompt):
         self.asked.append(prompt)
@@ -211,6 +221,168 @@ class DisketteTests(unittest.TestCase):
         self.assertIn('Read back differs', fake.text)
         self.assertIn('B01D', fake.text)
         self.assertNotIn('OK:', fake.text)
+
+    # --- macOS: event log, AppleDouble files, check after a remount ---------------------------
+    NO_LOG = str(Path('.fseventsd') / 'no_log')
+
+    @staticmethod
+    def written(target):
+        return (target / 'LOAD.BAT').exists()
+
+    def test_mac_erase_then_repair_then_write_then_check(self):
+        # deleting on the diskette under macOS leaked clusters (2026-11-20): after the erase a
+        # repair frees them, and its remount makes no_log count; after writing (and removing
+        # ._ files, deletes too) another repair, then a read-only check from a fresh mount
+        (self.drive / 'OLD').write_bytes(b'old')
+        fake = Fake(mac=True, answers=['YES'])
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertEqual([r for r, _ in fake.remounts], ['repair', 'repair', 'verify'])
+        self.assertEqual(fake.remounts[0][1], [self.NO_LOG])
+        self.assertIn('LOAD.BAT', fake.remounts[1][1])
+        self.assertEqual((self.drive / '.fseventsd' / 'no_log').read_bytes(), b'')
+        self.assertEqual({k: v for k, v in tree(self.drive).items() if k != self.NO_LOG},
+                         self.src)
+        self.assertIn('after a remount', fake.text)
+
+    def test_mac_failed_repair_writes_nothing(self):
+        def broken(target, n, repair):
+            raise diskette.Refused('the repair of the diskette failed')
+        fake = Fake(mac=True, on_remount=broken)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
+        self.assertIn('repair of the diskette failed', fake.text)
+        self.assertEqual(list(tree(self.drive)), [self.NO_LOG])
+
+    def test_mac_keep_checks_first_and_makes_no_log_count(self):
+        fake = Fake(mac=True)
+        self.assertEqual(self.run_main(fake, self.job, self.drive, '--keep'), 0, fake.text)
+        self.assertEqual([r for r, _ in fake.remounts], ['verify', 'verify', 'repair', 'verify'])
+        self.assertEqual(fake.remounts[:2], [('verify', []), ('verify', [self.NO_LOG])])
+        fake = Fake(mac=True, answers=['YES'])          # no_log is there now: one less
+        self.assertEqual(self.run_main(fake, self.job, self.drive, '--keep'), 0, fake.text)
+        self.assertEqual([r for r, _ in fake.remounts], ['verify', 'repair', 'verify'])
+
+    def test_mac_keep_failed_first_check_writes_nothing(self):
+        def broken(target, n, repair):
+            raise diskette.Refused('the file system check of the diskette failed')
+        (self.drive / 'OLD').write_bytes(b'old')
+        fake = Fake(mac=True, on_remount=broken)
+        self.assertEqual(self.run_main(fake, self.job, self.drive, '--keep'), 1)
+        self.assertIn('check of the diskette failed', fake.text)
+        self.assertEqual(tree(self.drive), {'OLD': b'old'})
+
+    def test_mac_appledouble_files_are_removed_after_writing(self):
+        real = diskette.write_and_verify
+
+        def with_appledouble(src, target, files):
+            real(src, target, files)
+            for rel in files:                    # what macOS does for files with xattrs
+                (target / rel.parent / ('._' + rel.name)).write_bytes(b'\x00\x05\x16\x07')
+            (target / '._SORG').write_bytes(b'x')
+        fake = Fake(mac=True)
+        with mock.patch('nesting.diskette.write_and_verify', with_appledouble):
+            self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertFalse([k for k in tree(self.drive) if Path(k).name.startswith('._')])
+
+    def test_mac_appledouble_back_after_remount_is_refused(self):
+        def appledouble(target, n, repair):
+            if self.written(target) and not repair:
+                (target / '._B01C').write_bytes(b'x')
+        fake = Fake(mac=True, on_remount=appledouble)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
+        self.assertIn('._B01C', fake.text)
+        self.assertIn('Do not use this diskette', fake.text)
+        self.assertNotIn('OK:', fake.text)
+
+    def test_mac_file_overwritten_at_remount_is_refused(self):
+        # seen 2026-11-20: at the remount macOS wrote its event-log id over a program's
+        # cluster (it was B04P, a pocket program; the pockets are in B04C now)
+        def corrupt(target, n, repair):
+            if self.written(target) and not repair:
+                (target / 'B04C').write_bytes(b'ED3BF384-7CE2-42B6-A000-591E6EB4DC86')
+        fake = Fake(mac=True, on_remount=corrupt)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
+        self.assertIn('B04C', fake.text)
+        self.assertIn('Do not use this diskette', fake.text)
+        self.assertNotIn('OK:', fake.text)
+
+    def test_mac_failed_final_check_is_refused(self):
+        def fails_last(target, n, repair):
+            if self.written(target) and not repair:
+                raise diskette.Refused('the file system check of the diskette failed')
+        fake = Fake(mac=True, on_remount=fails_last)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
+        self.assertIn('check of the diskette failed', fake.text)
+        self.assertNotIn('OK:', fake.text)
+
+    def test_mac_erase_when_deleting_a_file_also_deletes_its_appledouble(self):
+        # macOS removes ._X itself when X is deleted (seen 2026-11-20: ENOENT on ._B01C)
+        (self.drive / 'SORG').mkdir()
+        for name in ('B01C', '._B01C', '._SORG', 'SORG/INDICE.PRG', 'SORG/._INDICE.PRG'):
+            (self.drive / name).write_bytes(b'x')
+        real_unlink, real_rmdir = os.unlink, os.rmdir
+
+        def and_appledouble(real):
+            def gone(path, *, dir_fd=None):
+                real(path, dir_fd=dir_fd)
+                head, name = os.path.split(os.fspath(path))
+                try:
+                    real_unlink(os.path.join(head, '._' + name), dir_fd=dir_fd)
+                except FileNotFoundError:
+                    pass
+            return gone
+        real_scandir = os.scandir
+
+        class FatOrder:                         # the diskette listed X before ._X
+            def __init__(self, *a):
+                with real_scandir(*a) as it:
+                    self.entries = iter(sorted(it, key=lambda e: e.name.startswith('._')))
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                return next(self.entries)
+
+            def close(self):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+        fake = Fake(mac=True, answers=['YES'])
+        with mock.patch('os.unlink', and_appledouble(real_unlink)), \
+                mock.patch('os.rmdir', and_appledouble(real_rmdir)), \
+                mock.patch('os.scandir', FatOrder):
+            self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertEqual({k: v for k, v in tree(self.drive).items() if k != self.NO_LOG},
+                         self.src)
+
+    def test_mac_folder_that_is_not_a_mount_is_not_remounted(self):
+        fake = Fake(mac=True, mount=False)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertEqual(fake.remounts, [])
+        self.assertEqual(tree(self.drive), self.src)
+
+    def test_other_systems_are_not_remounted(self):
+        fake = Fake(mac=False)
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertEqual(fake.remounts, [])
+        self.assertFalse((self.drive / '.fseventsd').exists())
+
+    def test_mac_keep_leaves_other_files_but_still_refuses_appledouble(self):
+        (self.drive / 'OLD').write_bytes(b'old')
+        fake = Fake(mac=True)
+        self.assertEqual(self.run_main(fake, self.job, self.drive, '--keep'), 0, fake.text)
+        self.assertEqual((self.drive / 'OLD').read_bytes(), b'old')
+
+        def appledouble(target, n, repair):
+            if n == 3:                          # no_log is there: check, write, repair, check
+                (target / '._LOAD.BAT').write_bytes(b'x')
+        fake = Fake(mac=True, on_remount=appledouble, answers=['YES'])
+        self.assertEqual(self.run_main(fake, self.job, self.drive, '--keep'), 1)
+        self.assertIn('._LOAD.BAT', fake.text)
 
 
 if __name__ == '__main__':
