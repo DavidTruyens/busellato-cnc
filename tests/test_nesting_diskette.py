@@ -219,8 +219,45 @@ class DisketteTests(unittest.TestCase):
         with mock.patch('nesting.diskette.open', lossy_open, create=True):
             self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
         self.assertIn('Read back differs', fake.text)
-        self.assertIn('B01D', fake.text)
+        self.assertIn(str(Path('SORG') / 'SRG' / 'B' / '01D'), fake.text)
         self.assertNotIn('OK:', fake.text)
+
+    # --- the machine's program list: REG\\NOW.PRG (GETIDX.BAT) is kept on the Mac -----------
+    def machine_list(self):
+        from nesting.importdisk import record
+        return b''.join(record(n, '', '11/01/26', 10, 10, 18) for n in ('A1', 'B9', 'Z1'))
+
+    def saved(self):
+        d = self.project / 'machine-index'
+        self.addCleanup(shutil.rmtree, d, True)
+        return d
+
+    def test_list_on_the_diskette_is_kept_before_erasing(self):
+        saved = self.saved()
+        (self.drive / 'REG').mkdir()
+        (self.drive / 'REG' / 'NOW.PRG').write_bytes(self.machine_list())
+        fake = Fake(answers=['YES'])
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        [copy] = saved.iterdir()
+        self.assertEqual(copy.read_bytes(), self.machine_list())
+        self.assertIn('3 programs', fake.text)
+        self.assertEqual(tree(self.drive), self.src)          # erased; the job as generated
+
+    def test_without_a_list_nothing_is_kept(self):
+        saved = self.saved()
+        fake = Fake()
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertFalse(saved.exists())
+        self.assertEqual(tree(self.drive), self.src)
+
+    def test_a_list_it_does_not_understand_is_not_kept(self):
+        saved = self.saved()
+        (self.drive / 'REG').mkdir()
+        (self.drive / 'REG' / 'NOW.PRG').write_bytes(b'not an index')
+        fake = Fake(answers=['YES'])
+        self.assertEqual(self.run_main(fake, self.job, self.drive), 0, fake.text)
+        self.assertIn('Not kept', fake.text)
+        self.assertFalse(saved.exists())
 
     # --- macOS: event log, AppleDouble files, check after a remount ---------------------------
     NO_LOG = str(Path('.fseventsd') / 'no_log')
@@ -298,10 +335,11 @@ class DisketteTests(unittest.TestCase):
         # cluster (it was B04P, a pocket program; the pockets are in B04C now)
         def corrupt(target, n, repair):
             if self.written(target) and not repair:
-                (target / 'B04C').write_bytes(b'ED3BF384-7CE2-42B6-A000-591E6EB4DC86')
+                (target / 'SORG' / 'SRG' / 'B' / '04C').write_bytes(
+                    b'ED3BF384-7CE2-42B6-A000-591E6EB4DC86')
         fake = Fake(mac=True, on_remount=corrupt)
         self.assertEqual(self.run_main(fake, self.job, self.drive), 1)
-        self.assertIn('B04C', fake.text)
+        self.assertIn(str(Path('SORG') / 'SRG' / 'B' / '04C'), fake.text)
         self.assertIn('Do not use this diskette', fake.text)
         self.assertNotIn('OK:', fake.text)
 

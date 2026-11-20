@@ -89,12 +89,11 @@ change them or switch a pocket kind off. These numbers are guesses until they ar
 
 ## At the machine
 
-1. CNC90 file management: **Programma Kopie** from the diskette to the hard disk. The
-   diskette holds the programs in the machine's own import format (`SORG\INDICE.PRG` plus
-   `SORG\SRG\...`), so they should appear in the program list.
-2. Only if they do **not** appear in the compiler list: leave CNC90, at the DOS prompt type
-   `A:LOAD` (copies each program to its folder, replacing a program with the same name), then in file management
-   register each program, open it in the editor and save it once.
+1. Leave CNC90; at the DOS prompt type `A:LOAD`. It copies the programs and makes CNC90 list
+   only this job (the first time it keeps the full list as `INDICE.ALL`; `A:FULLIDX` puts it
+   back). If it stops with a message, nothing was changed: load the job with **Programma
+   Kopie** in CNC90 file management instead.
+2. `A:GETIDX` copies the machine's program list to the diskette; the Mac keeps it as a backup.
 3. Compile. Check every program in the simulator.
 4. For each blank, the order is: drill program (`B..D`), screw the blank and the shapes down,
    then the cut program (`B..C`: first the pockets, then the outlines).

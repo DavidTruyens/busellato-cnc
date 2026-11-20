@@ -401,7 +401,7 @@ class ServerTests(unittest.TestCase):
             self.assertRegex(folder.name, r'^\d{8}-\d{6}(-\d+)?$')
             self.assertEqual(sorted(res['files']), sorted(p.name for p in folder.iterdir()))
             job = f"B{res['job']:03d}"
-            for n in (job + '01D', job + '06C', 'LOAD.BAT', 'RUNSHEET.html', 'PROJECT.json'):
+            for n in (job + '01D', job + '06C', 'DISKETTE', 'RUNSHEET.html', 'PROJECT.json'):
                 self.assertIn(n, res['files'])
         self.assertEqual(len(list((self.dir / 'out').iterdir())), 2)
 
@@ -1154,7 +1154,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(folder.parent, self.dir / 'out')
         names = [f'B0010{n}{k}' for n in range(1, 7) for k in 'DC']
         self.assertEqual(res['programs'], names)
-        for name in names + ['LOAD.BAT', 'PROJECT.json', 'RUNSHEET.html']:
+        for name in names + ['DISKETTE', 'PROJECT.json', 'RUNSHEET.html']:
             self.assertIn(name, res['files'])
         programs = [f for f in folder.iterdir() if f.name in names]
         self.assertEqual(sorted(f.name for f in programs), sorted(names))

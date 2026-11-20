@@ -5,8 +5,6 @@ import datetime
 import json
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 from html import escape
 from pathlib import Path
@@ -18,7 +16,6 @@ from .preview import preview_data
 from .program import Program, pass_count
 from .settings import Settings
 
-LOADER = Path(__file__).resolve().parent.parent / 'tools' / 'make-loader.py'
 
 Z_LABELS = [('stack_top', 'Stack height (scrap plate + blank, above the cups)'),
             ('fixing', 'Fixing holes: drill depth below the top of the stack'),
@@ -251,7 +248,8 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
                  pocket_overrides: dict | None = None,
                  groups: list | None = None) -> list[Path]:
     """Write the job folder `out_dir` (all or nothing). Returns its entries: the program files,
-    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py).
+    PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py), which holds
+    the loader.
     groups: the project's pocket groups, as given to plan_programs (see preview_data)."""
     out_dir = Path(out_dir)
     if out_dir.exists():
@@ -261,17 +259,10 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
     # build everything beside out_dir, publish with one rename as the last step
     stage = Path(tempfile.mkdtemp(dir=out_dir.parent, prefix='.' + out_dir.name + '-'))
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            staged = []
-            for p in programs:
-                path = Path(tmp) / p.name
-                path.write_bytes(emit(p, settings).encode('ascii'))
-                staged.append(str(path))
-            r = subprocess.run([sys.executable, str(LOADER), str(stage), *staged],
-                               capture_output=True, text=True)
-        if r.returncode != 0:
-            raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
-        write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
+        for p in programs:
+            (stage / p.name).write_bytes(emit(p, settings).encode('ascii'))
+        write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today,
+                       project.get('job'))
         data = preview_data(plan, programs, settings, pocket_overrides, groups)
         (stage / 'PROJECT.json').write_text(
             json.dumps({'settings': settings.to_dict(), 'tools': settings.tools.to_dict(),

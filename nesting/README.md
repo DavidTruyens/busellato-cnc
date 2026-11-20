@@ -76,11 +76,29 @@ starts the tool on port 8800 with project `%USERPROFILE%\nesting-project` and op
 (`python -m nesting.diskette [JOB_OR_PROJECT] [A:] [--keep]`: removable drives only, nothing
 larger than a diskette, asks `YES` before erasing, reads every file back). Not tested on Windows.
 
-Every job folder has a `DISKETTE` folder holding exactly what goes on the diskette: the loader
-(`LOAD.BAT`, `L1.BAT`, `COLLECT.BAT`, `C1.BAT`) and the programs flat in its root, and
+Every job folder has a `DISKETTE` folder holding exactly what goes on the diskette:
 `SORG\INDICE.PRG` plus `SORG\SRG\<first char>\<rest of name>`, the import format CNC90 file
 management writes itself (for Programma Kopie, which registers the programs;
-`nesting/importdisk.py`). Generate warns when it would not fit a 1.44 MB diskette.
+`nesting/importdisk.py`), and `LOAD.BAT`, `GETIDX.BAT` and `REG\T1.TXT`, `T2.TXT` for
+registering from DOS (`nesting/register.py`). Generate warns when it would not fit a 1.44 MB
+diskette.
+
+**Registering from DOS.** CNC90 lists only the programs in its index
+`C:\CNC90\MOD1\SORG\INDICE.PRG` (82-byte records sorted by name; copying a file into SRG does
+not register it). `A:LOAD` (DOS prompt, CNC90 closed) copies the job's programs into SRG and
+makes the machine list **only this job**: the first time it keeps the full list as `INDICE.ALL`
+(never overwritten), every time the list in use as `INDICE.<job>`, then puts the diskette's own
+job index (`SORG\INDICE.PRG`, the one Programma Kopie reads) in place: copied beside the old list
+as `INDICE.NEW` first, renamed into place only once it is there. The other programs' files stay;
+`A:FULLIDX` puts the full list back (keeping the list in use as `INDICE.CUR`). `A:GETIDX` copies
+the machine's list to the diskette (`REG\NOW.PRG`); the diskette tool keeps it in the project's
+`machine-index/` folder as a backup of the full list. The machine's MS-DOS 5 `FC` sets no error
+level (seen 2026-11-20), so the batch files compare nothing: a copy goes to a name deleted first
+and is checked to exist, and `COPY /V` verifies the writing. Not yet run on the machine.
+
+**Arc direction.** G2/G3 is the sense seen from above on the machine. With Y toward the front
+the program's numbers are mirrored, so the code is the opposite of the numbers' sense (first cut,
+2026-11-20: taken from the numbers, every arc bulged to the wrong side).
 
 ## Settings
 
@@ -414,10 +432,13 @@ management. Every blank gets its own programs, even when two
 blanks have the same shapes in the same layout (sharing them is possible but not done).
 
 1. Write the job's `DISKETTE` folder to the diskette (`copy-to-diskette.bat`, or
-   `python -m nesting.diskette JOB TARGET`). In CNC90 file management, Programma Kopie from the
-   diskette. If the programs do not appear in the compiler list: in DOS run `A:LOAD` (copies
-   each program to its folder, replacing a program with the same name), then register each program in file
-   management, open it in the editor and save it once.
+   `python -m nesting.diskette JOB TARGET`), with `REG\NOW.PRG` from `A:GETIDX` on it. Then
+   `A:LOAD` at the DOS prompt (CNC90 closed) copies the programs and registers them in
+   CNC90's program list. It changes nothing unless every check passes: DOS's `FC` must pass a
+   self-test, and the machine's list must still be the one the diskette's new list was made
+   from (`REG\OLD.PRG`). It backs the list up as `C:\CNC90\MOD1\SORG\INDICE.<job>`, puts
+   `REG\NEW.PRG` in its place and checks it (restoring the backup if that fails). If it
+   refuses, load the job with Programma Kopie in CNC90 file management instead.
 2. Compile.
 3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
    cut list and which blank is which, then a page per blank).

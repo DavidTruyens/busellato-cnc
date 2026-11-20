@@ -267,7 +267,7 @@ tr.flash td{background:#fff4e0}
     <ol>
       <li>Print <code>RUNSHEET.html</code> from the folder: saw cut list per panel, then per blank its drawing, steps and depths.</li>
       <li>Write the folder's <code>DISKETTE</code> folder to an empty diskette (Windows: <code>copy-to-diskette.bat</code>).</li>
-      <li>CNC90 file management: Programma Kopie from the diskette (the <code>SORG</code> tree registers the programs). If they do not appear in the compiler list: DOS <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, replaces a program with the same name), then register each program, open and save it once in the editor.</li>
+      <li>At the DOS prompt (CNC90 closed): <code>A:LOAD</code> copies the programs and makes CNC90 list only this job (the full list is kept once as <code>INDICE.ALL</code>; <code>A:FULLIDX</code> puts it back). If it stops with a message, nothing was changed: use Programma Kopie in CNC90 file management. <code>A:GETIDX</code> copies the program list to the diskette as a backup for the Mac.</li>
       <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
       <li>Saw each panel into blanks as the cut list says.</li>
       <li>Per blank: lay it on the scrap, its origin corner (black dot on the run sheet) against the pins, clamp it → run <code>BnnD</code> (all holes, still clamped) → screw the blank down through the fixing holes and each shape through its screw holes → take the clamps off → run <code>BnnC</code> (pockets first, then cut the shapes out) → unscrew.</li>

@@ -39,6 +39,7 @@ import time
 from pathlib import Path
 
 from .importdisk import NAME, size_warning
+from .register import records
 
 REPO = Path(__file__).resolve().parent.parent
 DRIVE_REMOVABLE = 2
@@ -265,9 +266,39 @@ def check_after_remount(src: Path, target: Path, files: list[Path]) -> None:
         raise Refused('After a remount: ' + '; '.join(found) + '. Do not use this diskette.')
 
 
+def keep_machine_list(target: Path, job: Path, system: System) -> None:
+    """A:\\REG\\NOW.PRG on the diskette in the drive (written by GETIDX.BAT): the machine's
+    program list, kept in the project's machine-index folder before the diskette is erased, as
+    a backup of the full list on the Mac. One that is not a program list is not kept."""
+    now = target / 'REG' / 'NOW.PRG'
+    if not now.is_file():
+        return
+    data = now.read_bytes()
+    try:
+        n = len(records(data, str(now)))
+    except ValueError as e:
+        system.say(f'WARNING: {e}. Not kept.')
+        return
+    kept = job.parent.parent / 'machine-index' if job.parent.name == 'out' else None
+    if kept is None:
+        system.say(f'Program list of the machine on the diskette ({n} programs): not kept '
+                   '(the job is not in a project\'s out folder).')
+        return
+    kept.mkdir(exist_ok=True)
+    copy = kept / time.strftime('INDICE-%Y%m%d-%H%M%S.PRG')
+    copy.write_bytes(data)
+    system.say(f'Program list of the machine ({n} programs) kept as {copy}')
+
+
 def run(args, system: System) -> int:
     src = source_folder(args.out_folder)
     job = src.parent
+    target = target_folder(args.drive or pick_drive(system), job, system, args.force_size)
+    keep_machine_list(target, job, system)
+    return _write(args, system, src, job, target)
+
+
+def _write(args, system: System, src: Path, job: Path, target: Path) -> int:
     files = files_in(src)
     size = sum((src / f).stat().st_size for f in files)
     system.say(f'Job:        {job}')
@@ -275,7 +306,6 @@ def run(args, system: System) -> int:
     warn = size_warning(src)
     if warn:
         system.say('WARNING: ' + warn)
-    target = target_folder(args.drive or pick_drive(system), job, system, args.force_size)
     mac_disk = system.mac and system.is_mount(target)
     if mac_disk and args.keep:              # what stays on it must be sound
         system.say('Checking the diskette (macOS unmounts and mounts it for that) ...')

@@ -42,16 +42,18 @@ class OutputTests(unittest.TestCase):
     def test_files_written_and_loader_present(self):
         files = self.write()
         names = {p.name for p in files}
-        for n in ('LOAD.BAT', 'L1.BAT', 'COLLECT.BAT', 'C1.BAT', 'PROJECT.json', 'RUNSHEET.html'):
+        for n in ('DISKETTE', 'PROJECT.json', 'RUNSHEET.html'):
             self.assertIn(n, names)
+        for n in ('LOAD.BAT', 'L1.BAT', 'COLLECT.BAT', 'C1.BAT'):   # the loader is on the diskette
+            self.assertNotIn(n, names)
         for p in self.progs:
             self.assertIn(p.name, names)
         self.assertEqual({p.name for p in self.out.iterdir()}, names)
         self.assertTrue(all(p.parent == self.out for p in files))
         self.assertEqual(len(files), len(set(files)))
-        load = (self.out / 'LOAD.BAT').read_bytes().decode('ascii')
+        load = (self.out / 'DISKETTE' / 'LOAD.BAT').read_bytes().decode('ascii')
         for p in self.progs:
-            self.assertIn(p.name.upper(), load)
+            self.assertIn(f'ECHO {p.name.upper()} COPIED', load)
         text = (self.out / self.progs[0].name).read_bytes()
         self.assertEqual(text, BACKENDS['cnc90'](self.progs[0], self.s).encode('ascii'))
         self.assertIn(b'\r\n', text)
@@ -69,7 +71,7 @@ class OutputTests(unittest.TestCase):
         orig = bad.name
         bad.name = 'Q' + orig[1:]          # no SRG folder Q on the machine
         try:
-            with self.assertRaises(RuntimeError) as cm:
+            with self.assertRaises(ValueError) as cm:
                 self.write()
         finally:
             bad.name = orig
@@ -143,20 +145,25 @@ class OutputTests(unittest.TestCase):
         for n in progs:
             self.assertIn(n, files)
         self.assertFalse([n for n in files if re.fullmatch(r'B\d\d[FS]', n)])
-        load = files['LOAD.BAT'].read_text()
+        load = (files['DISKETTE'] / 'LOAD.BAT').read_text()
         for n in progs:
-            self.assertIn(f'CALL A:\\L1.BAT B {n[1:]} {n}', load)
-        collect = files['COLLECT.BAT'].read_text()
-        self.assertIn('CALL A:\\C1.BAT B 01D', collect)
-        self.assertNotRegex(load + collect, r'B ?\d\d[FS]\b')
+            self.assertIn(f'COPY /V A:\\SORG\\SRG\\B\\{n[1:]} ', load)
+        self.assertNotRegex(load, r'B ?\d\d[FS]\b')
         proj = json.loads(files['PROJECT.json'].read_text())
         self.assertEqual(proj['settings']['drill_fix']['tool'], 1)
         self.assertEqual(proj['settings']['drill_screw']['tool'], 2)
 
-    def test_loader_replaces_programs_already_on_the_machine(self):
-        # 2026-11-20: a new job reuses the names B01C.. of the previous one; the machine kept
-        # the old programs because the loader skipped existing files
-        files = {p.name: p for p in self.write()}
+    def test_make_loader_replaces_programs_already_on_the_machine(self):
+        # tools/make-loader.py (the machine-test diskettes; jobs register with LOAD.BAT from
+        # nesting/register.py): 2026-11-20 the machine kept old programs because the loader
+        # skipped existing files
+        self.write()
+        out = Path(self.tmp.name) / 'loader'
+        r = subprocess.run([sys.executable, str(repo / 'tools' / 'make-loader.py'), str(out),
+                            *(str(self.out / p.name) for p in self.progs)],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = {p.name: p for p in out.iterdir()}
         l1 = files['L1.BAT'].read_bytes().decode('ascii').split('\r\n')
         srg = 'C:\\CNC90\\MOD1\\SORG\\SRG'
         self.assertNotIn('GOTO TAKEN', l1)
@@ -320,10 +327,9 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn('B01P', names)
         c = next(p for p in self.progs if p.name == 'B01C')
         self.assertIn(' pocket ', c.ops[0].label)        # the pockets go first in C
-        for f in ('LOAD.BAT', 'COLLECT.BAT'):
-            text = (self.out / f).read_bytes().decode('ascii')
-            for n in names:
-                self.assertIn(n.upper() if f == 'LOAD.BAT' else f'{n[0]} {n[1:]}', text, (f, n))
+        text = (self.out / 'DISKETTE' / 'LOAD.BAT').read_bytes().decode('ascii')
+        for n in names:
+            self.assertIn(f'ECHO {n.upper()} COPIED', text, n)
         disk = self.out / 'DISKETTE' / 'SORG'
         self.assertTrue((disk / 'SRG' / 'B' / '01C').is_file())
         self.assertFalse((disk / 'SRG' / 'B' / '01P').exists())
