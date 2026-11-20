@@ -2,9 +2,10 @@
 corner (top left of the picture, operator at the bottom) with Y growing toward the front.
 
 These tests check that the drill positions, the contour (points, arcs, G2/G3, U), the turning
-sense seen from above and the preview drawing all agree in that frame. Whether the machine
-really has Y toward the front, and how it reads G2/G3 then, is NOT verified here: only on the
-machine (air cut first).
+sense seen from above and the preview drawing all agree in that frame. G2/G3 is the sense seen
+from above on the machine (first cut, 2026-11-20: taken from the mirrored numbers every arc
+bulged the wrong way), so with 'front' the code is the opposite of the numbers' sense; moves()
+turns it back into the numbers' sense for rebuilding the geometry.
 """
 import math
 import re
@@ -51,13 +52,16 @@ def progs(s, b=None):
 MOVE = re.compile(r'(G88|G1|G2|G3)G90.*?X(-?[\d.]+)Y(-?[\d.]+)(?:Z[\d.]+)?(?:U([\d.]+))?$')
 
 
-def moves(text):
-    """[(code, x, y, u)] of the cut moves, in order, from the emitted program text."""
+def moves(text, s=None):
+    """[(code, x, y, u)] of the cut moves, in order, from the emitted program text. With the
+    settings `s`, G2/G3 is given in the sense of the numbers (swapped back for 'front', where
+    the code is the sense seen from above and the numbers are mirrored); without, as written."""
+    swap = {'G2': 'G3', 'G3': 'G2'} if s is not None and s.machine.y_toward == 'front' else {}
     out = []
     for line in text.split('\r\n'):
         m = MOVE.match(line)
         if m:
-            out.append((m.group(1), float(m.group(2)), float(m.group(3)),
+            out.append((swap.get(m.group(1), m.group(1)), float(m.group(2)), float(m.group(3)),
                         float(m.group(4)) if m.group(4) else None))
     return out
 
@@ -137,18 +141,18 @@ class ProgramFrameTests(unittest.TestCase):
                     self.assertEqual(f.ccw, not b.ccw)
                     self.assertAlmostEqual(f.center[1], H - b.center[1], places=9)
 
-    def test_emitted_text_has_y_mirrored_and_g2_g3_swapped(self):
+    def test_emitted_text_has_y_mirrored_and_the_same_g2_g3(self):
         sf, sb = settings('front'), settings('back')
         tf = BACKENDS['cnc90'](progs(sf)['B01C'], sf).split('\r\n')
         tb = BACKENDS['cnc90'](progs(sb)['B01C'], sb).split('\r\n')
         self.assertEqual(len(tf), len(tb))
         self.assertEqual(tf[0], tb[0])                       # header: stock W x H x Z unchanged
-        swap = {'G2': 'G3', 'G3': 'G2', 'G1': 'G1', 'G88': 'G88'}
+        # the same cut on the machine: Y mirrored in the numbers, G2/G3 (seen from above) equal
         mf, mb = moves('\r\n'.join(tf)), moves('\r\n'.join(tb))
         self.assertEqual(len(mf), len(mb))
-        self.assertIn('G2', [m[0] for m in mf])
+        self.assertIn('G3', [m[0] for m in mf])
         for (cf, xf, yf, uf), (cb, xb, yb, ub) in zip(mf, mb):
-            self.assertEqual(cf, swap[cb])
+            self.assertEqual(cf, cb)
             self.assertAlmostEqual(xf, xb, delta=0.0015)
             self.assertAlmostEqual(yf, H - yb, delta=0.0015)
             self.assertEqual(uf, ub)
@@ -160,7 +164,7 @@ class ProgramFrameTests(unittest.TestCase):
             s = settings(y_toward)
             p = progs(s)['B01C']
             op = p.ops[0]
-            mv = moves(BACKENDS['cnc90'](p, s))
+            mv = moves(BACKENDS['cnc90'](p, s), s)
             arcs = [sg for sg in op.segs if isinstance(sg, Arc)]
             got = []
             prev = (mv[0][1], mv[0][2])
@@ -195,7 +199,7 @@ class ProgramFrameTests(unittest.TestCase):
             for direction in ('ccw', 'cw'):
                 s = settings(y_toward, direction)
                 p = progs(s)['B01C']
-                pts = polygon(moves(BACKENDS['cnc90'](p, s)))
+                pts = polygon(moves(BACKENDS['cnc90'](p, s), s))
                 screen = pts if y_toward == 'front' else [(x, H - y) for x, y in pts]
                 seen_ccw = shoelace(screen) < 0
                 self.assertEqual(seen_ccw, direction == 'ccw', (y_toward, direction))
@@ -203,7 +207,7 @@ class ProgramFrameTests(unittest.TestCase):
     def test_emitted_path_surrounds_the_shape_in_the_program_frame(self):
         s = settings('front')
         p = progs(s)['B01C']
-        pts = polygon(moves(BACKENDS['cnc90'](p, s)))
+        pts = polygon(moves(BACKENDS['cnc90'](p, s), s))
         outline = segs_to_program(blank(), s, translate(rounded().outline, SX, SY))
         r = s.router_bit.diameter / 2
         for q in pts:
@@ -221,7 +225,7 @@ class ProgramFrameTests(unittest.TestCase):
         plan = Plan([PanelPlan('P1', [b])])
         pr = {p.name: p for p in plan_programs(plan, s)}
         data = preview_data(plan, list(pr.values()), s)
-        mv = moves(BACKENDS['cnc90'](pr['B01C'], s))
+        mv = moves(BACKENDS['cnc90'](pr['B01C'], s), s)
         toks = parse(data['blanks'][0]['shapes'][0]['cut_path'])
         n = len(toks)
         # the program repeats the contour per pass; the first pass is G88 + (G1 feed) + segs

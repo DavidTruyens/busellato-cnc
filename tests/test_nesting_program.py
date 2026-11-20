@@ -867,7 +867,7 @@ class RealPlatePocketTests(unittest.TestCase):
 
                 def y(v):
                     return blank.height - v if front else v
-                arc = 'G3' if front else 'G2'           # cw from above; mirrored with front
+                arc = 'G2'      # cw seen from above, whatever the Y direction (2026-11-20)
                 lines = []
                 for z in (8,):                  # one pass: the bit cuts 9 mm per pass (R4)
                     for u in (inner, wall):

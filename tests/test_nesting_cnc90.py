@@ -41,9 +41,33 @@ def zzt1_segs():
     ]
 
 
+def unmirrored() -> Settings:
+    """Settings with Y toward the back: program numbers as seen from above, unmirrored, as
+    the Fusion post writes them (the golden files). With 'front' the arcs' G2/G3 swap."""
+    s = Settings()
+    s.machine.y_toward = 'back'
+    return s
+
+
 class Cnc90Tests(unittest.TestCase):
     def setUp(self):
-        self.s = Settings()
+        self.s = unmirrored()
+
+    def test_front_swaps_only_g2_and_g3(self):
+        # 2026-11-20, first cut: G2/G3 are the sense seen from above on the machine; with Y
+        # toward the front the program's numbers are mirrored, so the code is the opposite
+        # of the numbers' sense (taken from the numbers, every arc bulged the wrong way)
+        op = ContourOp(zzt1_segs(), 2, 'x')
+        p = Program('ZZT1', 65, 'cut', '', (400, 300, 18), [op], 18000, 1, 3)
+        front = Settings()
+        front.machine.y_toward = 'front'
+        swap = str.maketrans({'2': '3', '3': '2'})
+        for a, b in zip(emit(p, self.s).split('\r\n'), emit(p, front).split('\r\n')):
+            if a.startswith(('G2G', 'G3G')):
+                self.assertEqual(b[:2], a[:2].translate(swap))
+                self.assertEqual(b[2:], a[2:])
+            else:
+                self.assertEqual(a, b)
 
     def test_matches_ZZT1AD(self):
         ops = [DrillOp(320, 220, 2, 6), DrillOp(352, 220, 2, 6), DrillOp(320, 260, 2, 6)]
@@ -213,7 +237,7 @@ def check(test, programs, settings):
 
 class PocketEmitTests(unittest.TestCase):
     def setUp(self):
-        self.s = Settings()
+        self.s = unmirrored()
 
     def test_g88_line_has_the_ops_tool_spindle_and_feed(self):
         op = ContourOp([Line((10, 10), (50, 10)), Line((50, 10), (10, 10))], 4, 'x',

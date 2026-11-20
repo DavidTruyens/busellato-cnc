@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..geometry import Arc
-from ..program import ContourOp, DrillOp, Program, ProgramError
+from ..program import ContourOp, DrillOp, Program, ProgramError, y_flipped
 from ..settings import Settings
 
 
@@ -22,7 +22,8 @@ def _own(op: ContourOp, program: Program, name: str):
     return getattr(program, name) if v is None else v
 
 
-def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[str]:
+def _contour(op: ContourOp, program: Program, tool: str, origin: str,
+             flipped: bool = False) -> list[str]:
     z = f'Z{fmt(op.depth)}'
     start = op.segs[0].a
     plunge, cut = _own(op, program, 'plunge_feed'), _own(op, program, 'cut_feed')
@@ -40,7 +41,11 @@ def _contour(op: ContourOp, program: Program, tool: str, origin: str) -> list[st
             feed = cut
         first = False
         if isinstance(seg, Arc):
-            code = 'G3' if seg.ccw else 'G2'
+            # G2 = clockwise, G3 = counter-clockwise as seen from above on the machine, not
+            # in the program's numbers: with Y toward the front (numbers mirrored) the sense
+            # of the numbers is the opposite one. Seen 2026-11-20 on the first cut: with the
+            # code taken from the numbers every arc bulged to the wrong side.
+            code = 'G3' if seg.ccw != flipped else 'G2'
             u = fmt(seg.radius)
             if u == '0':        # the control would get an arc of radius 0
                 raise ProgramError(f'{program.name}: {op.label}: arc of radius {seg.radius:.6f} '
@@ -59,7 +64,7 @@ def emit(program: Program, settings: Settings) -> str:
         if isinstance(op, DrillOp):
             body.append(f'G81G90{origin}P5{tool}{_xy((op.x, op.y))}Z{fmt(op.depth)}')
         else:
-            body += _contour(op, program, tool, origin)
+            body += _contour(op, program, tool, origin, y_flipped(settings))
     body.append('M2')
     n = len(body) + 1
     x, y, z = program.stock
