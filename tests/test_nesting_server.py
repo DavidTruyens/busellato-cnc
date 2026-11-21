@@ -987,6 +987,19 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(meta['pockets'], proj['pockets'])
         self.assertTrue(all(g['depth'] == 5 for g in meta['pocket_groups']))
 
+    def test_old_router_depth_correction_moves_to_the_router_head(self):
+        self.seed(PLATES)
+        data = {'shapes': [], 'settings': {'router': {'tool': 66, 'depth_correction': 3.5}}}
+        (self.dir / 'project.json').write_text(json.dumps(data))
+        _, proj = self.call('GET', '/api/project')
+        self.assertEqual(proj['tools']['z_corrections'], {'T66': 3.5})
+        self.assertNotIn('depth_correction', proj['settings']['router'])
+        # a table that already has one for the head keeps its own
+        data['tools'] = dict(proj['tools'], z_corrections={'T66': 2})
+        (self.dir / 'project.json').write_text(json.dumps(data))
+        _, proj = self.call('GET', '/api/project')
+        self.assertEqual(proj['tools']['z_corrections'], {'T66': 2})
+
     def test_binds_to_localhost_only(self):
         self.assertEqual(self.server.server_address[0], '127.0.0.1')
 
@@ -1092,7 +1105,7 @@ class ServerTests(unittest.TestCase):
         for needle in ("['drill_fix.tool', ", "['drill_screw.tool', ", "['drill_screw.depth', ",
                        "['pockets.tool', ", 'tools: project.tools', 'tools_error',
                        'tools_notes', 'tool_labels', "'listed only: no program uses this head'",
-                       "/^tools\\.(bits|heads)\\.",
+                       "/^tools\\.(bits|heads|z_corrections)\\.", "tools.z_corrections.${h.key}",
                        'default ('):
             self.assertIn(needle, html)
         # bit names are user text: never markup

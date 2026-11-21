@@ -901,6 +901,62 @@ class RealPlatePocketTests(unittest.TestCase):
                 self.assertEqual(set(re.findall(r'U[\d.]+', text)), {'U3.55', 'U0.35'})
 
 
+class ZCorrectionTests(unittest.TestCase):
+    """The tool table's Z correction per head: how much deeper the head really cuts than
+    written (T66 on the machine, 2026-11-20). Every op on that head is written that much
+    shallower; the passes stay the same; other heads are untouched."""
+
+    def plan(self, corrections):
+        s = Settings()
+        s.tools.z_corrections = dict(corrections)
+        plan, _ = real_plan(s)
+        return {p.name: p for p in plan_programs(plan, s)}, s
+
+    def test_router_ops_are_written_shallower_by_the_correction(self):
+        base, _ = self.plan({})
+        corr, s = self.plan({66: 4})
+        self.assertEqual(set(base), set(corr))
+        for name, p in base.items():
+            q = corr[name]
+            self.assertEqual(len(p.ops), len(q.ops), name)          # same passes
+            for a, b in zip(p.ops, q.ops):
+                if isinstance(a, DrillOp):
+                    self.assertEqual(a.depth, b.depth)
+                else:
+                    self.assertEqual(p.op_tool(a), 66)
+                    self.assertAlmostEqual(b.depth, a.depth - 4, places=9)
+
+    def test_a_drill_head_correction_moves_only_its_holes(self):
+        base, s = self.plan({})
+        corr, _ = self.plan({s.drill_fix.tool: 0.5})
+        for name, p in base.items():
+            for a, b in zip(p.ops, corr[name].ops):
+                want = a.depth - 0.5 if p.op_tool(a) == s.drill_fix.tool else a.depth
+                self.assertAlmostEqual(b.depth, want, places=9)
+
+    def test_another_head_is_not_corrected(self):
+        def c_program(corr):
+            s = Settings()
+            put_bit(s, 65)
+            s.pockets.tool = 65
+            s.tools.z_corrections = dict(corr)
+            plan, _ = real_plan(s)
+            return by_name(plan_programs(plan, s))['B01C']
+        base, c = c_program({}), c_program({66: 4})
+        for a, b in zip(base.ops, c.ops):
+            if ' pocket ' in a.label:
+                self.assertEqual(c.op_tool(b), 65)
+                self.assertEqual(a.depth, b.depth)
+            else:
+                self.assertAlmostEqual(b.depth, a.depth - 4, places=9)
+
+    def test_a_correction_that_leaves_no_depth_is_an_error(self):
+        with self.assertRaises(ProgramError) as e:
+            self.plan({66: 7})            # the first slot pass is 5.5 mm deep
+        self.assertIn('T66', str(e.exception))
+        self.assertIn('z_corrections', str(e.exception))
+
+
 class RingMemoTests(unittest.TestCase):
     """Process-wide memo of pocket rings: keyed on the exact segment numbers, tool diameter
     and stepover, so a repeated plan (every /api/plan) does not recompute them."""

@@ -96,6 +96,18 @@ the machine's list to the diskette (`REG\NOW.PRG`); the diskette tool keeps it i
 level (seen 2026-11-20), so the batch files compare nothing: a copy goes to a name deleted first
 and is checked to exist, and `COPY /V` verifies the writing. Not yet run on the machine.
 
+**Z correction per head.** The tool table (Tools page) has a Z correction per head: how
+much deeper that head really cuts than written, in mm, measured with a test cut. Every operation
+on that head (router cut, pocket, drill hole) is written that much shallower; the passes stay
+the same. Stored as `tools.z_corrections` (`{"T66": 3.5}`); CNC90's own tool table (CORREC.Z)
+is left untouched. T66 cut 3.5 mm deeper on 2026-11-20 (19 mm blank). A project with the
+earlier `router.depth_correction` setting has it moved to the router head when loaded.
+
+**End lift.** `router.end_lift` (mm): a cut program ends by lifting straight up from its last
+point to that height above the top of the blank (`G1 … Z-20`), before `M2`. On 2026-11-20 the
+machine moved Y home at `M2` with the bit still in the groove (the end-of-program lift did not
+clear it, T66 being longer than CNC90 thinks): a Y-axis emergency, three times. 0: no lift.
+
 **Arc direction.** G2/G3 is the sense seen from above on the machine. With Y toward the front
 the program's numbers are mirrored, so the code is the opposite of the numbers' sense (first cut,
 2026-11-20: taken from the numbers, every arc bulged to the wrong side).

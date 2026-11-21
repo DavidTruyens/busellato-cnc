@@ -227,10 +227,25 @@ class Project:
         else:
             table, notes, ignored = migrate(raw, pockets)
             tools = table.to_dict()
+        tools = self._move_depth_correction(raw, tools)
         return {'shapes': list(data.get('shapes') or []),
                 'settings': Settings.from_dict(raw).to_dict(),
                 'pockets': pockets, 'tools': tools, 'tools_notes': notes,
                 'tools_ignored': ignored}
+
+    @staticmethod
+    def _move_depth_correction(raw: dict, tools):
+        """router.depth_correction (2026-11-20, before the tool table had Z corrections) moves
+        to the router head's Z correction, unless the table already has one for that head."""
+        router = raw.get('router') if isinstance(raw.get('router'), dict) else {}
+        c = router.get('depth_correction')
+        if not c or not isinstance(tools, dict):
+            return tools
+        head = router.get('tool', Settings().router.tool)
+        corr = tools.get('z_corrections') if isinstance(tools.get('z_corrections'), dict) else {}
+        if f'T{head}' in corr:
+            return tools
+        return {**tools, 'z_corrections': {**corr, f'T{head}': c}}
 
     def _last_job(self) -> int:
         """The number of the last generated job (project.json `job`), 0 when none."""

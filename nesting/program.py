@@ -360,6 +360,26 @@ def _pocket_ops(blank: Blank, settings: Settings, overrides: dict,
     return ops, warnings, radius
 
 
+def _correct_depths(ops: list, settings: Settings, blank: Blank, own_head: int) -> None:
+    """Write every op on a head with a Z correction in the tool table that much shallower (the
+    head really cuts that much deeper). An op without its own tool is on `own_head`, the
+    program's. The passes are planned on the real depths, so their number does not change."""
+    table = settings.tools
+    for op in ops:
+        head = op.tool if op.tool is not None else own_head
+        c = table.z_correction(head)
+        if not c:
+            continue
+        written = op.depth - c
+        if not written > 0:
+            what = op.label if isinstance(op, ContourOp) else f'hole at X{op.x:g} Y{op.y:g}'
+            raise ProgramError(f'{blank.id}: {what} is {op.depth:g} mm deep; with the Z '
+                               f'correction of T{head} ({c:g} mm, tools.z_corrections) it '
+                               f'would be written at {written:g} mm, not below the top of '
+                               f'the blank')
+        op.depth = written
+
+
 def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | None = None,
                    groups: list[PocketGroup] | None = None,
                    _rings: dict | None = None, job: int | None = None) -> list[Program]:
@@ -409,6 +429,7 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
     progs: list[Program] = []
     radius: dict[str, float] = {}
     drills = group_by_tool(fix_ops + screw_ops)
+    _correct_depths(drills, settings, blank, fix.tool)
     if drills:
         desc = ' and '.join(w for w, ops in (('Fixing', fix_ops), ('screw', screw_ops)) if ops)
         desc = desc[0].upper() + desc[1:] + ' holes'
@@ -418,6 +439,7 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
         progs.append(Program(program_name(blank.id, 'D', job), drills[0].tool, 'drill', desc, stock,
                              drills, None, fix_bit.plunge_feed, fix_bit.plunge_feed,
                              blank=blank.id))
+    _correct_depths(pockets + cuts, settings, blank, r.tool)
     if pockets or cuts:
         # the outline ops carry no tool of their own: they use the program's, the router
         desc = 'Pockets and shape outlines' if pockets else 'Shape outlines'

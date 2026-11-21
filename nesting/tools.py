@@ -116,6 +116,13 @@ class Bit:
 class ToolTable:
     bits: list = field(default_factory=list)
     heads: dict = field(default_factory=dict)   # head number -> bit id; an empty head is absent
+    # head number -> mm the head really cuts deeper than written (every op on it is written
+    # that much shallower); 0 is absent. CNC90 keeps its own CORREC.Z per tool number; this one
+    # is ours, so the machine's table stays untouched (T66 cut 3.5 mm deeper, 2026-11-20).
+    z_corrections: dict = field(default_factory=dict)
+
+    def z_correction(self, head: int) -> float:
+        return self.z_corrections.get(head, 0)
 
     @classmethod
     def default(cls) -> "ToolTable":
@@ -167,7 +174,17 @@ class ToolTable:
             if not isinstance(value, str):
                 raise SettingsError(f"tools.heads.{key}", "must be a bit id or null")
             heads[number] = value
-        table = cls(bits, dict(sorted(heads.items())))
+        raw_corr = d.get('z_corrections', {})
+        if not isinstance(raw_corr, dict):
+            raise SettingsError("tools.z_corrections", "must be an object of head to mm")
+        corr = {}
+        for key, value in raw_corr.items():
+            m = _HEAD_KEY_RE.fullmatch(key) if isinstance(key, str) else None
+            number = int(m.group(1)) if m else key
+            if value == 0 and not isinstance(value, bool):
+                continue
+            corr[number] = value
+        table = cls(bits, dict(sorted(heads.items())), corr)
         table._check_heads()
         return table
 
@@ -182,8 +199,13 @@ class ToolTable:
                 if getattr(b, k) is not None:
                     item[k] = getattr(b, k)
             bits.append(item)
-        return {'bits': bits,
-                'heads': {f"T{n}": bid for n, bid in sorted(self.heads.items())}}
+        out = {'bits': bits,
+               'heads': {f"T{n}": bid for n, bid in sorted(self.heads.items())}}
+        corr = {n: v for n, v in self.z_corrections.items() if v != 0 or isinstance(v, bool)}
+        if corr:
+            out['z_corrections'] = {f"T{n}" if isinstance(n, int) else str(n): v
+                                    for n, v in sorted(corr.items(), key=lambda kv: str(kv[0]))}
+        return out
 
     def bit(self, bit_id):
         for b in self.bits:
@@ -219,6 +241,17 @@ class ToolTable:
             seen.add(b.id)
             self._validate_bit(b)
         self._check_heads()
+        self._check_corrections()
+
+    def _check_corrections(self) -> None:
+        for n, v in self.z_corrections.items():
+            path = f"tools.z_corrections.{f'T{n}' if isinstance(n, int) else n}"
+            if n not in HEADS:
+                raise SettingsError(path, f"{n} is not a machine head")
+            if not _is_number(v):
+                raise SettingsError(path, "must be a number of mm")
+            if not abs(v) < 50:
+                raise SettingsError(path, "must be less than 50 mm either way")
 
     def _validate_bit(self, b: Bit) -> None:
         path = f"tools.bits.{b.id}"

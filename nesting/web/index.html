@@ -249,7 +249,7 @@ tr.flash td{background:#fff4e0}
   </div>
   <div class="tbox">
     <h2>Toolheads</h2>
-    <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings.</p>
+    <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings. <b>Z corr.</b>: how much deeper a head really cuts than written, in mm (measured with a test cut); every operation on that head is written that much shallower. CNC90's own tool table (CORREC.Z) stays untouched. T66 cut 3.5 mm deeper on 2026-11-20.</p>
     <div id="headMap"></div>
     <p class="note">Where each head sits, from the control's own spindle table (PARTEC1.PAR on the backup, millimetres from T1), seen from above as you stand in front of the machine: left to right the drill cross, T65, T66 and the X blade, as on the machine. +X to the right and +Y toward the front, as in the programs; that the table's Y runs toward the front like this is not checked. Blades are drawn at their diameter along the cut they make (X blade along X, Y blade along Y). Each head shows its number and the Ø of the bit in it; dashed: no bit. Click a head to pick its bit below. Not checked on the machine: run ZZT4D (post/machine-tests) to confirm which spindle is which.</p>
     <table id="headsTable"></table>
@@ -315,6 +315,7 @@ const FIELDS = {
   routerFields: [
     ['router.tool', 'Router head', ROUTER_HEADS, 0, 'head'],
     ['router.clearance', 'Clearance between cuts', 'mm'],
+    ['router.end_lift', 'Lift above the blank at the end of a cut program', 'mm', 1],
     ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
   pocketFields: [
     ['pockets.min_circle_diameter', 'A circle over this Ø is a pocket (else a hole)', 'mm', 0.5],
@@ -426,9 +427,12 @@ function showFieldError(err){
   let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
   // tools.bits.<id>.<field> and tools.heads.T<n>: the message goes under the bit's or head's
   // row; any other tools field under the tables
-  const t = /^tools\.(bits|heads)\.([^.]+)(?:\.(.+))?$/.exec(err.field || '');
+  const t = /^tools\.(bits|heads|z_corrections)\.([^.]+)(?:\.(.+))?$/.exec(err.field || '');
   if (!box && t){
-    box = document.querySelector(`.ferr[data-err="${CSS.escape(`tools.${t[1]}.${t[2]}`)}"]`);
+    // a head's Z correction: under the head's row
+    const where = t[1] === 'z_corrections' ? 'heads' : t[1];
+    box = document.querySelector(`.ferr[data-err="${CSS.escape(`tools.${where}.${t[2]}`)}"]`);
+    if (t[1] === 'z_corrections') msg = `Z correction: ${msg}`;
     if (t[3]) msg = `${t[3]}: ${msg}`;
   }
   if (!box && /^tools(\.|$)/.test(err.field || '')){
@@ -795,7 +799,8 @@ const usesHead = n => n === 65 || n === 66 || (n >= 1 && n <= 14);
 function renderHeads(ok){
   const tbl = $('headsTable');
   headRows = [];
-  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Head'), el('th', {}, 'Where'), el('th', {}, 'Bit'), el('th', {}, 'Used by'))));
+  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Head'), el('th', {}, 'Where'), el('th', {}, 'Bit'),
+    el('th', {className: 'num', title: 'How much deeper this head really cuts than written, in mm: every operation on it is written that much shallower'}, 'Z corr. mm'), el('th', {}, 'Used by'))));
   if (!ok) return;
   const body = el('tbody');
   const known = new Set(headList.map(h => 'T' + h.number));
@@ -811,9 +816,23 @@ function renderHeads(ok){
     });
     const used = el('td', {className: 'used'});
     const err = el('div', {className: 'ferr'}); err.dataset.err = `tools.heads.${h.key}`;
+    // Z correction: mm this head cuts deeper than written (0 or empty: none, not stored)
+    const corr = el('input', {type: 'number', step: '0.1', className: 'num', style: 'width:5.5em'});
+    corr.id = `zcorr-${h.key}`;
+    corr.dataset.k = `tools.z_corrections.${h.key}`;
+    const zc = isPlainObject(project.tools.z_corrections) ? project.tools.z_corrections : {};
+    corr.value = zc[h.key] == null ? '' : String(zc[h.key]);
+    corr.addEventListener('change', () => {
+      const v = corr.value.trim() === '' ? 0 : Number(corr.value);
+      const map = isPlainObject(project.tools.z_corrections) ? project.tools.z_corrections : {};
+      if (v === 0) delete map[h.key]; else map[h.key] = Number.isFinite(v) ? v : corr.value;
+      if (Object.keys(map).length) project.tools.z_corrections = map; else delete project.tools.z_corrections;
+      changed();
+    });
     body.append(el('tr', {}, el('td', {}, el('b', {}, h.key)),
-      el('td', {}, h.allows.length ? `${h.label} (${h.allows.join(' or ')} bits)` : h.label), el('td', {}, sel), used),
-      el('tr', {className: 'erow'}, el('td', {colSpan: 4}, err)));
+      el('td', {}, h.allows.length ? `${h.label} (${h.allows.join(' or ')} bits)` : h.label), el('td', {}, sel),
+      el('td', {className: 'num'}, corr), used),
+      el('tr', {className: 'erow'}, el('td', {colSpan: 5}, err)));
     headRows.push({h, sel, used});
   });
   tbl.append(body);
