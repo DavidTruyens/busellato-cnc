@@ -17,6 +17,9 @@ from nesting.settings import Settings
 from helpers import put_bit
 from test_nesting_program import pocket_shape, rect, rect_loop
 
+WITH_POCKETS = ("Run <b>B01C</b>: it cuts first the pockets, into the shapes from the top face of the blank; then the shape outlines, out of the blank. The blank's frame is not cut.")
+OUTLINES_ONLY = ("Run <b>B01C</b>: it cuts the shape outlines out of the blank. The blank's frame is not cut.")
+
 repo = Path(__file__).resolve().parent.parent
 
 
@@ -39,16 +42,18 @@ class OutputTests(unittest.TestCase):
     def test_files_written_and_loader_present(self):
         files = self.write()
         names = {p.name for p in files}
-        for n in ('LOAD.BAT', 'L1.BAT', 'COLLECT.BAT', 'C1.BAT', 'PROJECT.json', 'RUNSHEET.html'):
+        for n in ('DISKETTE', 'PROJECT.json', 'RUNSHEET.html'):
             self.assertIn(n, names)
+        for n in ('LOAD.BAT', 'L1.BAT', 'COLLECT.BAT', 'C1.BAT'):   # the loader is on the diskette
+            self.assertNotIn(n, names)
         for p in self.progs:
             self.assertIn(p.name, names)
         self.assertEqual({p.name for p in self.out.iterdir()}, names)
         self.assertTrue(all(p.parent == self.out for p in files))
         self.assertEqual(len(files), len(set(files)))
-        load = (self.out / 'LOAD.BAT').read_bytes().decode('ascii')
+        load = (self.out / 'DISKETTE' / 'LOAD.BAT').read_bytes().decode('ascii')
         for p in self.progs:
-            self.assertIn(p.name.upper(), load)
+            self.assertIn(f'ECHO {p.name.upper()} COPIED', load)
         text = (self.out / self.progs[0].name).read_bytes()
         self.assertEqual(text, BACKENDS['cnc90'](self.progs[0], self.s).encode('ascii'))
         self.assertIn(b'\r\n', text)
@@ -66,7 +71,7 @@ class OutputTests(unittest.TestCase):
         orig = bad.name
         bad.name = 'Q' + orig[1:]          # no SRG folder Q on the machine
         try:
-            with self.assertRaises(RuntimeError) as cm:
+            with self.assertRaises(ValueError) as cm:
                 self.write()
         finally:
             bad.name = orig
@@ -136,28 +141,51 @@ class OutputTests(unittest.TestCase):
     def test_loader_and_project_have_the_d_and_c_programs(self):
         files = {p.name: p for p in self.write()}
         progs = sorted(p.name for p in self.progs)
-        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DPC'))
+        self.assertEqual(progs, sorted(f'B0{n}{k}' for n in range(1, 7) for k in 'DC'))
         for n in progs:
             self.assertIn(n, files)
         self.assertFalse([n for n in files if re.fullmatch(r'B\d\d[FS]', n)])
-        load = files['LOAD.BAT'].read_text()
+        load = (files['DISKETTE'] / 'LOAD.BAT').read_text()
         for n in progs:
-            self.assertIn(f'CALL A:\\L1.BAT B {n[1:]} {n}', load)
-        collect = files['COLLECT.BAT'].read_text()
-        self.assertIn('CALL A:\\C1.BAT B 01D', collect)
-        self.assertNotRegex(load + collect, r'B ?\d\d[FS]\b')
+            self.assertIn(f'COPY /V A:\\SORG\\SRG\\B\\{n[1:]} ', load)
+        self.assertNotRegex(load, r'B ?\d\d[FS]\b')
         proj = json.loads(files['PROJECT.json'].read_text())
         self.assertEqual(proj['settings']['drill_fix']['tool'], 1)
         self.assertEqual(proj['settings']['drill_screw']['tool'], 2)
+
+    def test_make_loader_replaces_programs_already_on_the_machine(self):
+        # tools/make-loader.py (the machine-test diskettes; jobs register with LOAD.BAT from
+        # nesting/register.py): 2026-11-20 the machine kept old programs because the loader
+        # skipped existing files
+        self.write()
+        out = Path(self.tmp.name) / 'loader'
+        r = subprocess.run([sys.executable, str(repo / 'tools' / 'make-loader.py'), str(out),
+                            *(str(self.out / p.name) for p in self.progs)],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = {p.name: p for p in out.iterdir()}
+        l1 = files['L1.BAT'].read_bytes().decode('ascii').split('\r\n')
+        srg = 'C:\\CNC90\\MOD1\\SORG\\SRG'
+        self.assertNotIn('GOTO TAKEN', l1)
+        self.assertFalse([x for x in l1 if 'ALREADY EXISTS' in x])
+        self.assertIn(f'IF EXIST {srg}\\%1\\%2 ECHO %3: REPLACES SRG\\%1\\%2', l1)
+        copy = l1.index(f'COPY A:\\%3 {srg}\\%1\\%2 > NUL')
+        self.assertLess(l1.index(f'IF NOT EXIST {srg}\\%1\\NUL GOTO NODIR'), copy)
+        self.assertFalse([x for x in l1 if '/Y' in x])     # not on DOS before 6.2
+        load = files['LOAD.BAT'].read_text()
+        self.assertNotIn('NEVER OVERWRITTEN', load)
+        self.assertIn('REPLACED', load)
 
     def test_runsheet_blank_steps_in_order(self):
         html = self._sheet(self.s, self.progs)
         section = html.split('<h2>Blank B01 ')[1].split('</section>')[0]
         order = [section.index(x) for x in ('origin corner', 'Clamp it', 'Run <b>B01D</b>',
                                             'Screw the blank', 'each shape',
-                                            'Take the clamps off', 'Run <b>B01P</b>',
-                                            'Run <b>B01C</b>', 'Unscrew')]
+                                            'Take the clamps off', WITH_POCKETS,
+                                            'Unscrew')]
         self.assertEqual(order, sorted(order))
+        self.assertNotIn('B01P', section)
+        self.assertEqual(section.count('Run <b>'), 2)          # B01D and B01C only
         self.assertIn('the blank still clamped: every hole', section)
 
     def test_runsheet_lists_each_drill_tool_with_diameter_and_feed(self):
@@ -241,9 +269,9 @@ class OutputTests(unittest.TestCase):
         html = (self.out / 'RUNSHEET.html').read_text(encoding='utf-8')
         data = preview_data(self.plan, self.progs, self.s)
         self.assertTrue(data['pocket_groups'])
-        self.assertIn('Run <b>B01P</b>', html)
-        self.assertLess(html.index('Run <b>B01D</b>'), html.index('Run <b>B01P</b>'))
-        self.assertLess(html.index('Run <b>B01P</b>'), html.index('Run <b>B01C</b>'))
+        self.assertNotIn('B01P', html)
+        self.assertIn(WITH_POCKETS, html)
+        self.assertLess(html.index('Run <b>B01D</b>'), html.index(WITH_POCKETS))
         self.assertIn('<b>Pockets</b>', html)
         g = data['pocket_groups'][0]
         self.assertIn(f'<td>{g["id"]}</td><td><span class="sw" style="background:{g["color"]}">', html)
@@ -257,7 +285,8 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn('<b>Pockets</b>', html)
         self.assertNotIn('B01P', html)
         self.assertNotIn('class="pocket"', html)
-        self.assertIn('Run <b>B01C</b>', html)
+        self.assertIn(OUTLINES_ONLY, html)
+        self.assertNotIn('pockets', html.split('<h2>Blank B01 ')[1].split('</section>')[0])
 
     def test_disabled_group_is_not_in_the_run_sheet(self):
         sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
@@ -271,6 +300,7 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn('B01P', html)
         self.assertNotIn('<b>Pockets</b>', html)
         self.assertNotIn('class="pocket"', html)
+        self.assertIn(OUTLINES_ONLY, html)               # its only group is switched off
 
     def test_project_json_has_pocket_overrides_and_groups(self):
         sh = pocket_shape('p', [rect_loop(100, 50, 40, 30)])
@@ -291,16 +321,20 @@ class OutputTests(unittest.TestCase):
         data = json.loads((self.out / 'PROJECT.json').read_text(encoding='utf-8'))
         self.assertEqual(data['tools'], self.s.tools.to_dict())
 
-    def test_loader_and_diskette_include_pocket_programs(self):
+    def test_loader_and_diskette_include_the_cut_programs_with_pockets(self):
         self.write()
         names = [p.name for p in self.progs]
-        self.assertIn('B01P', names)
-        for f in ('LOAD.BAT', 'COLLECT.BAT'):
-            text = (self.out / f).read_bytes().decode('ascii')
-            for n in names:
-                self.assertIn(n.upper() if f == 'LOAD.BAT' else f'{n[0]} {n[1:]}', text, (f, n))
+        self.assertNotIn('B01P', names)
+        c = next(p for p in self.progs if p.name == 'B01C')
+        self.assertIn(' pocket ', c.ops[0].label)        # the pockets go first in C
+        text = (self.out / 'DISKETTE' / 'LOAD.BAT').read_bytes().decode('ascii')
+        for n in names:
+            self.assertIn(f'ECHO {n.upper()} COPIED', text, n)
         disk = self.out / 'DISKETTE' / 'SORG'
-        self.assertTrue((disk / 'SRG' / 'B' / '01P').is_file())
+        self.assertTrue((disk / 'SRG' / 'B' / '01C').is_file())
+        self.assertFalse((disk / 'SRG' / 'B' / '01P').exists())
+        self.assertEqual((disk / 'SRG' / 'B' / '01C').read_bytes(),
+                         BACKENDS['cnc90'](c, self.s).encode('ascii'))
         self.assertEqual((disk / 'INDICE.PRG').stat().st_size, 82 * len(names))
 
 

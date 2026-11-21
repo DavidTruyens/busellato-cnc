@@ -2,8 +2,8 @@
 
 A local tool (Python 3.11, standard library only) that takes part outlines (DXF), groups them
 into rectangular **blanks**, plans how a **panel saw** cuts those blanks from 1220 x 2440 panels,
-and writes, per blank, one CNC90 drill program, one cut program and, when the shapes have pockets,
-one pocket program for the Busellato S.EASY. Design:
+and writes, per blank, one CNC90 drill program and one cut program (which cuts the pockets
+first, when the shapes have pockets) for the Busellato S.EASY. Design:
 `docs/superpowers/specs/2026-11-08-nesting-tool-design.md` (see its "Revision 2026-11-09").
 
 The machine's work frame is smaller than a panel, so a whole panel is never machined at once.
@@ -76,11 +76,41 @@ starts the tool on port 8800 with project `%USERPROFILE%\nesting-project` and op
 (`python -m nesting.diskette [JOB_OR_PROJECT] [A:] [--keep]`: removable drives only, nothing
 larger than a diskette, asks `YES` before erasing, reads every file back). Not tested on Windows.
 
-Every job folder has a `DISKETTE` folder holding exactly what goes on the diskette: the loader
-(`LOAD.BAT`, `L1.BAT`, `COLLECT.BAT`, `C1.BAT`) and the programs flat in its root, and
+Every job folder has a `DISKETTE` folder holding exactly what goes on the diskette:
 `SORG\INDICE.PRG` plus `SORG\SRG\<first char>\<rest of name>`, the import format CNC90 file
 management writes itself (for Programma Kopie, which registers the programs;
-`nesting/importdisk.py`). Generate warns when it would not fit a 1.44 MB diskette.
+`nesting/importdisk.py`), and `LOAD.BAT`, `GETIDX.BAT` and `REG\T1.TXT`, `T2.TXT` for
+registering from DOS (`nesting/register.py`). Generate warns when it would not fit a 1.44 MB
+diskette.
+
+**Registering from DOS.** CNC90 lists only the programs in its index
+`C:\CNC90\MOD1\SORG\INDICE.PRG` (82-byte records sorted by name; copying a file into SRG does
+not register it). `A:LOAD` (DOS prompt, CNC90 closed) copies the job's programs into SRG and
+makes the machine list **only this job**: the first time it keeps the full list as `INDICE.ALL`
+(never overwritten), every time the list in use as `INDICE.<job>`, then puts the diskette's own
+job index (`SORG\INDICE.PRG`, the one Programma Kopie reads) in place: copied beside the old list
+as `INDICE.NEW` first, renamed into place only once it is there. The other programs' files stay;
+`A:FULLIDX` puts the full list back (keeping the list in use as `INDICE.CUR`). `A:GETIDX` copies
+the machine's list to the diskette (`REG\NOW.PRG`); the diskette tool keeps it in the project's
+`machine-index/` folder as a backup of the full list. The machine's MS-DOS 5 `FC` sets no error
+level (seen 2026-11-20), so the batch files compare nothing: a copy goes to a name deleted first
+and is checked to exist, and `COPY /V` verifies the writing. Not yet run on the machine.
+
+**Z correction per head.** The tool table (Tools page) has a Z correction per head: how
+much deeper that head really cuts than written, in mm, measured with a test cut. Every operation
+on that head (router cut, pocket, drill hole) is written that much shallower; the passes stay
+the same. Stored as `tools.z_corrections` (`{"T66": 3.5}`); CNC90's own tool table (CORREC.Z)
+is left untouched. T66 cut 3.5 mm deeper on 2026-11-20 (19 mm blank). A project with the
+earlier `router.depth_correction` setting has it moved to the router head when loaded.
+
+**End lift.** `router.end_lift` (mm): a cut program ends by lifting straight up from its last
+point to that height above the top of the blank (`G1 … Z-20`), before `M2`. On 2026-11-20 the
+machine moved Y home at `M2` with the bit still in the groove (the end-of-program lift did not
+clear it, T66 being longer than CNC90 thinks): a Y-axis emergency, three times. 0: no lift.
+
+**Arc direction.** G2/G3 is the sense seen from above on the machine. With Y toward the front
+the program's numbers are mirrored, so the code is the opposite of the numbers' sense (first cut,
+2026-11-20: taken from the numbers, every arc bulged to the wrong side).
 
 ## Settings
 
@@ -304,10 +334,14 @@ centre; arcs stay arcs; no G41/G42; entry is a plunge at the start of each ring.
   the bit's depth per pass. Deeper than thickness minus `min_floor`, or reaching the vacuum cups, is an
   error.
 
-**Program `B<nn>P`.** One per blank that has an enabled pocket. Pockets are ordered by head (first appearance), within a head by group, and every operation
-names its own tool, spindle speed and feeds (the file header takes the first). Run sequence per
-blank: drill `B<nn>D` -> screw the blank and shapes down -> pockets `B<nn>P` -> cut `B<nn>C`.
-The programs are in the job's folder and `DISKETTE`; the preview shows `B<nn>P` in its Cut view,
+**Pockets in the cut program `B<nn>C`.** The pockets of a blank are the first operations of its
+cut program, before the outlines, so they are cut while the shapes are still screwed down and
+held by the blank. Pockets are ordered by head (first appearance), within a head by group, and
+every pocket operation names its own tool, spindle speed and feeds; the outlines then use the
+router. One program can change bits: 40 of the 2,860 programs on the machine backups switch
+between T65 and T66. Run sequence per blank: drill `B<nn>D` -> screw the blank and shapes down ->
+cut `B<nn>C`. Until 2026-11-20 the pockets were a separate program `B<nn>P`.
+The programs are in the job's folder and `DISKETTE`; the preview shows the pockets in its Cut view,
 which also draws the pocket cutter path, and the run sheet (a pocket table per blank: group,
 colour, size, count, tool, tool diameter, depth, passes). The server remembers pocket rings between plans (a
 long pocket takes about half a second to compute).
@@ -389,23 +423,34 @@ The scrap plate lies on the vacuum cups, aligned by the machine's X and Y pins. 
 time goes on top of it, its origin corner (see "Program coordinates") against the pins, long side
 along machine X. That the origin sits at the pins is an assumption to check at the machine.
 
-Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole),
-`BnnP` (the pockets; only when the blank's shapes have an enabled pocket) and
-`BnnC` (cut the shape outlines). `BnnD` holds both hole kinds even when they use different tools:
+Per blank `Bnn`, the programs are `BnnD` (drill: the 4 fixing holes and every screw hole) and
+`BnnC` (cut: first the pockets, when the blank's shapes have an enabled pocket, then the shape
+outlines). `BnnD` holds both hole kinds even when they use different tools:
 every `G81` line names its own tool (`T01nn`), as in many of the machine's own programs (on the H05
 backup 203 of the 717 programs name more than one tool, 63 of them in `G81` drill lines). The holes are grouped by tool, in
 the order fixing tool, screw tool, so the tool changes only once; with one tool it is a single
 group, fixing holes first. Whether the machine changes between these particular drill tools
 inside one program has not been tried. The first character `B` is the machine folder
-(`SRG\B\nnD`). The number has 2 digits, or more when there are more than 99 blanks (all names
-then get the same width, for example `B100C`). Every blank gets its own programs, even when two
+(`SRG\B\...`). The blank number has 2 digits, or more when there are more than 99 blanks (all
+names then get the same width).
+
+**Job numbers.** Every Generate is a new job with its own number, 1 to 999 and then 1 again,
+written after the folder letter: job 7, blank 01 gives `B00701D` and `B00701C` (at most 8
+characters, `B999100C`). So a new job never has to replace programs on the machine: CNC90 keeps a
+replaced program's old blank size in its index (seen 2026-11-20). `project.json` keeps the last
+job number (`job`); the preview shows the names the next Generate will use, and the run sheet's
+title names the job. Old jobs stay on the machine until they are deleted in CNC90 file
+management. Every blank gets its own programs, even when two
 blanks have the same shapes in the same layout (sharing them is possible but not done).
 
 1. Write the job's `DISKETTE` folder to the diskette (`copy-to-diskette.bat`, or
-   `python -m nesting.diskette JOB TARGET`). In CNC90 file management, Programma Kopie from the
-   diskette. If the programs do not appear in the compiler list: in DOS run `A:LOAD` (copies
-   each program to its folder without overwriting), then register each program in file
-   management, open it in the editor and save it once.
+   `python -m nesting.diskette JOB TARGET`), with `REG\NOW.PRG` from `A:GETIDX` on it. Then
+   `A:LOAD` at the DOS prompt (CNC90 closed) copies the programs and registers them in
+   CNC90's program list. It changes nothing unless every check passes: DOS's `FC` must pass a
+   self-test, and the machine's list must still be the one the diskette's new list was made
+   from (`REG\OLD.PRG`). It backs the list up as `C:\CNC90\MOD1\SORG\INDICE.<job>`, puts
+   `REG\NEW.PRG` in its place and checks it (restoring the backup if that fails). If it
+   refuses, load the job with Programma Kopie in CNC90 file management instead.
 2. Compile.
 3. Saw each panel into blanks as the run sheet's cut list says (`RUNSHEET.html`: per panel the
    cut list and which blank is which, then a page per blank).
@@ -413,10 +458,9 @@ blanks have the same shapes in the same layout (sharing them is possible but not
    holes, the blank still clamped.
 5. Screw the blank to the scrap through the fixing holes, and each shape down through its screw
    holes; take the clamps off.
-6. If the blank has a `BnnP`, run it now: it cuts the pockets into the shapes from the top face,
-   while they are still screwed down.
-7. Run the cut (`BnnC`): it cuts the shapes out of the blank; the blank's frame is not cut.
-8. Unscrew the shapes and the frame; next blank.
+6. Run the cut (`BnnC`): first the pockets into the shapes from the top face, while they are
+   still screwed down, then the shapes out of the blank; the blank's frame is not cut.
+7. Unscrew the shapes and the frame; next blank.
 
 ## Safety
 

@@ -41,9 +41,33 @@ def zzt1_segs():
     ]
 
 
+def unmirrored() -> Settings:
+    """Settings with Y toward the back: program numbers as seen from above, unmirrored, as
+    the Fusion post writes them (the golden files). With 'front' the arcs' G2/G3 swap."""
+    s = Settings()
+    s.machine.y_toward = 'back'
+    return s
+
+
 class Cnc90Tests(unittest.TestCase):
     def setUp(self):
-        self.s = Settings()
+        self.s = unmirrored()
+
+    def test_front_swaps_only_g2_and_g3(self):
+        # 2026-11-20, first cut: G2/G3 are the sense seen from above on the machine; with Y
+        # toward the front the program's numbers are mirrored, so the code is the opposite
+        # of the numbers' sense (taken from the numbers, every arc bulged the wrong way)
+        op = ContourOp(zzt1_segs(), 2, 'x')
+        p = Program('ZZT1', 65, 'cut', '', (400, 300, 18), [op], 18000, 1, 3)
+        front = Settings()
+        front.machine.y_toward = 'front'
+        swap = str.maketrans({'2': '3', '3': '2'})
+        for a, b in zip(emit(p, self.s).split('\r\n'), emit(p, front).split('\r\n')):
+            if a.startswith(('G2G', 'G3G')):
+                self.assertEqual(b[:2], a[:2].translate(swap))
+                self.assertEqual(b[2:], a[2:])
+            else:
+                self.assertEqual(a, b)
 
     def test_matches_ZZT1AD(self):
         ops = [DrillOp(320, 220, 2, 6), DrillOp(352, 220, 2, 6), DrillOp(320, 260, 2, 6)]
@@ -159,7 +183,8 @@ class Cnc90Tests(unittest.TestCase):
 
 
 class MultiPassEmitTests(unittest.TestCase):
-    """The default B01C as emitted: each shape contour is cut in three equal passes."""
+    """The default B01C as emitted: its pockets first, then each shape contour in three equal
+    passes."""
 
     def test_default_b01c_pass_depths_in_the_text(self):
         s = Settings()
@@ -175,7 +200,9 @@ class MultiPassEmitTests(unittest.TestCase):
             if cur is not None:
                 cur += [float(z) for z in re.findall(r'Z(-?[\d.]+)', line)]
         self.assertEqual(len(blocks), len(prog.ops))
-        self.assertEqual(len(blocks), 6)        # 2 shapes x 3 passes, no template outline
+        npk = len(pocket_ops(prog))
+        self.assertGreater(npk, 0)              # the real plates have pockets
+        self.assertEqual(len(blocks) - npk, 6)  # 2 shapes x 3 passes, no template outline
 
         def distinct(bs):
             out = []
@@ -184,7 +211,15 @@ class MultiPassEmitTests(unittest.TestCase):
                 out.append(b[0])
             return out
 
-        self.assertEqual(distinct(blocks), [6.167, 12.333, 18.5] * 2)
+        self.assertEqual(distinct(blocks[:npk]), [round(o.depth, 3) for o in prog.ops[:npk]])
+        self.assertEqual(distinct(blocks[npk:]), [6.167, 12.333, 18.5] * 2)
+
+
+def pocket_ops(prog):
+    """The pocket ops of a cut program, checked to come before every outline op."""
+    ops = [o for o in prog.ops if ' pocket ' in o.label]
+    assert prog.ops[:len(ops)] == ops, f'{prog.name}: a pocket op after an outline op'
+    return ops
 
 
 def check(test, programs, settings):
@@ -200,15 +235,60 @@ def check(test, programs, settings):
     test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class EndLiftTests(unittest.TestCase):
+    """router.end_lift: a cut program ends by lifting straight up from its last point to that
+    many mm above the top of the blank, before M2 (2026-11-20: at M2 the machine moved Y home
+    with the bit still in the groove: Y emergency, three times)."""
+
+    def prog(self):
+        op = ContourOp(zzt1_segs(), 2, 'x')
+        return Program('ZZT1', 65, 'cut', '', (400, 300, 18), [op], 18000, 1, 3)
+
+    def test_lift_before_m2_at_the_last_point(self):
+        s = unmirrored()
+        s.router.end_lift = 20
+        lines = emit(self.prog(), s).split('\r\n')
+        self.assertEqual(lines[-2], 'M2')
+        last = self.prog().ops[-1].segs[-1].b
+        self.assertEqual(lines[-3], f'G1G90X{fmt(last[0])}Y{fmt(last[1])}Z-20')
+        m = re.match(r'G71X400Y300Z18T00N(\d+)L(\d+)$', lines[0])
+        self.assertEqual(int(m.group(1)), len(lines) - 1)
+
+    def test_no_lift_by_default_and_none_for_drilling(self):
+        s = unmirrored()
+        self.assertEqual(emit(self.prog(), s), golden('ZZT1'))
+        s.router.end_lift = 20
+        p = Program('ZZT1AD', 1, 'drill', '', (400, 300, 60), [DrillOp(320, 220, 2, 6)], None, 1, 1)
+        self.assertNotIn('Z-', emit(p, s))
+
+    def test_checker_accepts_the_lift(self):
+        s = unmirrored()
+        s.router.end_lift = 20
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'ZZT1'
+            path.write_bytes(emit(self.prog(), s).encode('ascii'))
+            r = subprocess.run([sys.executable, str(repo / 'tools' / 'check_cnc90.py'), str(path)],
+                               capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_setting_is_a_number_not_negative(self):
+        from nesting.settings import SettingsError
+        for bad in (-1, float('nan'), 'x'):
+            s = Settings()
+            s.router.end_lift = bad
+            with self.subTest(bad=bad), self.assertRaises(SettingsError):
+                s.validate()
+
+
 class PocketEmitTests(unittest.TestCase):
     def setUp(self):
-        self.s = Settings()
+        self.s = unmirrored()
 
     def test_g88_line_has_the_ops_tool_spindle_and_feed(self):
         op = ContourOp([Line((10, 10), (50, 10)), Line((50, 10), (10, 10))], 4, 'x',
                        tool=7, spindle_rpm=12000, plunge_feed=2, cut_feed=5)
         plain = ContourOp([Line((10, 20), (50, 20))], 4, 'y')
-        p = Program('B01P', 66, 'pocket', '', (690, 290, 36), [op, plain], 18000, 1, 3)
+        p = Program('B01C', 66, 'cut', '', (690, 290, 36), [op, plain], 18000, 1, 3)
         self.assertEqual(p.tools, [7, 66])
         self.assertEqual(emit(p, self.s), ''.join(l + '\r\n' for l in [
             'G71X690Y290Z36T00N8L5', 'G150()',
@@ -237,7 +317,8 @@ class PocketEmitTests(unittest.TestCase):
         # a round pocket exactly the tool diameter: one zero-length line
         op = ContourOp([Line((245, 145), (245, 145))], 4, 'B01 p #1 G1 pocket 1 pass 1/2 ring 1/1',
                        tool=66, spindle_rpm=18000, plunge_feed=1, cut_feed=3)
-        p = Program('B01P', 66, 'pocket', 'Pockets', (690, 290, 36), [op], 18000, 1, 3)
+        p = Program('B01C', 66, 'cut', 'Pockets and shape outlines', (690, 290, 36), [op],
+                    18000, 1, 3)
         lines = emit(p, self.s).split('\r\n')
         self.assertEqual(lines[2:4], ['G88G90G54P5T0166S18000F1X245Y145Z4',
                                       'G1G90F3X245Y145Z4'])
@@ -247,7 +328,8 @@ class PocketEmitTests(unittest.TestCase):
         arc = Arc((10, 10.0002), (10, 9.9998), (10, 10), 0.0002, False)
         op = ContourOp([Line((50, 10), (10, 10.0002)), arc, Line((10, 9.9998), (50, 10))], 4,
                        'B01 p #1 G1 pocket 1 pass 1/1 ring 1/1')
-        p = Program('B01P', 66, 'pocket', 'Pockets', (690, 290, 36), [op], 18000, 1, 3)
+        p = Program('B01C', 66, 'cut', 'Pockets and shape outlines', (690, 290, 36), [op],
+                    18000, 1, 3)
         with self.assertRaisesRegex(ProgramError, 'U0'):
             emit(p, self.s)
         ok = Arc((10, 10.001), (10, 9.999), (10, 10), 0.001, False)
@@ -261,26 +343,31 @@ class PocketEmitTests(unittest.TestCase):
                          Line((600, 200), (0, 200)), Line((0, 200), (0, 0))], [],
                    [Pocket(slot_outline(100, 50, 300, 20.8004))])
         progs = [p for p in plan_programs(build_plan([ShapeEntry(sh)], s), s)
-                 if p.kind == 'pocket']
+                 if p.kind == 'cut']
         self.assertEqual(len(progs), 1)
+        self.assertTrue(pocket_ops(progs[0]))
         text = emit(progs[0], s)
         self.assertNotRegex(text, r'U0(\r|$)')
         self.assertTrue(all(float(u) >= 0.001 for u in re.findall(r'U([\d.]+)', text)))
         check(self, progs, s)
 
-    def test_generated_pocket_programs_pass_the_checker(self):
+    def test_generated_cut_programs_with_pockets_pass_the_checker(self):
         for tool, dia in ((66, 8), (65, 12)):
             with self.subTest(diameter=dia):
                 s = Settings()
                 put_bit(s, tool, diameter=dia)
                 s.pockets.tool = tool
                 entries = [ShapeEntry(read_dxf(p)) for p in sorted((repo / 'plates').glob('*.dxf'))]
-                progs = [p for p in plan_programs(build_plan(entries, s), s) if p.kind == 'pocket']
+                progs = [p for p in plan_programs(build_plan(entries, s), s) if p.kind == 'cut']
                 self.assertEqual(len(progs), 6)
                 for p in progs:
                     text = emit(p, s)
+                    pk = pocket_ops(p)
+                    self.assertTrue(pk)
+                    # the outlines use the router, T66 like the default pocket head
+                    want = len(pk) + (len(p.ops) - len(pk) if tool == s.router.tool else 0)
                     self.assertEqual(len(re.findall(rf'^G88G90G54P5T01{tool}S18000F1X', text, re.M)),
-                                     len(p.ops))
+                                     want)
                 check(self, progs, s)
 
 

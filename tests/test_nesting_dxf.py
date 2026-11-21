@@ -200,7 +200,7 @@ class EncodingTests(unittest.TestCase):
         self.assertEqual(bbox(shape.outline), (0, 0, 500, 200))
 
     def test_crlf_reads_like_lf(self):
-        text = (ROOT / "plates" / "3-1.dxf").read_text()
+        text = (ROOT / "plates" / "klas_3-1.dxf").read_text()
         lf = read_dxf(self.write_bytes("lf.dxf", text.encode("utf-8")))
         crlf = read_dxf(self.write_bytes("crlf.dxf", text.replace("\n", "\r\n").encode("utf-8")))
         self.assertEqual((crlf.outline, crlf.holes), (lf.outline, lf.holes))
@@ -305,8 +305,9 @@ class PocketTests(unittest.TestCase):
                 self.assertEqual(len(shape.pockets), 1)
                 self.assertEqual(len(shape.holes), 2)
                 x0, y0, x1, y1 = bbox(shape.pockets[0].outline)
-                self.assertAlmostEqual(y1 - y0, 20, delta=0.01)
-                self.assertAlmostEqual(x1 - x0, shape.length - 60, delta=0.01)
+                # the rail slot: 15.1 wide, ending 32.45 from each end of the plate
+                self.assertAlmostEqual(y1 - y0, 15.1, delta=0.01)
+                self.assertAlmostEqual(x1 - x0, shape.length - 64.9, delta=0.01)
 
     def test_mirrored_dxf_gives_mirrored_shape(self):
         def build(m):

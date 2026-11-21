@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from nesting import importdisk
+from nesting import importdisk, register
 from nesting.dxf import read_dxf
 from nesting.layout import ShapeEntry, build_plan
 from nesting.output import write_output
@@ -75,7 +75,8 @@ class DisketteFolderTests(unittest.TestCase):
 
     def test_layout(self):
         root = sorted(p.name for p in self.disk.iterdir())
-        self.assertEqual(root, sorted(self.names + list(importdisk.LOADER_FILES) + ['SORG']))
+        # no loose programs: Programma Kopie reads SORG, LOAD.BAT copies from SORG too
+        self.assertEqual(root, sorted(list(importdisk.LOADER_FILES) + ['SORG']))
         self.assertEqual(sorted(p.name for p in (self.disk / 'SORG').iterdir()), ['INDICE.PRG', 'SRG'])
         tree = sorted(str(p.relative_to(self.disk / 'SORG' / 'SRG'))
                       for p in (self.disk / 'SORG' / 'SRG').rglob('*') if p.is_file())
@@ -84,10 +85,14 @@ class DisketteFolderTests(unittest.TestCase):
     def test_files_match_the_job_byte_for_byte(self):
         for n in self.names:
             data = (self.out / n).read_bytes()
-            self.assertEqual((self.disk / n).read_bytes(), data, n)
             self.assertEqual((self.disk / 'SORG' / 'SRG' / n[0] / n[1:]).read_bytes(), data, n)
-        for f in importdisk.LOADER_FILES:
-            self.assertEqual((self.disk / f).read_bytes(), (self.out / f).read_bytes(), f)
+        progs = [p.name for p in self.progs]
+        self.assertEqual((self.disk / 'LOAD.BAT').read_bytes(),
+                         register.load_bat(progs, None).encode('ascii'))
+        self.assertEqual((self.disk / 'GETIDX.BAT').read_bytes(),
+                         register.getidx_bat().encode('ascii'))
+        self.assertEqual((self.disk / 'FULLIDX.BAT').read_bytes(),
+                         register.fullidx_bat().encode('ascii'))
 
     def test_indice(self):
         idx = (self.disk / 'SORG' / 'INDICE.PRG').read_bytes()

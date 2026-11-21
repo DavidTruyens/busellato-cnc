@@ -45,6 +45,10 @@ class Router:
     tool: int = 66  # head; the default table holds Router 8 there (post/README.md)
     clearance: float = 4
     direction: str = "ccw"
+    # a cut program ends by lifting straight up to this many mm above the top of the blank
+    # before M2 (0: no lift). 2026-11-20: at M2 the machine moved Y home with the bit still in
+    # the groove (T66 longer than CNC90 thinks): Y emergency
+    end_lift: float = 0
 
 
 @dataclass
@@ -194,7 +198,7 @@ class Settings:
         non_negative = [
             "panel.edge", "panel.kerf",
             "heights.into_scrap", "heights.fix_into_scrap",
-            "router.clearance",
+            "router.clearance", "router.end_lift",
             "blank.margin_end", "blank.margin_side", "blank.fix_inset",
         ]
         for path in positive:

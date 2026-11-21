@@ -33,7 +33,7 @@ from .settings import Settings
 from .tools import HeadError
 
 LINE_WARNING = 250
-KINDS = ('D', 'P', 'C')         # drill (fixing + screw holes, any tools), pockets, cut
+KINDS = ('D', 'C')              # drill (fixing + screw holes, any tools), cut (pockets first)
 NAME = re.compile(r'[A-Z0-9_-]{1,8}')
 
 
@@ -62,7 +62,7 @@ class ContourOp:
 class Program:
     name: str
     tool: int
-    kind: str                       # 'drill', 'pocket' or 'cut'
+    kind: str                       # 'drill' or 'cut' (pockets, then outlines)
     description: str
     stock: tuple[float, float, float]
     ops: list = field(default_factory=list)
@@ -80,8 +80,10 @@ class Program:
 
     @property
     def tools(self) -> list[int]:
-        """Every tool the program uses, in the order it first uses them. `tool` is the first
-        one (a drill program may mix tools: every G81 line names its own)."""
+        """Every tool the program uses, in the order it first uses them (a program may mix
+        tools: every block names its own). `tool` is the program's own: the first drill's in a
+        drill program, the router's in a cut program, whose pockets may come first with
+        another bit."""
         out: list[int] = []
         for op in self.ops:
             t = self.op_tool(op)
@@ -146,10 +148,13 @@ def _contour(segs: list[Seg], settings: Settings) -> list[Seg]:
     return split_large_arcs(set_direction(out, ccw))
 
 
-def program_name(blank_id: str, kind: str) -> str:
-    """B<nn><D|P|C> (drill, pockets, cut): the first character B is the machine folder
-    SRG\\B."""
-    return f'{blank_id}{kind}'
+def program_name(blank_id: str, kind: str, job: int | None = None) -> str:
+    """B<nn><D|C> (drill; cut: pockets, then outlines): the first character B is the machine
+    folder SRG\\B. With a job number it goes after the folder letter, 3 digits: B<job><nn><D|C>
+    (B00701C), so every job has its own names on the machine."""
+    if job is None:
+        return f'{blank_id}{kind}'
+    return f'{blank_id[0]}{job:03d}{blank_id[1:]}{kind}'
 
 
 def group_by_tool(ops: list[DrillOp]) -> list[DrillOp]:
@@ -262,16 +267,17 @@ def _hole_warnings(name: str, blank: Blank, settings: Settings, label: str,
     return out
 
 
-def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
-                    groups: list[PocketGroup],
-                    rings_of: dict) -> tuple[Program, float] | None:
-    """B<nn>P and its largest cutter radius, or None when the blank has no pocket to cut.
+def _pocket_ops(blank: Blank, settings: Settings, overrides: dict,
+                groups: list[PocketGroup], rings_of: dict,
+                name: str) -> tuple[list[ContourOp], list[str], float]:
+    """The blank's pocket ops (each with its own tool, speed and feeds), the warnings and the
+    largest cutter radius; no ops when the blank has no pocket to cut. They go first in the
+    cut program `name`, before the outlines.
 
     Order: groups by tool (first appearance, stable), within a group for each depth pass every
     pocket of the blank (shape order, then pocket order), for each pocket its rings innermost
     first, the wall ring last. Depths are from the top face of the blank, the top of the stack.
     """
-    name = program_name(blank.id, 'P')
     thick, floor = settings.panel.thickness, settings.pockets.min_floor
     ccw_of = {'cw': False, 'ccw': True}
     # (group, settings, [(placed shape, pocket number, pocket)]) in group order
@@ -351,25 +357,42 @@ def _pocket_program(blank: Blank, settings: Settings, overrides: dict,
             if _boxes_near(a, b, d) and (gap := _gap(a, b)) < d:
                 warnings.append(f'{name}: {la} and {lb} are only {gap:.1f} mm apart, less than '
                                 f'the tool diameter {d:g} mm')
-    if not ops:
-        return None
-    o = ops[0]
-    top = stack_top(settings)
-    p = Program(name, o.tool, 'pocket', 'Pockets', (blank.width, blank.height, top), ops,
-                o.spindle_rpm, o.plunge_feed, o.cut_feed, warnings, blank.id)
-    return p, radius
+    return ops, warnings, radius
+
+
+def _correct_depths(ops: list, settings: Settings, blank: Blank, own_head: int) -> None:
+    """Write every op on a head with a Z correction in the tool table that much shallower (the
+    head really cuts that much deeper). An op without its own tool is on `own_head`, the
+    program's. The passes are planned on the real depths, so their number does not change."""
+    table = settings.tools
+    for op in ops:
+        head = op.tool if op.tool is not None else own_head
+        c = table.z_correction(head)
+        if not c:
+            continue
+        written = op.depth - c
+        if not written > 0:
+            what = op.label if isinstance(op, ContourOp) else f'hole at X{op.x:g} Y{op.y:g}'
+            raise ProgramError(f'{blank.id}: {what} is {op.depth:g} mm deep; with the Z '
+                               f'correction of T{head} ({c:g} mm, tools.z_corrections) it '
+                               f'would be written at {written:g} mm, not below the top of '
+                               f'the blank')
+        op.depth = written
 
 
 def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | None = None,
                    groups: list[PocketGroup] | None = None,
-                   _rings: dict | None = None) -> list[Program]:
-    """Drill, pocket and cut programs of one blank, in the program frame (see the module doc).
+                   _rings: dict | None = None, job: int | None = None) -> list[Program]:
+    """Drill and cut programs of one blank, in the program frame (see the module doc). The cut
+    program cuts the pockets first (while the shapes are still held by the blank), then the
+    outlines; a pocket op names its own tool, so one program serves any number of bits.
 
     pocket_overrides: per pocket group key, the settings that differ from settings.pockets
     (enabled, tool, depth, direction; the rest come from the bit in the group's head).
     groups: the plan's or the project's pocket groups (plan_programs passes them, so a group
     has one id and key over the whole plan); None computes them from this blank's shapes alone.
     _rings: a cache of pocket rings that plan_programs shares between the blanks.
+    job: the job number in the program names (program_name); None: B<nn><D|C>.
     """
     h, r, rbit = settings.heights, settings.router, settings.router_bit
     fix, screw = settings.drill_fix, settings.drill_screw
@@ -398,28 +421,33 @@ def blank_programs(blank: Blank, settings: Settings, pocket_overrides: dict | No
 
     if groups is None:
         groups = find_groups(list({id(ps.shape): ps.shape for ps in blank.shapes}.values()))
-    pocket = _pocket_program(blank, settings, pocket_overrides or {}, groups,
-                             {} if _rings is None else _rings)
+    cut_name = program_name(blank.id, 'C', job)
+    pockets, pocket_warnings, pocket_radius = _pocket_ops(
+        blank, settings, pocket_overrides or {}, groups, {} if _rings is None else _rings,
+        cut_name)
 
     progs: list[Program] = []
     radius: dict[str, float] = {}
     drills = group_by_tool(fix_ops + screw_ops)
+    _correct_depths(drills, settings, blank, fix.tool)
     if drills:
         desc = ' and '.join(w for w, ops in (('Fixing', fix_ops), ('screw', screw_ops)) if ops)
         desc = desc[0].upper() + desc[1:] + ' holes'
         # one program for every hole of the blank, whatever the tools: each G81 line names its
         # own tool, like many of the machine's own programs. Feeds are not written (the
         # control uses each tool's own feed); plunge/cut feed only fill the record.
-        progs.append(Program(program_name(blank.id, 'D'), drills[0].tool, 'drill', desc, stock,
+        progs.append(Program(program_name(blank.id, 'D', job), drills[0].tool, 'drill', desc, stock,
                              drills, None, fix_bit.plunge_feed, fix_bit.plunge_feed,
                              blank=blank.id))
-    if pocket:
-        progs.append(pocket[0])
-        radius[pocket[0].name] = pocket[1]
-    if cuts:
-        progs.append(Program(program_name(blank.id, 'C'), r.tool, 'cut', 'Shape outlines',
-                             stock, cuts, int(rbit.spindle_rpm), rbit.plunge_feed,
-                             rbit.cut_feed, blank=blank.id))
+    _correct_depths(pockets + cuts, settings, blank, r.tool)
+    if pockets or cuts:
+        # the outline ops carry no tool of their own: they use the program's, the router
+        desc = 'Pockets and shape outlines' if pockets else 'Shape outlines'
+        progs.append(Program(cut_name, r.tool, 'cut', desc, stock, pockets + cuts,
+                             int(rbit.spindle_rpm), rbit.plunge_feed, rbit.cut_feed,
+                             pocket_warnings, blank.id))
+        if pockets:
+            radius[cut_name] = max(pocket_radius, rbit.diameter / 2)
     return [_finish(p, blank, settings, radius.get(p.name)) for p in progs]
 
 
@@ -446,8 +474,9 @@ def check_pocket_heads(settings: Settings, overrides: dict, groups: list[PocketG
 
 def plan_programs(plan: Plan, settings: Settings,
                   pocket_overrides: dict | None = None,
-                  groups: list[PocketGroup] | None = None) -> list[Program]:
-    """Every blank's programs. groups: the project's pocket groups (ids and colours over
+                  groups: list[PocketGroup] | None = None,
+                  job: int | None = None) -> list[Program]:
+    """Every blank's programs, named with the job number when one is given. groups: the project's pocket groups (ids and colours over
     every shape of the project, switched off too, so they do not change when a shape is
     switched off); None finds them once over every shape of the plan. A switched-on pocket
     group whose head holds no router bit (check_pocket_heads) is a ProgramError: nothing is
@@ -460,7 +489,7 @@ def plan_programs(plan: Plan, settings: Settings,
         raise ProgramError(bad[0])
     rings: dict = {}
     progs = [p for b in plan.blanks
-             for p in blank_programs(b, settings, pocket_overrides, groups, rings)]
+             for p in blank_programs(b, settings, pocket_overrides, groups, rings, job)]
     names = [p.name for p in progs]
     if len(names) != len(set(names)):       # cannot happen with unique blank ids
         raise ProgramError('two programs would get the same name')

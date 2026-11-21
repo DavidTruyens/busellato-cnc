@@ -1,9 +1,9 @@
 """The DISKETTE folder of a job: exactly what goes on the 1.44 MB diskette for the CNC90.
 
-  DISKETTE\\LOAD.BAT, L1.BAT, COLLECT.BAT, C1.BAT   the loader (tools/make-loader.py)
-  DISKETTE\\B01D, B01C, ...                          the programs, flat (what LOAD.BAT copies)
   DISKETTE\\SORG\\INDICE.PRG                         the import index, one 82-byte record per program
   DISKETTE\\SORG\\SRG\\<first char>\\<rest of name>  the programs where the machine keeps them
+  DISKETTE\\LOAD.BAT, GETIDX.BAT, FULLIDX.BAT         registering without Programma Kopie
+                                                    (nesting/register.py)
 
 The SORG tree is the format CNC90 file management (BESTANDEN BEHEER) itself writes on a diskette,
 for Programma Kopie from the floppy to the hard disk: the machine registers a program in
@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import datetime
 import re
-import shutil
 import struct
 from pathlib import Path
 
 NAME = 'DISKETTE'
-LOADER_FILES = ('LOAD.BAT', 'L1.BAT', 'COLLECT.BAT', 'C1.BAT')
+LOADER_FILES = ('LOAD.BAT', 'GETIDX.BAT', 'FULLIDX.BAT')
+FOLDERS = set('79ABCDEFGHIJKLMNOPRSTVWXYZ')   # the SRG folders that exist on the machine
 TAIL = bytes.fromhex('009b97ff0100b000530000a0004e')
 RECORD = 82
 
@@ -61,18 +61,22 @@ def index(programs: dict[str, bytes], date: str) -> bytes:
 
 
 def write_diskette(dest: Path, job: Path, programs: list[str],
-                   today: datetime.date | None = None) -> Path:
-    """Build `dest` (must not exist) from the loader files and flat programs in `job`."""
+                   today: datetime.date | None = None, job_number: int | None = None) -> Path:
+    """Build `dest` (must not exist) from the programs in the job folder `job`: the SORG tree
+    for Programma Kopie, and LOAD.BAT / GETIDX.BAT for registering from DOS."""
+    from .register import fullidx_bat, getidx_bat, load_bat
     date = (today or datetime.date.today()).strftime('%m/%d/%y')
     dest = Path(dest)
     dest.mkdir()
     srcs = {}
     for name in programs:
+        if name.upper()[0] not in FOLDERS:
+            raise ValueError(f'{name}: no SRG folder "{name[0]}" on the machine '
+                             '(folders: 7, 9, A-P, R-Z)')
         srcs[name.upper()] = (Path(job) / name.upper()).read_bytes()
-    for f in LOADER_FILES:
-        shutil.copyfile(Path(job) / f, dest / f)
-    for name, data in srcs.items():
-        (dest / name).write_bytes(data)
+    (dest / 'LOAD.BAT').write_bytes(load_bat(list(srcs), job_number).encode('ascii'))
+    (dest / 'GETIDX.BAT').write_bytes(getidx_bat().encode('ascii'))
+    (dest / 'FULLIDX.BAT').write_bytes(fullidx_bat().encode('ascii'))
     sorg = dest / 'SORG'
     (sorg / 'SRG').mkdir(parents=True)
     (sorg / 'INDICE.PRG').write_bytes(index(srcs, date))

@@ -43,7 +43,7 @@ to the machine and compiled there separately, then run one after the other.
 2. At the DOS prompt: the first character of the name is the folder and the **rest** is the file name:
    `COPY A:\<NAME> C:\CNC90\MOD1\SORG\SRG\<first letter>\<rest of name>` (program `PART` = `SRG\P\ART`).
    **Check first** that it does not exist (`DIR C:\CNC90\MOD1\SORG\SRG\<letter>\<rest>`), or use the loader
-   batch file from `tools/make-loader.py`, which does the split and never overwrites.
+   batch file from `tools/make-loader.py`, which does the split and replaces a program with the same name.
 3. Start CNC90 (`CNC90`), compile the program ("Programma Kompileren"), run it.
 
 ## Machine tests

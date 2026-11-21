@@ -5,8 +5,6 @@ import datetime
 import json
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 from html import escape
 from pathlib import Path
@@ -18,7 +16,6 @@ from .preview import preview_data
 from .program import Program, pass_count
 from .settings import Settings
 
-LOADER = Path(__file__).resolve().parent.parent / 'tools' / 'make-loader.py'
 
 Z_LABELS = [('stack_top', 'Stack height (scrap plate + blank, above the cups)'),
             ('fixing', 'Fixing holes: drill depth below the top of the stack'),
@@ -116,25 +113,25 @@ def _cut_table(panel: dict) -> str:
     return ''.join(rows)
 
 
-def _steps(bid: str, names: set[str], y_toward: str) -> list[str]:
-    d, pk, c = f'{bid}D', f'{bid}P', f'{bid}C'
+def _steps(bid: str, names: dict[str, str], y_toward: str, pockets: bool) -> list[str]:
+    """names: program name per kind ('drill', 'cut') of the blank."""
+    d, c = names.get('drill'), names.get('cut')
     corner = 'back-left' if y_toward == 'front' else 'front-left'
     steps = [f'Lay blank <b>{escape(bid)}</b> on the scrap plate, its origin corner (black dot, '
              f'the {corner} corner) against the X and Y pins, long side along machine X. '
              'Clamp it.']
-    if d in names:
+    if d:
         steps.append(f'Run <b>{escape(d)}</b>, the blank still clamped: every hole of the blank '
                      '(fixing holes through the blank into the scrap, screw holes at the '
                      'shapes\' holes), each with its own tool.')
         steps.append('Screw the blank to the scrap plate through the fixing holes, and each shape '
                      'down through its screw holes.')
     steps.append('Take the clamps off.')
-    if pk in names:
-        steps.append(f'Run <b>{escape(pk)}</b> (cuts the pockets into the shapes, from the top '
-                     'face of the blank).')
-    if c in names:
-        steps.append(f'Run <b>{escape(c)}</b> (cuts the shape outlines out of the blank; the '
-                     'blank\'s frame is not cut).')
+    if c:
+        what = ('first the pockets, into the shapes from the top face of the blank; then the '
+                'shape outlines, out of the blank' if pockets
+                else 'the shape outlines out of the blank')
+        steps.append(f'Run <b>{escape(c)}</b>: it cuts {what}. The blank\'s frame is not cut.')
     steps.append('Unscrew the shapes and the frame; the frame is left over. Next blank.')
     return steps
 
@@ -185,6 +182,8 @@ def _drill_table(b: dict) -> str:
 
 def _runsheet(data: dict, project: dict) -> str:
     title = str(project.get('name') or 'Run sheet')
+    if project.get('job'):
+        title += f', Job {project["job"]:03d}'
     fr = data['frame']
     parts = ['<!DOCTYPE html>', '<html lang="en"><head><meta charset="utf-8">',
              f'<title>{escape(title)}</title>', f'<style>{CSS}</style></head><body>',
@@ -217,13 +216,15 @@ def _runsheet(data: dict, project: dict) -> str:
     yt = data['y_toward']
     groups = {g['id']: g for g in data.get('pocket_groups', [])}
     for b in data['blanks']:
-        names = {p['name'] for p in b['programs']}
+        names = {p['kind']: p['name'] for p in b['programs']}
+        pockets = any(groups.get(pk['group'], {}).get('enabled')
+                      for s in b['shapes'] for pk in s.get('pockets', []))
         parts.append(f'<section><h2>Blank {escape(b["id"])} (from panel {escape(b["panel"])}), '
                      f'{_g(b["width"])} x {_g(b["height"])} mm</h2>')
         parts.append(f'<p>Program coordinates: {escape(ORIGIN[yt])}. Drawing seen from above, '
                      'operator at the bottom. Not yet verified on the machine.</p>')
         parts.append(_blank_svg(b, yt, {g for g, v in groups.items() if v['enabled']}))
-        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt))
+        parts.append('<ol>' + ''.join(f'<li>{s}</li>' for s in _steps(b['id'], names, yt, pockets))
                      + '</ol>')
         parts.append('<table><tr><th>Program</th><th>Tools</th><th>Description</th></tr>')
         for p in b['programs']:
@@ -247,7 +248,8 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
                  pocket_overrides: dict | None = None,
                  groups: list | None = None) -> list[Path]:
     """Write the job folder `out_dir` (all or nothing). Returns its entries: the program files,
-    loader, PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py).
+    PROJECT.json, RUNSHEET.html and the DISKETTE folder (see nesting/importdisk.py), which holds
+    the loader.
     groups: the project's pocket groups, as given to plan_programs (see preview_data)."""
     out_dir = Path(out_dir)
     if out_dir.exists():
@@ -257,17 +259,10 @@ def write_output(out_dir: Path, plan: Plan, programs: list[Program], settings: S
     # build everything beside out_dir, publish with one rename as the last step
     stage = Path(tempfile.mkdtemp(dir=out_dir.parent, prefix='.' + out_dir.name + '-'))
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            staged = []
-            for p in programs:
-                path = Path(tmp) / p.name
-                path.write_bytes(emit(p, settings).encode('ascii'))
-                staged.append(str(path))
-            r = subprocess.run([sys.executable, str(LOADER), str(stage), *staged],
-                               capture_output=True, text=True)
-        if r.returncode != 0:
-            raise RuntimeError(f'make-loader.py failed ({r.returncode}): {r.stderr.strip()}')
-        write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today)
+        for p in programs:
+            (stage / p.name).write_bytes(emit(p, settings).encode('ascii'))
+        write_diskette(stage / DISKETTE, stage, [p.name for p in programs], today,
+                       project.get('job'))
         data = preview_data(plan, programs, settings, pocket_overrides, groups)
         (stage / 'PROJECT.json').write_text(
             json.dumps({'settings': settings.to_dict(), 'tools': settings.tools.to_dict(),

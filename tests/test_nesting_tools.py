@@ -192,6 +192,40 @@ class Table(unittest.TestCase):
         self.assertEqual(t.new_id(), 'b1')
 
 
+class ZCorrections(unittest.TestCase):
+    """Per head: how much deeper the head really cuts than written (CNC90 keeps its own
+    CORREC.Z per tool number; T66 cut 3.5 mm deeper on 2026-11-20)."""
+
+    def test_round_trip_and_only_non_zero_stored(self):
+        t = ToolTable.default()
+        self.assertEqual(t.z_corrections, {})
+        self.assertNotIn('z_corrections', t.to_dict())         # old snapshots stay the same
+        d = t.to_dict()
+        d['z_corrections'] = {'T66': 3.5, 'T1': 0}
+        t2 = ToolTable.from_dict(d)
+        self.assertEqual(t2.z_corrections, {66: 3.5})
+        self.assertEqual(t2.to_dict()['z_corrections'], {'T66': 3.5})
+        self.assertEqual(t2.z_correction(66), 3.5)
+        self.assertEqual(t2.z_correction(1), 0)
+
+    def test_bad_values_are_refused(self):
+        for key, value, what in (('T99', 1, 'not a machine head'), ('T66', 'x', 'number'),
+                                 ('T66', float('nan'), 'number'), ('T66', 60, '50'),
+                                 ('T66', True, 'number')):
+            d = ToolTable.default().to_dict()
+            d['z_corrections'] = {key: value}
+            with self.subTest(key=key, value=value), self.assertRaises(SettingsError) as e:
+                ToolTable.from_dict(d).validate()
+            self.assertIn(what, e.exception.message)
+            self.assertTrue(e.exception.field.startswith('tools.z_corrections'))
+
+    def test_must_be_an_object(self):
+        d = ToolTable.default().to_dict()
+        d['z_corrections'] = [3.5]
+        with self.assertRaises(SettingsError):
+            ToolTable.from_dict(d)
+
+
 class Migrate(unittest.TestCase):
     def test_old_defaults_give_the_default_table(self):
         t, notes, ignored = migrate({}, {})

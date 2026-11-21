@@ -8,7 +8,8 @@ machine the FIRST character of the program name is the folder under C:\\CNC90\\M
 REST is the file name (index entry ZEL1 = SRG\\Z\\EL1, 9JACOBS05 = SRG\\9\\JACOBS05). The programs are
 copied into OUT_DIR together with:
 
-  LOAD.BAT     copies every program to its folder; never overwrites; says what it did   (+ L1.BAT)
+  LOAD.BAT     copies every program to its folder, replacing one with the same name;
+               says what it did                                                         (+ L1.BAT)
   COLLECT.BAT  after compiling in CNC90: copies the generated TAB / NOC / SPC files and
                INDICE.PRG to A:\\OUT\\                                                    (+ C1.BAT)
 
@@ -60,7 +61,7 @@ def main(argv):
     write(out / 'LOAD.BAT', [
         '@ECHO OFF',
         f'REM Copies the programs on this diskette into {SRG}, folder = first letter, file = rest of name.',
-        'REM Writes only NEW files: an existing program is never overwritten.',
+        'REM A program with the same name on the machine is REPLACED.',
         f'ECHO {len(pairs)} programs to SRG folders (first letter = folder). Ctrl+C to stop, any other key to copy.',
         'PAUSE > NUL',
         *[f'CALL A:\\L1.BAT {f} {r} {p.name.upper()}' for p, f, r in pairs],
@@ -71,12 +72,9 @@ def main(argv):
         '@ECHO OFF',
         'REM %1 = SRG folder, %2 = file name on the machine, %3 = file on this diskette',
         f'IF NOT EXIST {SRG}\\%1\\NUL GOTO NODIR',
-        f'IF EXIST {SRG}\\%1\\%2 GOTO TAKEN',
-        f'COPY A:\\%3 {SRG}\\%1\\%2 > NUL',
+        f'IF EXIST {SRG}\\%1\\%2 ECHO %3: replaces SRG\\%1\\%2',
+        f'COPY A:\\%3 {SRG}\\%1\\%2 > NUL',   # in a batch file COPY overwrites without asking
         'ECHO %3 copied to SRG\\%1\\%2',
-        'GOTO END',
-        ':TAKEN',
-        'ECHO %3: SRG\\%1\\%2 ALREADY EXISTS - not copied',
         'GOTO END',
         ':NODIR',
         'ECHO %3: no folder SRG\\%1 - not copied',

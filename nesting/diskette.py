@@ -17,6 +17,14 @@ Safety, in this order:
     --keep erases nothing and only adds or overwrites our files (also after YES when it overwrites
     something: SORG\\INDICE.PRG then replaces the index on the diskette).
   - every file is read back and compared after writing.
+  - macOS, on a mounted diskette (seen 2026-11-20): mounting wrote macOS's event log id over a
+    program, deleting files left lost clusters, and files get AppleDouble ._ companions. So:
+    after the erase .fseventsd/no_log goes on the diskette and diskutil repairVolume frees the
+    lost clusters (its remount makes no_log count); with --keep the diskette is checked
+    read-only first instead (diskutil verifyVolume). ._ files are removed after writing and
+    another repair frees what that leaked; then a last read-only check remounts the diskette
+    and every file is compared again from the diskette itself; any difference or ._ file
+    refuses it.
 """
 from __future__ import annotations
 
@@ -25,10 +33,13 @@ import os
 import re
 import shutil
 import string
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .importdisk import NAME, size_warning
+from .register import records
 
 REPO = Path(__file__).resolve().parent.parent
 DRIVE_REMOVABLE = 2
@@ -59,6 +70,27 @@ def windows_removable_drives() -> list[str]:
             if mask >> i & 1 and windows_drive_type(f'{c}:\\') == DRIVE_REMOVABLE]
 
 
+def mac_remount(target: Path, repair: bool = False) -> None:
+    """Check the diskette's file system (read-only, or repairing it); diskutil unmounts it for
+    that and mounts it again, so what is read afterwards comes from the diskette, not from the
+    cache."""
+    verb = 'repairVolume' if repair else 'verifyVolume'
+    r = subprocess.run(['diskutil', verb, str(target)], capture_output=True, text=True)
+    for _ in range(100):                      # wait for the remount, at most 10 s
+        if os.path.ismount(target):
+            break
+        time.sleep(0.1)
+    if r.returncode != 0:
+        tail = '\n'.join((r.stdout + r.stderr).strip().splitlines()[-6:])
+        what = 'repair' if repair else 'file system check'
+        raise Refused(f'the {what} of the diskette failed:\n{tail}\n'
+                      + ('Use another diskette.' if repair else
+                         f'Repair it (diskutil repairVolume {target}) or use another diskette.'))
+    if not os.path.ismount(target):
+        raise Refused(f'{target} did not come back after the check. Mount the diskette again '
+                      'and run this again.')
+
+
 def disk_total(path: Path) -> int:
     return shutil.disk_usage(path).total
 
@@ -67,8 +99,10 @@ class System:
     """What the copy needs from the computer. Tests replace the parts they fake."""
 
     def __init__(self, windows: bool | None = None, drive_type=None, removable_drives=None,
-                 total=None, is_mount=None, ask=None, say=None):
+                 total=None, is_mount=None, ask=None, say=None, mac=None, remount=None):
         self.windows = os.name == 'nt' if windows is None else windows
+        self.mac = sys.platform == 'darwin' if mac is None else mac
+        self.remount = remount or mac_remount
         self.drive_type = drive_type or windows_drive_type
         self.removable_drives = removable_drives or windows_removable_drives
         self.total = total or disk_total
@@ -171,14 +205,21 @@ def pick_drive(system: System) -> str:
 
 
 # --- the copy -----------------------------------------------------------------------------------
+def remove(p: Path) -> None:
+    """Delete a file or a folder tree. macOS deletes ._X itself when X goes, so an entry that
+    was listed can be gone already: that is fine (shutil.rmtree stops on it)."""
+    if p.is_dir() and not p.is_symlink():
+        for child in list(p.iterdir()):
+            remove(child)
+        p.rmdir()
+    else:
+        p.unlink(missing_ok=True)
+
+
 def erase(target: Path) -> None:
-    for p in target.iterdir():
-        if p.name.lower() in SKIP:
-            continue
-        if p.is_dir() and not p.is_symlink():
-            shutil.rmtree(p)
-        else:
-            p.unlink()
+    for p in list(target.iterdir()):
+        if p.name.lower() not in SKIP:
+            remove(p)
 
 
 def write_and_verify(src: Path, target: Path, files: list[Path]) -> None:
@@ -195,9 +236,69 @@ def write_and_verify(src: Path, target: Path, files: list[Path]) -> None:
         raise Refused('Read back differs for: ' + ', '.join(bad) + '. Do not use this diskette.')
 
 
+def appledouble(target: Path) -> list[Path]:
+    """The ._ files macOS keeps next to files with extended attributes (junk under DOS)."""
+    return [p for p in files_in(target) if p.name.startswith('._')]
+
+
+def no_log(target: Path) -> bool:
+    """Put .fseventsd/no_log on the diskette so macOS keeps no event log on it from its next
+    mount on. True when it was not there yet."""
+    flag = target / '.fseventsd' / 'no_log'
+    if flag.is_file():
+        return False
+    flag.parent.mkdir(exist_ok=True)
+    with open(flag, 'wb') as f:
+        os.fsync(f.fileno())
+    return True
+
+
+def check_after_remount(src: Path, target: Path, files: list[Path]) -> None:
+    bad = [str(rel) for rel in files if not (target / rel).is_file()
+           or (target / rel).read_bytes() != (src / rel).read_bytes()]
+    junk = [str(p) for p in appledouble(target)]
+    found = []
+    if bad:
+        found.append('differs: ' + ', '.join(bad))
+    if junk:
+        found.append('macOS files: ' + ', '.join(junk))
+    if found:
+        raise Refused('After a remount: ' + '; '.join(found) + '. Do not use this diskette.')
+
+
+def keep_machine_list(target: Path, job: Path, system: System) -> None:
+    """A:\\REG\\NOW.PRG on the diskette in the drive (written by GETIDX.BAT): the machine's
+    program list, kept in the project's machine-index folder before the diskette is erased, as
+    a backup of the full list on the Mac. One that is not a program list is not kept."""
+    now = target / 'REG' / 'NOW.PRG'
+    if not now.is_file():
+        return
+    data = now.read_bytes()
+    try:
+        n = len(records(data, str(now)))
+    except ValueError as e:
+        system.say(f'WARNING: {e}. Not kept.')
+        return
+    kept = job.parent.parent / 'machine-index' if job.parent.name == 'out' else None
+    if kept is None:
+        system.say(f'Program list of the machine on the diskette ({n} programs): not kept '
+                   '(the job is not in a project\'s out folder).')
+        return
+    kept.mkdir(exist_ok=True)
+    copy = kept / time.strftime('INDICE-%Y%m%d-%H%M%S.PRG')
+    copy.write_bytes(data)
+    system.say(f'Program list of the machine ({n} programs) kept as {copy}')
+
+
 def run(args, system: System) -> int:
     src = source_folder(args.out_folder)
     job = src.parent
+    target = target_folder(args.drive or pick_drive(system), job, system, args.force_size)
+    keep_machine_list(target, job, system)
+    return _write(args, system, src, job, target)
+
+
+def _write(args, system: System, src: Path, job: Path, target: Path) -> int:
     files = files_in(src)
     size = sum((src / f).stat().st_size for f in files)
     system.say(f'Job:        {job}')
@@ -205,7 +306,10 @@ def run(args, system: System) -> int:
     warn = size_warning(src)
     if warn:
         system.say('WARNING: ' + warn)
-    target = target_folder(args.drive or pick_drive(system), job, system, args.force_size)
+    mac_disk = system.mac and system.is_mount(target)
+    if mac_disk and args.keep:              # what stays on it must be sound
+        system.say('Checking the diskette (macOS unmounts and mounts it for that) ...')
+        system.remount(target)
     there = files_in(target)
     system.say(f'On {target} now: {len(there)} files')
     if args.keep:
@@ -220,8 +324,28 @@ def run(args, system: System) -> int:
                       ).strip() != 'YES':
             raise Refused('Not confirmed: nothing erased or written.')
         erase(target)
+    if mac_disk and not args.keep:
+        # deleting on the diskette under macOS leaves lost clusters: free them; the remount
+        # also makes no_log count
+        no_log(target)
+        system.say('Repairing the diskette after erasing (macOS unmounts and mounts it) ...')
+        system.remount(target, repair=True)
+    elif mac_disk and no_log(target):
+        system.remount(target)              # no_log counts from the next mount on
     write_and_verify(src, target, files)
-    system.say(f'OK: {len(files)} files written to {target} and read back identical.')
+    if mac_disk:
+        for p in appledouble(target):
+            (target / p).unlink(missing_ok=True)
+        # those deletes leak clusters too: free them, then check read-only from a fresh mount
+        system.say('Repairing the diskette after writing ...')
+        system.remount(target, repair=True)
+        system.say('Checking the diskette again after a remount ...')
+        system.remount(target)
+        check_after_remount(src, target, files)
+        system.say(f'OK: {len(files)} files written to {target}, file system checked and every '
+                   'file read back identical after a remount.')
+    else:
+        system.say(f'OK: {len(files)} files written to {target} and read back identical.')
     system.say('Eject the diskette safely before you take it out (Windows: in Explorer, '
                'right-click the drive, Eject; then wait until the drive light is off).')
     return 0

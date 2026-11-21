@@ -217,7 +217,7 @@ tr.flash td{background:#fff4e0}
 
   <h2 id="pockets">Pockets</h2>
   <div id="pocketFields"></div>
-  <p class="note">Defaults for every pocket group; all placeholders until measured. The bit in the head sets the Ø, speed, feeds, depth per pass and stepover (Tools page). Depth is measured from the top of the blank. Pockets are cut by the blank's <code>B..P</code> program, after the screws and before the cut.</p>
+  <p class="note">Defaults for every pocket group; all placeholders until measured. The bit in the head sets the Ø, speed, feeds, depth per pass and stepover (Tools page). Depth is measured from the top of the blank. Pockets are cut first in the blank's cut program <code>B..C</code>, after the screws and before the outlines.</p>
   <div id="pocketGroups"></div>
 
   <h2>Drills</h2>
@@ -249,7 +249,7 @@ tr.flash td{background:#fff4e0}
   </div>
   <div class="tbox">
     <h2>Toolheads</h2>
-    <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings.</p>
+    <p class="note">The machine's heads (fixed list, names from its tool table, not verified on the machine). Each head holds one bit or nothing; a bit may sit in several heads. The router, pockets and drills pick a head in the Plan page's settings. <b>Z corr.</b>: how much deeper a head really cuts than written, in mm (measured with a test cut); every operation on that head is written that much shallower. CNC90's own tool table (CORREC.Z) stays untouched. T66 cut 3.5 mm deeper on 2026-11-20.</p>
     <div id="headMap"></div>
     <p class="note">Where each head sits, from the control's own spindle table (PARTEC1.PAR on the backup, millimetres from T1), seen from above as you stand in front of the machine: left to right the drill cross, T65, T66 and the X blade, as on the machine. +X to the right and +Y toward the front, as in the programs; that the table's Y runs toward the front like this is not checked. Blades are drawn at their diameter along the cut they make (X blade along X, Y blade along Y). Each head shows its number and the Ø of the bit in it; dashed: no bit. Click a head to pick its bit below. Not checked on the machine: run ZZT4D (post/machine-tests) to confirm which spindle is which.</p>
     <table id="headsTable"></table>
@@ -267,10 +267,10 @@ tr.flash td{background:#fff4e0}
     <ol>
       <li>Print <code>RUNSHEET.html</code> from the folder: saw cut list per panel, then per blank its drawing, steps and depths.</li>
       <li>Write the folder's <code>DISKETTE</code> folder to an empty diskette (Windows: <code>copy-to-diskette.bat</code>).</li>
-      <li>CNC90 file management: Programma Kopie from the diskette (the <code>SORG</code> tree registers the programs). If they do not appear in the compiler list: DOS <code>A:LOAD</code> (copies each program to <code>SRG\&lt;letter&gt;\…</code>, never overwrites), then register each program, open and save it once in the editor.</li>
+      <li>At the DOS prompt (CNC90 closed): <code>A:LOAD</code> copies the programs and makes CNC90 list only this job (the full list is kept once as <code>INDICE.ALL</code>; <code>A:FULLIDX</code> puts it back). If it stops with a message, nothing was changed: use Programma Kopie in CNC90 file management. <code>A:GETIDX</code> copies the program list to the diskette as a backup for the Mac.</li>
       <li>Compile. Check every program in the simulator; run the first blank in the air, then on scrap.</li>
       <li>Saw each panel into blanks as the cut list says.</li>
-      <li>Per blank: lay it on the scrap, its origin corner (black dot on the run sheet) against the pins, clamp it → run <code>BnnD</code> (all holes, still clamped) → screw the blank down through the fixing holes and each shape through its screw holes → take the clamps off → run <code>BnnC</code> (cut the shapes out) → unscrew.</li>
+      <li>Per blank: lay it on the scrap, its origin corner (black dot on the run sheet) against the pins, clamp it → run <code>BnnD</code> (all holes, still clamped) → screw the blank down through the fixing holes and each shape through its screw holes → take the clamps off → run <code>BnnC</code> (pockets first, then cut the shapes out) → unscrew.</li>
       <li>Optional: <code>A:COLLECT</code> copies the compiler output to <code>A:\OUT\</code>.</li>
     </ol>
   </div>
@@ -315,6 +315,7 @@ const FIELDS = {
   routerFields: [
     ['router.tool', 'Router head', ROUTER_HEADS, 0, 'head'],
     ['router.clearance', 'Clearance between cuts', 'mm'],
+    ['router.end_lift', 'Lift above the blank at the end of a cut program', 'mm', 1],
     ['router.direction', 'Direction', [['ccw', 'Counter-clockwise'], ['cw', 'Clockwise']]]],
   pocketFields: [
     ['pockets.min_circle_diameter', 'A circle over this Ø is a pocket (else a hole)', 'mm', 0.5],
@@ -426,9 +427,12 @@ function showFieldError(err){
   let box = document.querySelector(`.ferr[data-err="${CSS.escape(err.field)}"]`), msg = err.message;
   // tools.bits.<id>.<field> and tools.heads.T<n>: the message goes under the bit's or head's
   // row; any other tools field under the tables
-  const t = /^tools\.(bits|heads)\.([^.]+)(?:\.(.+))?$/.exec(err.field || '');
+  const t = /^tools\.(bits|heads|z_corrections)\.([^.]+)(?:\.(.+))?$/.exec(err.field || '');
   if (!box && t){
-    box = document.querySelector(`.ferr[data-err="${CSS.escape(`tools.${t[1]}.${t[2]}`)}"]`);
+    // a head's Z correction: under the head's row
+    const where = t[1] === 'z_corrections' ? 'heads' : t[1];
+    box = document.querySelector(`.ferr[data-err="${CSS.escape(`tools.${where}.${t[2]}`)}"]`);
+    if (t[1] === 'z_corrections') msg = `Z correction: ${msg}`;
     if (t[3]) msg = `${t[3]}: ${msg}`;
   }
   if (!box && /^tools(\.|$)/.test(err.field || '')){
@@ -795,7 +799,8 @@ const usesHead = n => n === 65 || n === 66 || (n >= 1 && n <= 14);
 function renderHeads(ok){
   const tbl = $('headsTable');
   headRows = [];
-  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Head'), el('th', {}, 'Where'), el('th', {}, 'Bit'), el('th', {}, 'Used by'))));
+  tbl.replaceChildren(el('thead', {}, el('tr', {}, el('th', {}, 'Head'), el('th', {}, 'Where'), el('th', {}, 'Bit'),
+    el('th', {className: 'num', title: 'How much deeper this head really cuts than written, in mm: every operation on it is written that much shallower'}, 'Z corr. mm'), el('th', {}, 'Used by'))));
   if (!ok) return;
   const body = el('tbody');
   const known = new Set(headList.map(h => 'T' + h.number));
@@ -811,9 +816,23 @@ function renderHeads(ok){
     });
     const used = el('td', {className: 'used'});
     const err = el('div', {className: 'ferr'}); err.dataset.err = `tools.heads.${h.key}`;
+    // Z correction: mm this head cuts deeper than written (0 or empty: none, not stored)
+    const corr = el('input', {type: 'number', step: '0.1', className: 'num', style: 'width:5.5em'});
+    corr.id = `zcorr-${h.key}`;
+    corr.dataset.k = `tools.z_corrections.${h.key}`;
+    const zc = isPlainObject(project.tools.z_corrections) ? project.tools.z_corrections : {};
+    corr.value = zc[h.key] == null ? '' : String(zc[h.key]);
+    corr.addEventListener('change', () => {
+      const v = corr.value.trim() === '' ? 0 : Number(corr.value);
+      const map = isPlainObject(project.tools.z_corrections) ? project.tools.z_corrections : {};
+      if (v === 0) delete map[h.key]; else map[h.key] = Number.isFinite(v) ? v : corr.value;
+      if (Object.keys(map).length) project.tools.z_corrections = map; else delete project.tools.z_corrections;
+      changed();
+    });
     body.append(el('tr', {}, el('td', {}, el('b', {}, h.key)),
-      el('td', {}, h.allows.length ? `${h.label} (${h.allows.join(' or ')} bits)` : h.label), el('td', {}, sel), used),
-      el('tr', {className: 'erow'}, el('td', {colSpan: 4}, err)));
+      el('td', {}, h.allows.length ? `${h.label} (${h.allows.join(' or ')} bits)` : h.label), el('td', {}, sel),
+      el('td', {className: 'num'}, corr), used),
+      el('tr', {className: 'erow'}, el('td', {colSpan: 5}, err)));
     headRows.push({h, sel, used});
   });
   tbl.append(body);
@@ -1189,7 +1208,7 @@ function renderZ(){
 }
 
 // ---- programs and the real program text ------------------------------------------------------
-const VIEW_OF = {drill: 'drill', cut: 'cut', pocket: 'cut'};   // the cut view also draws the pocket rings
+const VIEW_OF = {drill: 'drill', cut: 'cut'};   // the cut view also draws the pocket rings
 function renderProgs(){
   const p = blankAt(), tbl = $('progs');
   $('pname').textContent = p ? p.id : '—';
@@ -1244,7 +1263,7 @@ document.querySelectorAll('#views span').forEach(e => e.addEventListener('click'
 function renderAll(){ if (!plan) return; syncView(); renderTabs(); renderPanel(); renderSel(); renderZ(); renderProgs(); renderProblems(); if (project) renderGroups(); }
 
 // ---- generate --------------------------------------------------------------------------------
-const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, never overwrites',
+const NOTES = {'LOAD.BAT': 'copies every program to its SRG folder, replaces one with the same name',
   'L1.BAT': 'helper for LOAD.BAT', 'COLLECT.BAT': 'after compiling: copies the compiler output to A:\\OUT\\',
   'C1.BAT': 'helper for COLLECT.BAT', 'DISKETTE': 'exactly what goes on the diskette', 'PROJECT.json': 'all settings and shapes of this job', 'RUNSHEET.html': 'printable run sheet'};
 $('gen').addEventListener('click', async () => {
