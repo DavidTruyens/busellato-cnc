@@ -65,6 +65,11 @@ def emit(program: Program, settings: Settings) -> str:
             body.append(f'G81G90{origin}P5{tool}{_xy((op.x, op.y))}Z{fmt(op.depth)}')
         else:
             body += _contour(op, program, tool, origin, y_flipped(settings))
+    lift = settings.router.end_lift
+    if lift and program.ops and isinstance(program.ops[-1], ContourOp):
+        # straight up from the last point to above the blank before M2 (the machine's own
+        # programs use a negative Z for above the top too)
+        body.append(f'G1G90{_xy(program.ops[-1].segs[-1].b)}Z{fmt(-lift)}')
     body.append('M2')
     n = len(body) + 1
     x, y, z = program.stock

@@ -23,7 +23,7 @@ COMMENT = re.compile(r"G150\([ !-'*-~]{0,30}\)$")
 POST_LINE = {
     'G81': re.compile(rf'G81G90G5[45]P5T01\d\dX{N}Y{N}Z({D})$'),
     'G88': re.compile(rf'G88G90G5[45]P5T01\d\d(?:S\d+)?F{D}X{N}Y{N}Z({D})$'),
-    'G1': re.compile(rf'G1G90(?:F{D})?X{N}Y{N}Z({D})$'),
+    'G1': re.compile(rf'G1G90(?:F{D})?X{N}Y{N}Z({N})$'),   # negative Z: above the top (a lift)
     'G2': re.compile(rf'G2G90G17X{N}Y{N}U{D}$'),
     'G3': re.compile(rf'G3G90G17X{N}Y{N}U{D}$'),
 }

@@ -235,6 +235,51 @@ def check(test, programs, settings):
     test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
 
+class EndLiftTests(unittest.TestCase):
+    """router.end_lift: a cut program ends by lifting straight up from its last point to that
+    many mm above the top of the blank, before M2 (2026-11-20: at M2 the machine moved Y home
+    with the bit still in the groove: Y emergency, three times)."""
+
+    def prog(self):
+        op = ContourOp(zzt1_segs(), 2, 'x')
+        return Program('ZZT1', 65, 'cut', '', (400, 300, 18), [op], 18000, 1, 3)
+
+    def test_lift_before_m2_at_the_last_point(self):
+        s = unmirrored()
+        s.router.end_lift = 20
+        lines = emit(self.prog(), s).split('\r\n')
+        self.assertEqual(lines[-2], 'M2')
+        last = self.prog().ops[-1].segs[-1].b
+        self.assertEqual(lines[-3], f'G1G90X{fmt(last[0])}Y{fmt(last[1])}Z-20')
+        m = re.match(r'G71X400Y300Z18T00N(\d+)L(\d+)$', lines[0])
+        self.assertEqual(int(m.group(1)), len(lines) - 1)
+
+    def test_no_lift_by_default_and_none_for_drilling(self):
+        s = unmirrored()
+        self.assertEqual(emit(self.prog(), s), golden('ZZT1'))
+        s.router.end_lift = 20
+        p = Program('ZZT1AD', 1, 'drill', '', (400, 300, 60), [DrillOp(320, 220, 2, 6)], None, 1, 1)
+        self.assertNotIn('Z-', emit(p, s))
+
+    def test_checker_accepts_the_lift(self):
+        s = unmirrored()
+        s.router.end_lift = 20
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'ZZT1'
+            path.write_bytes(emit(self.prog(), s).encode('ascii'))
+            r = subprocess.run([sys.executable, str(repo / 'tools' / 'check_cnc90.py'), str(path)],
+                               capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_setting_is_a_number_not_negative(self):
+        from nesting.settings import SettingsError
+        for bad in (-1, float('nan'), 'x'):
+            s = Settings()
+            s.router.end_lift = bad
+            with self.subTest(bad=bad), self.assertRaises(SettingsError):
+                s.validate()
+
+
 class PocketEmitTests(unittest.TestCase):
     def setUp(self):
         self.s = unmirrored()
